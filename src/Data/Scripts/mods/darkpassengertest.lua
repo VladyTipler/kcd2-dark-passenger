@@ -1057,6 +1057,260 @@ function DarkPassengerTest.ClearHudObjectiveMarker()
     System.LogAlways("[DarkPassenger] HUD objective marker probe cleared.")
 end
 
+DarkPassengerAftermathProbe = DarkPassengerAftermathProbe or {}
+
+DarkPassengerAftermathProbe.CRIME_CONTEXTS = {
+    "crime_interrupt",
+    "crime_interruptScan",
+    "crime_nrbLevel_searching",
+    "crime_escalationLevel_looking",
+    "crime_preventDespawn",
+    "crime_greyOutEAndDisableChat",
+    "crime_greyOutGrabBody",
+}
+
+DarkPassengerAftermathProbe.CRIME_LINKS = {
+    "crime_npcCooldowns",
+    "crime_districtOrigin",
+    "crimeScene",
+}
+
+local function AftermathProbeLog(message)
+    System.LogAlways("[DarkPassenger][AftermathProbe] " .. tostring(message))
+end
+
+local function ProbeMethod(owner, methodName)
+    return owner ~= nil and type(owner[methodName]) == "function"
+end
+
+local function ProbeEntityName(entity)
+    if entity == nil then return "nil" end
+    local ok, value = pcall(function()
+        if EntityUtils ~= nil and EntityUtils.GetName ~= nil then
+            return EntityUtils.GetName(entity)
+        end
+        return entity:GetName()
+    end)
+    if ok and value ~= nil then return tostring(value) end
+    return "?"
+end
+
+local function ProbeEntityPosition(entity)
+    if entity == nil then return nil end
+    local ok, value = pcall(function() return entity:GetWorldPos() end)
+    if ok then return value end
+    return nil
+end
+
+local function ProbeEntityDead(entity)
+    if entity == nil or entity.actor == nil or
+       not ProbeMethod(entity.actor, "IsDead") then
+        return nil
+    end
+    local ok, value = pcall(function() return entity.actor:IsDead() end)
+    if ok then return value end
+    return nil
+end
+
+local function ProbeSoulContext(entity, context)
+    if entity == nil or entity.soul == nil or
+       not ProbeMethod(entity.soul, "HasScriptContext") then
+        return nil
+    end
+    local ok, value = pcall(function()
+        return entity.soul:HasScriptContext(context)
+    end)
+    if ok then return value end
+    return nil
+end
+
+local function ProbeDistanceSquared(left, right)
+    if left == nil or right == nil then return nil end
+    local dx = (left.x or 0) - (right.x or 0)
+    local dy = (left.y or 0) - (right.y or 0)
+    local dz = (left.z or 0) - (right.z or 0)
+    return dx * dx + dy * dy + dz * dz
+end
+
+local function ProbeCurrentCase()
+    if not CaseReady() then return nil end
+    return DarkPassengerCase.GetCurrent()
+end
+
+function DarkPassengerAftermathProbe.Status()
+    local currentCase = ProbeCurrentCase()
+    AftermathProbeLog(
+        "status case=" .. tostring(currentCase ~= nil) ..
+        " state=" .. tostring(currentCase and currentCase.state) ..
+        " region=" .. tostring(currentCase and currentCase.game_region) ..
+        " settlement=" .. tostring(currentCase and currentCase.settlement) ..
+        " target_id=" .. tostring(currentCase and currentCase.target_id)
+    )
+    AftermathProbeLog(
+        "bindings entitiesInSphere=" ..
+        tostring(ProbeMethod(System, "GetEntitiesInSphere")) ..
+        " entityWorldPos=" ..
+        tostring(g_localActor ~= nil and ProbeMethod(g_localActor, "GetWorldPos")) ..
+        " soulContext=" ..
+        tostring(g_localActor ~= nil and g_localActor.soul ~= nil and
+            ProbeMethod(g_localActor.soul, "HasScriptContext")) ..
+        " aiHostile=" .. tostring(ProbeMethod(AI, "Hostile")) ..
+        " aiPersonallyHostile=" ..
+        tostring(ProbeMethod(AI, "IsPersonallyHostile")) ..
+        " findLinks=" .. tostring(ProbeMethod(XGenAIModule, "FindLinks"))
+    )
+end
+
+function DarkPassengerAftermathProbe.Nearby(argsLine)
+    if g_localActor == nil then
+        AftermathProbeLog("nearby unavailable: player=nil")
+        return
+    end
+
+    local radius = tonumber((SplitArgs(argsLine or "")[1])) or 30
+    radius = math.max(1, math.min(radius, 200))
+    local origin = ProbeEntityPosition(g_localActor)
+    if origin == nil then
+        AftermathProbeLog("nearby unavailable: player position=nil")
+        return
+    end
+
+    local ok, entities = pcall(function()
+        return System.GetEntitiesInSphere(origin, radius)
+    end)
+    if not ok or entities == nil then
+        AftermathProbeLog("nearby failed: " .. tostring(entities))
+        return
+    end
+
+    local rows = {}
+    for _, entity in pairs(entities) do
+        if entity ~= nil and entity.id ~= nil and
+           entity.id ~= g_localActor.id and entity.soul ~= nil then
+            local position = ProbeEntityPosition(entity)
+            local distanceSquared = ProbeDistanceSquared(origin, position)
+            local contexts = {}
+            for _, context in ipairs(DarkPassengerAftermathProbe.CRIME_CONTEXTS) do
+                if ProbeSoulContext(entity, context) == true then
+                    table.insert(contexts, context)
+                end
+            end
+            table.insert(rows, {
+                entity = entity,
+                distanceSquared = distanceSquared or math.huge,
+                contexts = contexts,
+            })
+        end
+    end
+
+    table.sort(rows, function(left, right)
+        return left.distanceSquared < right.distanceSquared
+    end)
+
+    AftermathProbeLog(
+        "nearby radius=" .. tostring(radius) ..
+        " npc_count=" .. tostring(#rows)
+    )
+    for index, row in ipairs(rows) do
+        if index > 40 then
+            AftermathProbeLog("nearby output truncated at 40 NPCs")
+            break
+        end
+        AftermathProbeLog(
+            "npc name=" .. ProbeEntityName(row.entity) ..
+            " id=" .. tostring(row.entity.id) ..
+            " distance=" .. string.format("%.1f", math.sqrt(row.distanceSquared)) ..
+            " dead=" .. tostring(ProbeEntityDead(row.entity)) ..
+            " contexts=" .. table.concat(row.contexts, ",")
+        )
+    end
+end
+
+function DarkPassengerAftermathProbe.Crime(argsLine)
+    local radius = tonumber((SplitArgs(argsLine or "")[1])) or 40
+    radius = math.max(1, math.min(radius, 200))
+    AftermathProbeLog(
+        "crime globals Crime=" .. tostring(type(Crime)) ..
+        " Game=" .. tostring(type(Game)) ..
+        " GameRules=" .. tostring(type(GameRules)) ..
+        " g_gameRules=" .. tostring(type(g_gameRules))
+    )
+
+    if g_localActor ~= nil then
+        for _, context in ipairs(DarkPassengerAftermathProbe.CRIME_CONTEXTS) do
+            AftermathProbeLog(
+                "player context=" .. context ..
+                " value=" .. tostring(ProbeSoulContext(g_localActor, context))
+            )
+        end
+
+        if ProbeMethod(XGenAIModule, "FindLinks") then
+            for _, tag in ipairs(DarkPassengerAftermathProbe.CRIME_LINKS) do
+                local ok, links = pcall(function()
+                    return XGenAIModule.FindLinks(g_localActor.id, tag)
+                end)
+                local count = ok and type(links) == "table" and #links or nil
+                AftermathProbeLog(
+                    "player links tag=" .. tag ..
+                    " ok=" .. tostring(ok) ..
+                    " count=" .. tostring(count)
+                )
+            end
+        end
+    end
+
+    DarkPassengerAftermathProbe.Nearby(tostring(radius))
+end
+
+function DarkPassengerAftermathProbe.Attribution()
+    local currentCase = ProbeCurrentCase()
+    local target = currentCase ~= nil and currentCase.target_id ~= nil and
+        System.GetEntity(currentCase.target_id) or nil
+
+    AftermathProbeLog(
+        "attribution target_loaded=" .. tostring(target ~= nil) ..
+        " target_id=" .. tostring(currentCase and currentCase.target_id) ..
+        " target_name=" .. ProbeEntityName(target) ..
+        " target_dead=" .. tostring(ProbeEntityDead(target))
+    )
+    AftermathProbeLog(
+        "attribution bindings notifyPlayerKill=" ..
+        tostring(ProbeMethod(GameRules, "SPNotifyPlayerKill")) ..
+        " actorDamageInfo=" ..
+        tostring(target ~= nil and target.actor ~= nil and
+            ProbeMethod(target.actor, "DamageInfo")) ..
+        " note=bindings are presence-only; probe does not call them"
+    )
+
+    if target ~= nil and g_localActor ~= nil then
+        local hostileOk, hostile = pcall(function()
+            return AI.Hostile(target.id, g_localActor.id)
+        end)
+        local personalOk, personallyHostile = pcall(function()
+            return AI.IsPersonallyHostile(target.id, g_localActor.id)
+        end)
+        AftermathProbeLog(
+            "attribution hostility hostile_ok=" .. tostring(hostileOk) ..
+            " hostile=" .. tostring(hostile) ..
+            " personal_ok=" .. tostring(personalOk) ..
+            " personally_hostile=" .. tostring(personallyHostile)
+        )
+    end
+
+    if target ~= nil then
+        for _, fieldName in ipairs({
+            "lastAttacker", "lastAttackerId", "lastKiller", "lastKillerId",
+            "lastHit", "lastHitInfo", "shooterId", "damageOwner",
+        }) do
+            AftermathProbeLog(
+                "attribution field=" .. fieldName ..
+                " type=" .. tostring(type(target[fieldName])) ..
+                " value=" .. tostring(target[fieldName])
+            )
+        end
+    end
+end
+
 local okCmd, errCmd = pcall(function()
     if System ~= nil and System.AddCCommand ~= nil then
         System.AddCCommand("dp_tag_nearest", "DarkPassengerTest.TagNearest(%line)",
@@ -1085,6 +1339,14 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: report whether the hunt quest is active")
         System.AddCCommand("dp_quest_objectives", "DarkPassengerTarget.DumpActiveObjectives()",
             "Dark Passenger: report active objective ids for both regional quests")
+        System.AddCCommand("dp_aftermath_probe_status", "DarkPassengerAftermathProbe.Status()",
+            "Dark Passenger: read-only aftermath API and case status")
+        System.AddCCommand("dp_aftermath_probe_nearby", "DarkPassengerAftermathProbe.Nearby(%line)",
+            "Dark Passenger: read-only nearby NPC state (radius, default 30)")
+        System.AddCCommand("dp_aftermath_probe_crime", "DarkPassengerAftermathProbe.Crime(%line)",
+            "Dark Passenger: read-only crime contexts and links (radius, default 40)")
+        System.AddCCommand("dp_aftermath_probe_attribution", "DarkPassengerAftermathProbe.Attribution()",
+            "Dark Passenger: read-only target death and attribution API state")
     end
 end)
 if not okCmd then

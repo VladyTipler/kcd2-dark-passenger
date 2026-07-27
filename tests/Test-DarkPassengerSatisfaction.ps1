@@ -882,6 +882,18 @@ Add-Result (
     $runtimeLuaText.Contains('dp_test_hud_marker')
 ) 'HUD marker probe has a retail console command'
 Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_status"')
+) 'aftermath exposes read-only status probe'
+Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_nearby"')
+) 'aftermath exposes read-only nearby-entity probe'
+Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_crime"')
+) 'aftermath exposes read-only crime-state probe'
+Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_attribution"')
+) 'aftermath exposes read-only attribution probe'
+Add-Result (
     $runtimeLuaText.Contains("DarkPassengerTarget.TARGET_BUFF_GUID = `"$targetGuid`"")
 ) 'Lua target selector uses the hidden target buff'
 Add-Result (
