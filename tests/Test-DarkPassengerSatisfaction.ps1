@@ -25,6 +25,7 @@ $troskyLevelPath = "$stageRoot\Data\Quests\darkpassengertest\trosecko.xml"
 $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
+$aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
@@ -194,6 +195,7 @@ $troskyLevelText = Read-OptionalText -LiteralPath $troskyLevelPath
 $projectText = Read-OptionalText -LiteralPath $projectPath
 $luaText = Read-OptionalText -LiteralPath $luaPath
 $hungerLuaText = Read-OptionalText -LiteralPath $hungerLuaPath
+$aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
@@ -893,6 +895,47 @@ Add-Result (
 Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_attribution"')
 ) 'aftermath exposes read-only attribution probe'
+Add-Result (
+    $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dpaftermath.lua")')
+) 'mod init explicitly loads aftermath state machine'
+Add-Result (
+    $aftermathLuaText.Contains('DarkPassengerAftermath.PHASE_HUNTING') -and
+    $aftermathLuaText.Contains('DarkPassengerAftermath.PHASE_SILENCE_CHECK') -and
+    $aftermathLuaText.Contains('DarkPassengerAftermath.PHASE_CLEANUP') -and
+    $aftermathLuaText.Contains('DarkPassengerAftermath.PHASE_RESOLVED')
+) 'aftermath exports all phase constants'
+Add-Result (
+    $aftermathLuaText -match 'SILENCE_DURATION_MS\s*=\s*90000'
+) 'aftermath silence check lasts 90 seconds'
+foreach ($aftermathFunction in @(
+    'Begin',
+    'RecordSuspicion',
+    'RecordWitnessRemoved',
+    'OnPlayerPosition',
+    'Resolve',
+    'Status'
+)) {
+    Add-Result (
+        $aftermathLuaText.Contains(
+            "function DarkPassengerAftermath.$aftermathFunction"
+        )
+    ) "aftermath exports $aftermathFunction"
+}
+Add-Result (
+    $aftermathLuaText.Contains('Script.SetTimerForFunction(') -and
+    $aftermathLuaText.Contains('generationToken')
+) 'aftermath silence timer rejects stale generations'
+Add-Result (
+    $aftermathLuaText.Contains('distanceFromDeath >= zoneRadius') -and
+    -not $aftermathLuaText.Contains('wanted')
+) 'aftermath zone exit resolves independently of wanted status'
+Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_begin"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_suspicion"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_witness_removed"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_exit"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_status"')
+) 'aftermath state machine exposes debug-only transition commands'
 Add-Result (
     $runtimeLuaText.Contains("DarkPassengerTarget.TARGET_BUFF_GUID = `"$targetGuid`"")
 ) 'Lua target selector uses the hidden target buff'

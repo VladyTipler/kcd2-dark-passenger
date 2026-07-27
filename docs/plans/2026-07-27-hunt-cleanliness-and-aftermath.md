@@ -153,6 +153,10 @@ SILENCE_CHECK -> CLEANUP on first suspicion
 CLEANUP -> RESOLVED_* on zone exit
 ```
 
+Zone exit is distance-based and never waits for the base-game wanted state to
+clear. Fines, reputation loss, pursuit, and other crime consequences remain
+owned by KCD2 and do not keep the mod Case open.
+
 Use a generation token with `Script.SetTimerForFunction` so cancelled or stale
 90-second callbacks cannot resolve a newer Case.
 

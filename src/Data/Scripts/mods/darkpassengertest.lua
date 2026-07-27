@@ -15,6 +15,7 @@ DarkPassengerTest = DarkPassengerTest or {}
 -- correct-kill reward are available in retail builds.
 Script.ReloadScript("Scripts/mods/dpsatisfaction.lua")
 Script.ReloadScript("Scripts/mods/dphunger.lua")
+Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
 
 -- %line hands the console command handler the ENTIRE remainder of the line
@@ -1347,6 +1348,16 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: read-only crime contexts and links (radius, default 40)")
         System.AddCCommand("dp_aftermath_probe_attribution", "DarkPassengerAftermathProbe.Attribution()",
             "Dark Passenger: read-only target death and attribution API state")
+        System.AddCCommand("dp_aftermath_begin", "DarkPassengerAftermath.DebugBegin(%line)",
+            "Dark Passenger: begin a synthetic aftermath case (zone radius)")
+        System.AddCCommand("dp_aftermath_suspicion", "DarkPassengerAftermath.RecordSuspicion(%line)",
+            "Dark Passenger: inject synthetic suspicion into the active aftermath case")
+        System.AddCCommand("dp_aftermath_witness_removed", "DarkPassengerAftermath.RecordWitnessRemoved(%line)",
+            "Dark Passenger: record a synthetic removed witness")
+        System.AddCCommand("dp_aftermath_exit", "DarkPassengerAftermath.DebugExit(%line)",
+            "Dark Passenger: simulate leaving the active aftermath zone")
+        System.AddCCommand("dp_aftermath_status", "DarkPassengerAftermath.Status()",
+            "Dark Passenger: print the active aftermath state")
     end
 end)
 if not okCmd then
