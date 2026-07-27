@@ -18,9 +18,10 @@
   `dp_candidate_catalog.lua`.
 - Dev validates Lua and API probes; retail validates quest graphs, objectives,
   markers, banners, and final integration.
-- The project is not a Git repository. Do not initialize Git without approval.
-  Replace commit steps below with timestamped copies under
-  `<repo-root>\deployment-backups`.
+- Work only on `feature/aftermath`. Keep `main` and the
+  `core-v1-retail-confirmed` tag unchanged until retail acceptance.
+- Edit authored files under `src`; `build\mod` is generated and ignored.
+- Commit each verified task. Do not deploy an uncommitted build.
 
 ### Task 1: Freeze and verify the known-good baseline
 
@@ -59,7 +60,7 @@ under `deployment-backups`. Verify every copied hash matches.
 ### Task 2: Probe attribution, crime, witness, and zone APIs
 
 **Files:**
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\darkpassengertest.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\darkpassengertest.lua`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 - Evidence: `<repo-root>\evidence`
 
@@ -112,8 +113,8 @@ attribution or witnesses until the probe is conclusive.
 ### Task 3: Add a pure aftermath state machine
 
 **Files:**
-- Create: `<repo-root>\build\mod\Data\Scripts\mods\dpaftermath.lua`
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\darkpassengertest.lua`
+- Create: `<repo-root>\src\Data\Scripts\mods\dpaftermath.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\darkpassengertest.lua`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 
 **Step 1: Write failing state-contract tests**
@@ -175,8 +176,8 @@ green.
 ### Task 4: Persist aftermath and settlement state
 
 **Files:**
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\dpaftermath.lua`
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\dphunger.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\dpaftermath.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\dphunger.lua`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 
 **Step 1: Write failing persistence assertions**
@@ -221,8 +222,8 @@ Expected: persistence-key, generation, and idempotency assertions pass.
 ### Task 5: Add hunger grace without duplicating hunger state
 
 **Files:**
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\dphunger.lua`
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\dpaftermath.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\dphunger.lua`
+- Modify: `<repo-root>\src\Data\Scripts\mods\dpaftermath.lua`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 
 **Step 1: Add failing tests for the grace contract**
@@ -267,9 +268,9 @@ Expected: all existing hunger boundaries still pass plus grace mappings.
 ### Task 6: Establish the Lua-to-quest outcome signal
 
 **Files:**
-- Modify: `<repo-root>\build\mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml`
-- Modify: `<repo-root>\build\mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml`
-- Modify: `<repo-root>\build\mod\Data\Scripts\mods\dpaftermath.lua`
+- Modify: `<repo-root>\src\Data\Libs\Tables\rpg\buff__darkpassengertest.xml`
+- Modify: `<repo-root>\src\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml`
+- Modify: `<repo-root>\src\Data\Scripts\mods\dpaftermath.lua`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 
 **Step 1: Add failing table assertions**
@@ -306,7 +307,7 @@ tag. Confirm native journal transition once. Roll back the probe before Task 7.
 ### Task 7: Generate the cleanup objective and defer quest completion
 
 **Files:**
-- Modify: `<repo-root>\build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template`
+- Modify: `<repo-root>\src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template`
 - Modify: `<repo-root>\tools\Generate-VictimArtifacts.ps1`
 - Generate: `<repo-root>\build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml`
 - Generate: `<repo-root>\build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml`
@@ -365,7 +366,7 @@ new aftermath contracts pass.
 **Files:**
 - Modify: `<repo-root>\localization\English\text__darkpassengertest.xml`
 - Modify: `<repo-root>\localization\Russian\text__darkpassengertest.xml`
-- Modify: `<repo-root>\build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template`
+- Modify: `<repo-root>\src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template`
 - Test: `<repo-root>\tests\Test-DarkPassengerSatisfaction.ps1`
 
 **Step 1: Add failing localization checks**
