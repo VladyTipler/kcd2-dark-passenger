@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <Module Name="dp_lua_call">
+      <Ports>
+        <Port Name="run" Direction="In" Type="trigger">
+          <DesignName Text="Run Dark Passenger Lua action" />
+        </Port>
+        <Port Name="action" Direction="In" Type="string">
+          <DesignName Text="Dark Passenger Lua action" />
+        </Port>
+      </Ports>
+      <Nodes>
+        <AddInterruptConceptNode Name="dispatch" Signature="stringData">
+          <Asset Name="NPC" Alias="player" />
+          <Constant Name="Behavior" Value="darkPassengerExecuteLua" />
+          <Asset Name="SmartEntity" Alias="player_scheduler" />
+          <Constant Name="Priority" Value="255" />
+          <Constant Name="Urgency" Value="Instant" />
+          <Edge From="run" To="Activate" />
+          <Edge From="action" To="data" />
+        </AddInterruptConceptNode>
+      </Nodes>
+      <Text Text="Dark Passenger Lua bridge" />
+    </Module>
+  </Skald>
+</Database>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Table>
+	<Row><Cell>dark_within_k</Cell><Cell>Dark Within</Cell></Row>
+	<Row><Cell>dark_within_t</Cell><Cell>Dark Within</Cell></Row>
+	<Row><Cell>dark_within_description_k</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
+	<Row><Cell>dark_within_description_t</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Find someone who deserves to die</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.</Cell></Row>
+	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
+	<Row><Cell>dark_within_target</Cell><Cell>The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_toast</Cell><Cell>The darkness within has awoken...</Cell></Row>
+	<Row><Cell>dp_sated_obj_name</Cell><Cell>The darkness sleeps</Cell></Row>
+	<Row><Cell>dp_sated_obj</Cell><Cell>The hunger is sated. For now.</Cell></Row>
+	<Row><Cell>dp_satisfaction_name</Cell><Cell>The Silence Within</Cell></Row>
+	<Row><Cell>dp_satisfaction_desc</Cell><Cell>&lt;p&gt;The hunger is quiet. My hands are steady, my thoughts clear. But I know this silence will not last.&lt;/p&gt;&lt;p&gt;Effects: Strength +2, agility +2, vitality +2, marksmanship +2, stealth +3, thievery +2, speech +2, charisma +2.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_satisfaction_10_desc</Cell><Cell>&lt;p&gt;The silence still holds. Somewhere deep within, the first faint whisper has begun.&lt;/p&gt;&lt;p&gt;Effects: Strength +1, agility +2, vitality +1, marksmanship +2, stealth +2, thievery +2, speech +2, charisma +2.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_satisfaction_20_desc</Cell><Cell>&lt;p&gt;My thoughts remain clear, though the calm is already beginning to fray at the edges.&lt;/p&gt;&lt;p&gt;Effects: Strength +1, agility +1, vitality +1, marksmanship +1, stealth +2, thievery +1, speech +1, charisma +1.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_satisfaction_30_desc</Cell><Cell>&lt;p&gt;The Passenger is stirring. For now, its voice is little more than a murmur.&lt;/p&gt;&lt;p&gt;Effects: Strength +1, agility +1, vitality +1, marksmanship +1, stealth +1, thievery +1, speech +1, charisma +1.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_satisfaction_40_desc</Cell><Cell>&lt;p&gt;The silence is almost gone. Soon the hunger will demand that I listen.&lt;/p&gt;&lt;p&gt;Effects: Marksmanship +1, stealth +1, speech +1, charisma +1.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_hunger_name</Cell><Cell>The Hunger Within</Cell></Row>
+	<Row><Cell>dp_hunger_60_desc</Cell><Cell>&lt;p&gt;The Passenger has awakened. Its whisper follows every thought and every shadow.&lt;/p&gt;&lt;p&gt;Effects: Strength -1, marksmanship -1, stealth -1, speech -1, charisma -1.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_hunger_70_desc</Cell><Cell>&lt;p&gt;The hunger is sharpening. Patience slips, and restraint takes effort.&lt;/p&gt;&lt;p&gt;Effects: Strength -1, agility -1, vitality -1, marksmanship -1, stealth -1, thievery -1, speech -1, charisma -2.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_hunger_80_desc</Cell><Cell>&lt;p&gt;The need gnaws at me without rest. Every guilty face begins to look like an invitation.&lt;/p&gt;&lt;p&gt;Effects: Strength -2, agility -2, vitality -1, marksmanship -2, stealth -2, thievery -2, speech -2, charisma -3.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_hunger_90_desc</Cell><Cell>&lt;p&gt;The Passenger is no longer asking. Its demand drowns out caution and mercy alike.&lt;/p&gt;&lt;p&gt;Effects: Strength -2, agility -2, vitality -2, marksmanship -3, stealth -3, thievery -3, speech -3, charisma -4.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_hunger_100_desc</Cell><Cell>&lt;p&gt;There is no silence left. Only the Passenger, the hunger, and the certainty that someone must die.&lt;/p&gt;&lt;p&gt;Effects: Strength -3, agility -3, vitality -3, marksmanship -4, stealth -4, thievery -3, speech -4, charisma -5.&lt;/p&gt;</Cell></Row>
+</Table>

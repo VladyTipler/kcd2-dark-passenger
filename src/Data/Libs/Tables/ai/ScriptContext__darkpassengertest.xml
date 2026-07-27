@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<database name="brambora" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../database.xsd">
+  <ScriptContexts version="1">
+    <ScriptContextDatabaseNode Name="dp_select_victim_kutnohorsko" Class="Entity" />
+    <ScriptContextDatabaseNode Name="dp_select_victim_trosecko" Class="Entity" />
+  </ScriptContexts>
+</database>

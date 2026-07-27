@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<BehaviorTrees>
+  <BehaviorTree name="darkPassengerExecuteLua" is_function="0">
+    <Variables />
+    <Parameters>
+      <Variable name="data" type="_string" values="" isPersistent="0" form="single" requirementType="In" />
+    </Parameters>
+    <Root OneTimeOnly="false" FailState="Recoverable" saveVersion="2">
+      <Behavior canSkip="1">
+        <ExecuteLua code="DarkPassengerQuestBridge.Call(data.data)" />
+      </Behavior>
+    </Root>
+    <ForestContainer />
+  </BehaviorTree>
+</BehaviorTrees>

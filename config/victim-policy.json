@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "regions": [
+    { "id": "kutnohorsko", "displayName": "Kuttenberg" },
+    { "id": "trosecko", "displayName": "Trosky" }
+  ],
+  "defaults": {
+    "includeGenericSettlementActors": true,
+    "includeNamedActors": false
+  },
+  "settlements": [
+    {
+      "id": "pritoky",
+      "gameRegion": "kutnohorsko",
+      "displayName": "Pritoky",
+      "center": { "x": 2300.061, "y": 1826.972, "z": 129.596 },
+      "includeGenericResidents": true
+    }
+  ],
+  "mainStoryDeny": [],
+  "manualInclude": [],
+  "manualExclude": [
+    {
+      "entityName": "kpri_krizan",
+      "reason": "Named resident; narrative role not classified yet"
+    },
+    {
+      "entityName": "kpri_man_14",
+      "reason": "Named character archetype; narrative role not classified yet"
+    }
+  ]
+}

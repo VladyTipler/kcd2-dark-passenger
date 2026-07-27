@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<kcd_mod>
+  <info>
+    <name>Dark Passenger Test</name>
+    <description>Vertical slice test: metadata-aware victim selection and tracked quest target.</description>
+    <author>Vladislav</author>
+    <version>0.1.0</version>
+    <modid>darkpassengertest</modid>
+    <modifies_level>true</modifies_level>
+    <created_on>2026-07-22</created_on>
+  </info>
+</kcd_mod>

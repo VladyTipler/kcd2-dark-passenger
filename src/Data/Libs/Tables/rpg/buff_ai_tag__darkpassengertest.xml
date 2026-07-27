@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="../database.xsd">
+	<buff_ai_tags version="1">
+		<buff_ai_tag buff_ai_tag_id="23" buff_ai_tag_name="darkpassenger_satisfaction" />
+		<buff_ai_tag buff_ai_tag_id="24" buff_ai_tag_name="darkpassenger_target" />
+	</buff_ai_tags>
+</database>

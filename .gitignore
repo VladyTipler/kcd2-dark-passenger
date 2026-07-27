@@ -1,0 +1,28 @@
+# Generated build and release artifacts
+/build/
+/dist/
+/stage/
+*.pak
+*.pak.*
+
+# Runtime evidence and deployment state
+/evidence/*
+!/evidence/.gitkeep
+/deployment-backups/
+/_deployment-backups/
+*.log
+
+# Local game/reference material
+/_reference-mods/
+/third_party/
+
+# Temporary and editor files
+*.tmp
+*.bak
+*.previous
+*.retired
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

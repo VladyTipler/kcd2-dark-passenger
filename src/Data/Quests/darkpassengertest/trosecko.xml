@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <Level Name="trosecko" HibernateMode="Auto" VoiceNamespace="false">
+      <Definitions>
+        <Definition File="trosecko/dark_within_t.xml" />
+      </Definitions>
+      <Nodes>
+        <dark_within_t Name="dark_within_t" RequiredForOutput="trosecko">
+          <Edge From="OnWake" To="arm" />
+        </dark_within_t>
+      </Nodes>
+      <Text Text="trosecko" />
+    </Level>
+  </Skald>
+</Database>
