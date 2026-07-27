@@ -1,7 +1,15 @@
 # Dark Passenger
 
+> Darkness has rules. The first is simple: do not get caught.
+
 Dark Passenger is a gameplay mod for Kingdom Come: Deliverance II inspired by
-the idea of a controlled, recurring hunger for guilty victims.
+Dexter. Henry carries a hunger that cannot be silenced forever. To keep it
+under control, he must follow the Code: investigate the guilty, choose those
+who deserve his blade, and leave no witnesses who can reveal what he truly is.
+
+Every hunt is a new Case. Hunger grows with in-game time, evidence leads to a
+victim, and the method is yours—poison, arrows, stealth, or open combat. What
+matters is not how the sentence is carried out, but whether Henry gets caught.
 
 ## Current status
 
