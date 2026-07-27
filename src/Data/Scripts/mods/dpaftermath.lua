@@ -147,6 +147,11 @@ function DarkPassengerAftermath.RecordWitnessRemoved(witnessId)
         return false
     end
 
+    if DarkPassengerAftermath.phase ==
+       DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        DarkPassengerAftermath.RecordSuspicion("witness_removed")
+    end
+
     DarkPassengerAftermath.witnessRemovedCount =
         DarkPassengerAftermath.witnessRemovedCount + 1
     DarkPassengerAftermath.collateralCount =
@@ -296,4 +301,3 @@ function DarkPassengerAftermath.DebugExit(argsLine)
         DarkPassengerAftermath.deathZ
     )
 end
-

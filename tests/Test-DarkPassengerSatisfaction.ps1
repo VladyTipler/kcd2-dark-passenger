@@ -930,6 +930,12 @@ Add-Result (
     -not $aftermathLuaText.Contains('wanted')
 ) 'aftermath zone exit resolves independently of wanted status'
 Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordWitnessRemoved.*?' +
+        'RecordSuspicion\("witness_removed"\)'
+    )
+) 'removing a witness cancels clean silence and enters cleanup'
+Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_begin"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_suspicion"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_witness_removed"') -and
