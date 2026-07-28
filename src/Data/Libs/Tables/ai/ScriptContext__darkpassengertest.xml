@@ -3,5 +3,7 @@
   <ScriptContexts version="1">
     <ScriptContextDatabaseNode Name="dp_select_victim_kutnohorsko" Class="Entity" />
     <ScriptContextDatabaseNode Name="dp_select_victim_trosecko" Class="Entity" />
+    <ScriptContextDatabaseNode Name="dp_target_dead_kutnohorsko" Class="Entity" />
+    <ScriptContextDatabaseNode Name="dp_target_dead_trosecko" Class="Entity" />
   </ScriptContexts>
 </database>

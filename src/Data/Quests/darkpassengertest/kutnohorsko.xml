@@ -3,7 +3,6 @@
   <Skald>
     <Level Name="kutnohorsko" HibernateMode="Auto" VoiceNamespace="false">
       <Definitions>
-        <Definition File="kutnohorsko/dp_lua_call.xml" />
         <Definition File="kutnohorsko/dark_within_k.xml" />
       </Definitions>
       <Nodes>

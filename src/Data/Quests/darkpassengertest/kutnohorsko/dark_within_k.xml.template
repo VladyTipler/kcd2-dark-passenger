@@ -109,6 +109,20 @@
           <Asset Name="Souls" Alias="player" />
           <Edge From="selectionRequestActive.State" To="IsActive" />
         </SetEntityContext>
+        <State Name="targetDeathContextActive" TypeT="bool">
+          <Edge From="questProgress.OnActive" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+{{DP_TARGET_DEATH_CONTEXT_EDGES}}
+        </State>
+        <SetEntityContext Name="targetDeathRequest">
+          <Constant Name="Context" Value="{{DP_TARGET_DEATH_CONTEXT}}" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="targetDeathContextActive.State" To="IsActive" />
+        </SetEntityContext>
 {{DP_TARGET_DETECTION_NODES}}
         <State Name="targetResolved" TypeT="bool">
           <Edge From="questProgress.OnActive" To="SetFalse" />
@@ -116,7 +130,6 @@
           <Edge From="targetObjectiveProgress.OnDone" To="SetFalse" />
         </State>
 {{DP_TARGET_DEATH_NODES}}
-{{DP_TARGET_DEATH_BRIDGE_NODES}}
         <Function Name="grantSatisfactionOnCleanResult" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
           <Asset Name="Souls" Alias="player" />
           <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />

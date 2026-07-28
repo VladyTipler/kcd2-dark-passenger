@@ -203,6 +203,46 @@ end
 
 function DarkPassengerTarget.RestoreExisting(gameRegion)
     local runtimeCandidate = DarkPassengerTarget.targetCandidate
+    if runtimeCandidate ~= nil and
+       runtimeCandidate.gameRegion == gameRegion then
+        local runtimeEntity =
+            System.GetEntityByName(runtimeCandidate.entityName)
+        if HasTargetBuff(runtimeEntity) then
+            RememberTarget(runtimeCandidate)
+            return true
+        end
+    end
+
+    if DarkPassengerGeneratedCandidates ~= nil then
+        for _, candidate in ipairs(DarkPassengerGeneratedCandidates) do
+            if candidate.gameRegion == gameRegion then
+                local entity = System.GetEntityByName(candidate.entityName)
+                if HasTargetBuff(entity) then
+                    if runtimeCandidate ~= nil and
+                       tonumber(runtimeCandidate.slot) ==
+                           tonumber(candidate.slot) then
+                        RememberTarget(runtimeCandidate)
+                        return true
+                    end
+                    BindRecoveredTarget(candidate, entity)
+                    if CaseReady() and entity ~= nil then
+                        DarkPassengerCase.Open(
+                            entity.id,
+                            InternalEntityName(entity) or "?",
+                            candidate.settlement
+                        )
+                    end
+                    TargetLog(
+                        "recovered tagged quest target region=" ..
+                        tostring(gameRegion) ..
+                        " slot=" .. tostring(candidate.slot)
+                    )
+                    return true
+                end
+            end
+        end
+    end
+
     if runtimeCandidate ~= nil and runtimeCandidate.gameRegion == gameRegion then
         RememberTarget(runtimeCandidate)
         return true
@@ -224,21 +264,6 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
         return true
     end
 
-    if DarkPassengerGeneratedCandidates == nil then return false end
-    for _, candidate in ipairs(DarkPassengerGeneratedCandidates) do
-        if candidate.gameRegion == gameRegion then
-            local entity = System.GetEntityByName(candidate.entityName)
-            if HasTargetBuff(entity) then
-                BindRecoveredTarget(candidate, entity)
-                TargetLog(
-                    "recovered tagged quest target region=" ..
-                    tostring(gameRegion) ..
-                    " slot=" .. tostring(candidate.slot)
-                )
-                return true
-            end
-        end
-    end
     return false
 end
 
@@ -495,18 +520,33 @@ end
 function DarkPassengerTarget.OnTargetDeath(gameRegion, settlement, slot)
     local currentCase = CaseReady() and DarkPassengerCase.GetCurrent() or nil
     local expectedSlot = tonumber(slot)
-    local candidate = DarkPassengerTarget.targetCandidate
-    if candidate ~= nil and tonumber(candidate.slot) ~= expectedSlot then
-        TargetLog("ignored stale target death callback slot=" .. tostring(expectedSlot))
+    local candidate = FindCandidateBySlot(expectedSlot)
+    if candidate == nil then
+        TargetLog("unknown target death slot=" .. tostring(expectedSlot))
         return false
     end
-
-    candidate = candidate or FindCandidateBySlot(expectedSlot)
+    if DarkPassengerTarget.targetCandidate == nil or
+       tonumber(DarkPassengerTarget.targetCandidate.slot) ~= expectedSlot then
+        TargetLog(
+            "rebinding target death from stale slot=" ..
+            tostring(
+                DarkPassengerTarget.targetCandidate ~= nil and
+                DarkPassengerTarget.targetCandidate.slot or "nil"
+            ) ..
+            " to graph slot=" .. tostring(expectedSlot)
+        )
+        BindRecoveredTarget(
+            candidate,
+            System.GetEntityByName(candidate.entityName)
+        )
+        currentCase = CaseReady() and DarkPassengerCase.GetCurrent() or nil
+    end
     local targetEntity =
-        DarkPassengerTarget.targetEntityId ~= nil and
-        System.GetEntity(DarkPassengerTarget.targetEntityId) or nil
+        System.GetEntityByName(candidate.entityName)
     if targetEntity == nil and candidate ~= nil then
-        targetEntity = System.GetEntityByName(candidate.entityName)
+        targetEntity =
+            DarkPassengerTarget.targetEntityId ~= nil and
+            System.GetEntity(DarkPassengerTarget.targetEntityId) or nil
     end
     local deathPosition = nil
     if targetEntity ~= nil and targetEntity.GetWorldPos ~= nil then
@@ -652,10 +692,12 @@ DarkPassengerQuestBridge.REQUESTS = {
     {
         region = "kutnohorsko",
         context = "dp_select_victim_kutnohorsko",
+        deathContext = "dp_target_dead_kutnohorsko",
     },
     {
         region = "trosecko",
         context = "dp_select_victim_trosecko",
+        deathContext = "dp_target_dead_trosecko",
     },
 }
 DarkPassengerQuestBridge.POLL_INTERVAL_MS = 1000
@@ -719,6 +761,7 @@ function DarkPassengerQuestBridge.StartPolling(reason)
         DarkPassengerQuestBridge.pollGeneration + 1
     DarkPassengerQuestBridge.pollAliveLoggedGeneration = nil
     DarkPassengerQuestBridge.lastRequestStates = {}
+    DarkPassengerQuestBridge.lastDeathStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
         " generation=" .. tostring(DarkPassengerQuestBridge.pollGeneration)
@@ -798,6 +841,40 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
             )
         end
 
+        local hasDeathRequest = false
+        if playerEntity ~= nil and
+           playerEntity.soul ~= nil and
+           playerEntity.soul.HasScriptContext ~= nil then
+            local ok, contextOrError = pcall(function()
+                return playerEntity.soul:HasScriptContext(
+                    request.deathContext
+                )
+            end)
+            if ok then
+                hasDeathRequest =
+                    contextOrError == true or contextOrError == 1
+            else
+                TargetLog(
+                    "target-death context check failed region=" ..
+                    tostring(request.region) ..
+                    " error=" .. tostring(contextOrError)
+                )
+            end
+        end
+        local previousDeathState =
+            DarkPassengerQuestBridge.lastDeathStates[request.region]
+        local deathRequestBecameActive =
+            hasDeathRequest and previousDeathState ~= true
+        if previousDeathState ~= hasDeathRequest then
+            DarkPassengerQuestBridge.lastDeathStates[request.region] =
+                hasDeathRequest
+            TargetLog(
+                "target-death context region=" ..
+                tostring(request.region) ..
+                " active=" .. tostring(hasDeathRequest)
+            )
+        end
+
         if hasRequest then
             local existingTargetPreserved =
                 DarkPassengerTarget.RestoreExisting(request.region)
@@ -811,6 +888,21 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
                     " risingEdge=" .. tostring(requestBecameActive)
                 )
                 DarkPassengerTarget.SelectNearest(request.region)
+            end
+        elseif deathRequestBecameActive then
+            local candidate = DarkPassengerTarget.targetCandidate
+            if candidate ~= nil and
+               candidate.gameRegion == request.region then
+                DarkPassengerTarget.OnTargetDeath(
+                    request.region,
+                    candidate.settlement,
+                    candidate.slot
+                )
+            else
+                TargetLog(
+                    "target-death context has no synchronized target region=" ..
+                    tostring(request.region)
+                )
             end
         elseif DarkPassengerTarget.targetCandidate ~= nil and
                not DarkPassengerTarget.IsRegionQuestActive(

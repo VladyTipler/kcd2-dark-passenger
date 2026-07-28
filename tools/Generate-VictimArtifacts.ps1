@@ -61,6 +61,7 @@ function New-RegionalQuest {
         [string]$CleanupObjectiveName,
         [string]$QuestDescriptionKey,
         [string]$RequestContext,
+        [string]$TargetDeathContext,
         [string]$OutputPath,
         [string]$Template
     )
@@ -73,9 +74,9 @@ function New-RegionalQuest {
     $stateEdges = [System.Collections.Generic.List[string]]::new()
     $selectionStopEdges = [System.Collections.Generic.List[string]]::new()
     $cleanupEdges = [System.Collections.Generic.List[string]]::new()
+    $targetDeathContextEdges = [System.Collections.Generic.List[string]]::new()
     $detectionNodes = [System.Collections.Generic.List[string]]::new()
     $deathNodes = [System.Collections.Generic.List[string]]::new()
-    $deathBridgeNodes = [System.Collections.Generic.List[string]]::new()
     $assets = [System.Collections.Generic.List[string]]::new()
     $logs = [System.Collections.Generic.List[string]]::new()
 
@@ -91,6 +92,7 @@ function New-RegionalQuest {
         $stateEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetDone`" />")
         $selectionStopEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetFalse`" />")
         $cleanupEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetActive`" />")
+        $targetDeathContextEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetTrue`" />")
 
         $detectionNodes.Add("        <MakeArray Name=`"$($slotNode)Souls`" TypeT=`"wh::rpgmodule::Souls`">")
         $detectionNodes.Add("          <Asset Name=`"A`" Alias=`"$($candidate.alias)`" />")
@@ -114,13 +116,6 @@ function New-RegionalQuest {
         $deathNodes.Add("          <Edge From=`"targetObjectiveProgress.$slotName`" To=`"IsActive`" />")
         $deathNodes.Add('        </SoulDeathTrigger>')
 
-        $deathAction =
-            "death|$($candidate.gameRegion)|$($candidate.settlement)|$slotNumber"
-        $deathBridgeNodes.Add("        <dp_lua_call Name=`"$($slotNode)DeathBridge`">")
-        $deathBridgeNodes.Add("          <Constant Name=`"action`" Value=`"$deathAction`" />")
-        $deathBridgeNodes.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"run`" />")
-        $deathBridgeNodes.Add('        </dp_lua_call>')
-
         $assets.Add("        <SoulAsset Name=`"$($candidate.alias)`" SharedSoulGuids=`"$($candidate.guid)`" />")
         $logs.Add("            <EnumLog Type=`"Started`" Name=`"$slotName`" IsTracked=`"true`" Marker=`"$($candidate.alias)`">")
         $logs.Add('              <Log StringName="dark_within_target" Text="The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.">')
@@ -133,6 +128,7 @@ function New-RegionalQuest {
         '{{DP_QUEST_NAME}}' = $QuestName
         '{{DP_REGION_ID}}' = $RegionId
         '{{DP_REQUEST_CONTEXT}}' = $RequestContext
+        '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
         '{{DP_SEARCH_OBJECTIVE_NAME}}' = $SearchObjectiveName
         '{{DP_TARGET_OBJECTIVE_NAME}}' = $TargetObjectiveName
         '{{DP_CLEANUP_OBJECTIVE_NAME}}' = $CleanupObjectiveName
@@ -143,9 +139,9 @@ function New-RegionalQuest {
         '{{DP_TARGET_SEARCH_RESET_EDGES}}' = ''
         '{{DP_TARGET_SELECTION_STOP_EDGES}}' = $selectionStopEdges -join "`n"
         '{{DP_TARGET_CLEANUP_EDGES}}' = $cleanupEdges -join "`n"
+        '{{DP_TARGET_DEATH_CONTEXT_EDGES}}' = $targetDeathContextEdges -join "`n"
         '{{DP_TARGET_DETECTION_NODES}}' = $detectionNodes -join "`n"
         '{{DP_TARGET_DEATH_NODES}}' = $deathNodes -join "`n"
-        '{{DP_TARGET_DEATH_BRIDGE_NODES}}' = $deathBridgeNodes -join "`n"
         '{{DP_TARGET_ASSETS}}' = $assets -join "`n"
         '{{DP_TARGET_LOGS}}' = $logs -join "`n"
     }
@@ -222,6 +218,7 @@ $regionSpecifications = @(
         cleanupObjective = 'dark_within_cleanupk'
         descriptionKey = 'dark_within_description_k'
         requestContext = 'dp_select_victim_kutnohorsko'
+        targetDeathContext = 'dp_target_dead_kutnohorsko'
         output = $KuttenbergQuestOutputPath
     }
     [ordered]@{
@@ -232,6 +229,7 @@ $regionSpecifications = @(
         cleanupObjective = 'dark_within_cleanupt'
         descriptionKey = 'dark_within_description_t'
         requestContext = 'dp_select_victim_trosecko'
+        targetDeathContext = 'dp_target_dead_trosecko'
         output = $TroskyQuestOutputPath
     }
 )
@@ -250,6 +248,7 @@ foreach ($specification in $regionSpecifications) {
         -CleanupObjectiveName $specification.cleanupObjective `
         -QuestDescriptionKey $specification.descriptionKey `
         -RequestContext $specification.requestContext `
+        -TargetDeathContext $specification.targetDeathContext `
         -OutputPath $specification.output `
         -Template $template
 }

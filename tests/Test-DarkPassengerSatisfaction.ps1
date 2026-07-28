@@ -387,7 +387,8 @@ foreach (
         '{{DP_TARGET_SELECTION_STOP_EDGES}}',
         '{{DP_TARGET_DETECTION_NODES}}',
         '{{DP_TARGET_DEATH_NODES}}',
-        '{{DP_TARGET_DEATH_BRIDGE_NODES}}',
+        '{{DP_TARGET_DEATH_CONTEXT}}',
+        '{{DP_TARGET_DEATH_CONTEXT_EDGES}}',
         '{{DP_TARGET_CLEANUP_EDGES}}',
         '{{DP_TARGET_ASSETS}}',
         '{{DP_TARGET_LOGS}}'
@@ -451,15 +452,10 @@ if ($enabledPritokyCandidates.Count -eq 37) {
             )
         ) "generated quest has death branch for $slotName"
         Add-Result (
-            $questText -match (
-                "(?s)<dp_lua_call Name=`"$($slotNode)DeathBridge`">.*?" +
-                "<Constant Name=`"action`" Value=`"death\|" +
-                [regex]::Escape([string]$candidate.gameRegion) + "\|" +
-                [regex]::Escape([string]$candidate.settlement) + "\|" +
-                [regex]::Escape([string]$candidate.slot) + "`" />.*?" +
-                "<Edge From=`"$($slotNode)Death.OnDeath`" To=`"run`" />"
+            $questText.Contains(
+                "<Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetTrue`" />"
             )
-        ) "generated quest dispatches death metadata for $slotName"
+        ) "generated quest raises Lua-polled death context for $slotName"
     }
 }
 
@@ -677,19 +673,21 @@ Add-Result (
     ) -and
     $scriptContextText.Contains(
         '<ScriptContextDatabaseNode Name="dp_select_victim_trosecko" Class="Entity" />'
+    ) -and
+    $scriptContextText.Contains(
+        '<ScriptContextDatabaseNode Name="dp_target_dead_kutnohorsko" Class="Entity" />'
+    ) -and
+    $scriptContextText.Contains(
+        '<ScriptContextDatabaseNode Name="dp_target_dead_trosecko" Class="Entity" />'
     )
-) 'both regional victim-selection contexts are registered'
+) 'both regional victim-selection and death contexts are registered'
 
 Add-Result ($levelText.Contains('<Edge From="OnWake" To="arm"')) 'Kuttenberg level arms quest watcher'
 Add-Result ($troskyLevelText.Contains('<Edge From="OnWake" To="arm"')) 'Trosky level arms quest watcher'
 Add-Result (
-    $levelText.Contains(
-        '<Definition File="kutnohorsko/dp_lua_call.xml" />'
-    ) -and
-    $troskyLevelText.Contains(
-        '<Definition File="kutnohorsko/dp_lua_call.xml" />'
-    )
-) 'both regional levels load the shared Lua death bridge module'
+    -not $levelText.Contains('dp_lua_call.xml') -and
+    -not $troskyLevelText.Contains('dp_lua_call.xml')
+) 'regional levels avoid the unresolved scheduler bridge module'
 Add-Result ($questText.Contains('<BuffTagTrigger Name="satisfactionTrigger"')) 'quest contains BuffTagTrigger'
 Add-Result ($questText.Contains('<Constant Name="A" Value="23"')) 'quest watches AI tag 23'
 Add-Result ($questText.Contains('satisfactionTrigger.OnAdded')) 'quest reacts to buff OnAdded'
@@ -1270,9 +1268,13 @@ Add-Result (
     )
 ) 'active quest exposes a player script-context request for Lua selection'
 Add-Result (
-    -not $questTemplateText.Contains('<dp_lua_call Name="selectVictimPolicy"') -and
-    $projectText.Contains('<SmartObjectAsset Name="player_scheduler" />')
-) 'quest Lua death bridge declares the base player scheduler asset'
+    -not $questTemplateText.Contains('<dp_lua_call') -and
+    -not $projectText.Contains('<SmartObjectAsset Name="player_scheduler" />') -and
+    $questTemplateText.Contains('<SetEntityContext Name="targetDeathRequest">') -and
+    $questTemplateText.Contains(
+        '<Constant Name="Context" Value="{{DP_TARGET_DEATH_CONTEXT}}" />'
+    )
+) 'quest death handoff avoids unresolved scheduler assets'
 Add-Result (
     $runtimeLuaText.Contains('DarkPassengerQuestBridge.REQUESTS = {') -and
     $runtimeLuaText -match (
@@ -1287,6 +1289,18 @@ Add-Result (
     ) -and
     $runtimeLuaText.Contains('DarkPassengerTarget.SelectNearest(request.region)')
 ) 'Lua polls regional quest contexts and selects from the nearest settlement'
+Add-Result (
+    $runtimeLuaText.Contains('deathContext = "dp_target_dead_kutnohorsko"') -and
+    $runtimeLuaText.Contains('deathContext = "dp_target_dead_trosecko"') -and
+    $runtimeLuaText.Contains('request.deathContext') -and
+    $runtimeLuaText.Contains('DarkPassengerTarget.OnTargetDeath(')
+) 'Lua starts aftermath from the regional target-death context'
+Add-Result (
+    $runtimeLuaText.IndexOf('recovered tagged quest target region=') -lt
+        $runtimeLuaText.IndexOf('preserved persisted quest target region=') -and
+    $runtimeLuaText.Contains('candidate = FindCandidateBySlot(expectedSlot)') -and
+    -not $runtimeLuaText.Contains('ignored stale target death callback')
+) 'save-local target tag outranks stale global slot state'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)local requestBecameActive =.*?' +
@@ -1365,12 +1379,15 @@ Add-Result (
     $runtimeLuaText.Contains('IsLivingCandidate(currentEntity)')
 ) 'Lua revalidates the selected target immediately before marker state'
 Add-Result (
-    $questText.Contains('<dp_lua_call Name="targetSlot001DeathBridge">') -and
+    -not $questText.Contains('<dp_lua_call') -and
+    $questText.Contains(
+        '<Constant Name="Context" Value="dp_target_dead_kutnohorsko" />'
+    ) -and
     $questText.Contains('Name="targetSlot001ValidationDelay"') -and
     $questText.Contains(
         '<Edge From="targetSlot001ValidationDelay.OnFinished" To="Exec" />'
     )
-) 'quest uses Lua only for death handoff and keeps marker validation native'
+) 'quest uses script context for death handoff and keeps marker validation native'
 Add-Result (
     -not $questText.Contains('<Constant Name="Duration" Value="0.1s" />') -and
     $questText -match (

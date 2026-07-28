@@ -13,7 +13,6 @@
       <Text Text="darkpassengertest" />
       <Assets>
         <SoulAsset Name="player" SharedSoulGuids="4c2dcffb-dea1-6263-72d7-b39f4db2d8b5" />
-        <SmartObjectAsset Name="player_scheduler" />
       </Assets>
       <ObjectiveValueTypes>
         <ObjectiveValueType Type="None" IsPast="false" Icon="Exclamation" />
