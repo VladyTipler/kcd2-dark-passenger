@@ -1271,8 +1271,8 @@ Add-Result (
 ) 'active quest exposes a player script-context request for Lua selection'
 Add-Result (
     -not $questTemplateText.Contains('<dp_lua_call Name="selectVictimPolicy"') -and
-    -not $projectText.Contains('<SmartObjectAsset Name="player_scheduler" />')
-) 'quest selection no longer depends on the Barbora player scheduler asset'
+    $projectText.Contains('<SmartObjectAsset Name="player_scheduler" />')
+) 'quest Lua death bridge declares the base player scheduler asset'
 Add-Result (
     $runtimeLuaText.Contains('DarkPassengerQuestBridge.REQUESTS = {') -and
     $runtimeLuaText -match (

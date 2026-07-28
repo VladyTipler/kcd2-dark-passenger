@@ -1390,7 +1390,7 @@ local okCmd, errCmd = pcall(function()
         System.AddCCommand("dp_target_validate", "DarkPassengerTarget.ValidateCommand(%line)",
             "Dark Passenger: revalidate selected target before marker activation")
         System.AddCCommand("dp_target_death", "DarkPassengerTarget.DeathCommand(%line)",
-            "Dark Passenger: replace a target that died without verified Henry attribution")
+            "Dark Passenger: start aftermath for a selected target death")
         System.AddCCommand("dp_target_clear", "DarkPassengerTarget.Clear()",
             "Dark Passenger: clear the current hidden target tag")
         System.AddCCommand("dp_quest_status", "DarkPassengerTarget.QuestStatus()",
