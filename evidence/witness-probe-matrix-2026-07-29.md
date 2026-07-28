@@ -74,13 +74,38 @@ the witness-specific awareness link has already cleared. The live watcher must
 capture the reversible `crime_interruptReport` phase before the guard accepts
 the report.
 
+### Directly witnessed target murder
+
+- target: `kpri_man_35`, killed by Henry with a stealth dagger;
+- Dark Passenger aftermath began for slot `897`;
+- direct witnesses:
+  - `kpri_woman_18`, Soul/WUID `05000000000007A2`;
+  - `kpri_woman_2`, Soul/WUID `05000000000010CC`;
+- both witnesses transitioned to:
+  `crime_interruptReport=true`, `crime_preventDespawn=true`,
+  `crime_anchor=1`, `crime_playerAwareness=1`;
+- both received native role
+  `SVEDEK_VIDI_VRAZDU_SPOLUBYDLICIHO`;
+- both later emitted `NPC_BEZI_HLASIT_(VRAZDA)`;
+- `kpri_woman_18` completed `NPC_REPORTUJE_STRAZI_(VRAZDA)`;
+- guard `kpri_man_11` accepted it through
+  `STRAZ_REAGUJE_NA_REPORT_(VRAZDA)`.
+
+The target itself briefly had broad crime reaction state, but became dead
+before witness registration. Therefore an alive filter removes the victim
+without special-casing the selected target.
+
+Brain variables had already cleared by the time a manual query ran after the
+report. The watcher now reads brain state only while an NPC has
+`crime_interruptReport=true`; calm NPCs remain skipped.
+
 ## Matrix
 
 | Scenario | NPC identity stable | Reaction delta | Henry link | Report/alarm | Save/load | False positive | Accepted predicate |
 |---|---|---|---|---|---|---|---|
 | Unseen kill; uninvolved NPC nearby | pending | pending | pending | pending | n/a | pending | pending |
 | NPC discovers corpse only | pending | pending | pending | pending | n/a | pending | pending |
-| NPC directly sees stealth kill | pending | pending | pending | pending | pending | pending | pending |
+| NPC directly sees stealth kill | two stable Soul/WUIDs confirmed | both entered `crime_interruptReport` | both retained `crime_playerAwareness`; attribution brain sample pending | one completed murder report and guard accepted | pending | dead target filtered; corpse-only comparison pending | candidate: alive + active report + attributed brain state |
 | Public melee kill and guard alarm | partial: assault witness/guard identities confirmed | `crime_interrupt`, `crime_preventDespawn` are broad | victim/guard have crime links after report | native report chain confirmed; Lua predicate pending | pending | broad reaction contexts include non-witnesses | pending live watcher capture |
 | Witness lives long enough to report | pending | pending | pending | pending | pending | pending | pending |
 | Witness dies before report | pending | pending | pending | pending | pending | pending | pending |

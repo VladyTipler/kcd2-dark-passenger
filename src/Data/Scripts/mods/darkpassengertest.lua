@@ -1602,6 +1602,12 @@ local function WitnessProbeRow(entity, origin, includeBrain)
     local name = ProbeEntityName(entity)
     local id = entity ~= nil and entity.id or nil
     local soulId = WitnessProbeSoulId(entity)
+    local reporting =
+        ProbeSoulContext(entity, "crime_interruptReport")
+    local brain = "skipped"
+    if includeBrain ~= false or reporting == true then
+        brain = WitnessProbeBrain(entity)
+    end
     local row = {
         key = name .. "|" .. tostring(id),
         name = name,
@@ -1616,8 +1622,7 @@ local function WitnessProbeRow(entity, origin, includeBrain)
         ),
         contexts = WitnessProbeContexts(entity),
         links = WitnessProbeLinks(entity),
-        brain = includeBrain == false and "skipped" or
-            WitnessProbeBrain(entity),
+        brain = brain,
     }
     row.signature = table.concat({
         row.dead,

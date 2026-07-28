@@ -1098,6 +1098,15 @@ Add-Result (
     )
 ) 'live witness watcher samples context and links without noisy brain reads'
 Add-Result (
+    $witnessProbeReadOnlyMatch.Success -and
+    $witnessProbeReadOnlyText.Contains(
+        'if includeBrain ~= false or reporting == true then'
+    ) -and
+    $witnessProbeReadOnlyText.Contains(
+        'brain = WitnessProbeBrain(entity)'
+    )
+) 'live witness watcher reads brain state only for active reporters'
+Add-Result (
     -not $runtimeLuaText.Contains('"crime_greyOutEAndDisableChat"')
 ) 'witness probe excludes the nonexistent grey-out chat context'
 Add-Result (
