@@ -1358,6 +1358,8 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: simulate leaving the active aftermath zone")
         System.AddCCommand("dp_aftermath_status", "DarkPassengerAftermath.Status()",
             "Dark Passenger: print the active aftermath state")
+        System.AddCCommand("dp_aftermath_restore", "DarkPassengerAftermath.Restore(%line)",
+            "Dark Passenger: restore the persisted aftermath state")
     end
 end)
 if not okCmd then
@@ -1496,6 +1498,10 @@ if PlayerEventDispatcher ~= nil then
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_reload")
             end
+            if DarkPassengerAftermath ~= nil and
+               DarkPassengerAftermath.Restore ~= nil then
+                DarkPassengerAftermath.Restore("player_reload")
+            end
             return DarkPassengerQuestBridge.StartPolling("player_reload")
         end)
         PlayerEventDispatcher:Register("OnInitEvent", function(...)
@@ -1503,6 +1509,10 @@ if PlayerEventDispatcher ~= nil then
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_init")
+            end
+            if DarkPassengerAftermath ~= nil and
+               DarkPassengerAftermath.Restore ~= nil then
+                DarkPassengerAftermath.Restore("player_init")
             end
             return DarkPassengerQuestBridge.StartPolling("player_init")
         end)

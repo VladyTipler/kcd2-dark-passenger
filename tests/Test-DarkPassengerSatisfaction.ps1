@@ -943,6 +943,53 @@ Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_status"')
 ) 'aftermath state machine exposes debug-only transition commands'
 Add-Result (
+    $aftermathLuaText.Contains('dp_aftermath_schema_version') -and
+    $aftermathLuaText.Contains('dp_aftermath_phase') -and
+    $aftermathLuaText.Contains('dp_aftermath_region_code') -and
+    $aftermathLuaText.Contains('dp_aftermath_settlement_code') -and
+    $aftermathLuaText.Contains('dp_aftermath_target_slot')
+) 'aftermath persists versioned case identity'
+Add-Result (
+    $aftermathLuaText.Contains('dp_aftermath_death_x') -and
+    $aftermathLuaText.Contains('dp_aftermath_death_y') -and
+    $aftermathLuaText.Contains('dp_aftermath_death_z') -and
+    $aftermathLuaText.Contains('dp_aftermath_zone_radius')
+) 'aftermath persists death position and zone radius'
+Add-Result (
+    $aftermathLuaText.Contains('dp_aftermath_silence_remaining_ms') -and
+    $aftermathLuaText.Contains('dp_aftermath_generation') -and
+    $aftermathLuaText.Contains('dp_aftermath_resolved_generation')
+) 'aftermath persists timer and idempotency generations'
+Add-Result (
+    $aftermathLuaText.Contains('dp_aftermath_exposed') -and
+    $aftermathLuaText.Contains('dp_aftermath_collateral_count') -and
+    $aftermathLuaText.Contains('dp_aftermath_witness_removed_count')
+) 'aftermath persists exposure and collateral state'
+Add-Result (
+    $aftermathLuaText.Contains('Variables.GetGlobal') -and
+    $aftermathLuaText.Contains('Variables.SetGlobal') -and
+    $aftermathLuaText.Contains('function DarkPassengerAftermath.Persist') -and
+    $aftermathLuaText.Contains('function DarkPassengerAftermath.Restore')
+) 'aftermath uses protected Variables scalar persistence'
+Add-Result (
+    $aftermathLuaText.Contains('silenceRemainingMs') -and
+    $aftermathLuaText.Contains('timerSerial') -and
+    $aftermathLuaText.Contains('OnPersistenceHeartbeat')
+) 'aftermath resumes active-play silence time without duplicate timers'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)OnReloadEvent.*?DarkPassengerAftermath\.Restore' +
+        '.*?OnInitEvent.*?DarkPassengerAftermath\.Restore'
+    )
+) 'player load lifecycle restores aftermath state'
+Add-Result (
+    $aftermathLuaText.Contains('dp_aftermath_attention_v1_') -and
+    $aftermathLuaText.Contains('dp_aftermath_blood_trail_v1_') -and
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.AdjustSettlementMetrics'
+    )
+) 'aftermath persists versioned settlement attention and blood trail'
+Add-Result (
     $runtimeLuaText.Contains("DarkPassengerTarget.TARGET_BUFF_GUID = `"$targetGuid`"")
 ) 'Lua target selector uses the hidden target buff'
 Add-Result (

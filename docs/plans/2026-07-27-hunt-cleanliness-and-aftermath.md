@@ -191,7 +191,7 @@ Require namespaced `Variables` keys for:
 - aftermath schema and phase;
 - region, settlement, target slot;
 - death position and zone radius;
-- silence deadline/generation;
+- silence remaining active-play time/generation;
 - exposure flags and collateral count;
 - resolved generation;
 - per-settlement attention and blood trail.
@@ -208,7 +208,7 @@ in `dphunger.lua`. Persist only scalar values supported by runtime probes.
 
 On load:
 
-- resume `SILENCE_CHECK` from remaining active-play time;
+- resume `SILENCE_CHECK` from a persisted one-second active-play heartbeat;
 - restore `CLEANUP` without restarting the timer;
 - ignore stale callbacks using generation;
 - never apply a resolved result twice;
