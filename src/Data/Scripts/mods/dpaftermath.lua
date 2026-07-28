@@ -594,6 +594,26 @@ function DarkPassengerAftermath.RecordWitnessRemoved(witnessId)
     return true
 end
 
+function DarkPassengerAftermath.ApplyHungerOutcome(result)
+    if result == "external" then
+        return true
+    end
+    if DarkPassengerHunger == nil or
+       DarkPassengerHunger.ResetAfterHunt == nil then
+        Log("hunger outcome unavailable result=" .. tostring(result))
+        return false
+    end
+    if result == "clean" then
+        return DarkPassengerHunger.ResetAfterHunt(2, result)
+    elseif result == "controlled" then
+        return DarkPassengerHunger.ResetAfterHunt(1, result)
+    elseif result == "noisy" then
+        return DarkPassengerHunger.ResetAfterHunt(0, result)
+    end
+    Log("unknown hunger outcome result=" .. tostring(result))
+    return false
+end
+
 function DarkPassengerAftermath.Resolve(result)
     if DarkPassengerAftermath.phase ==
        DarkPassengerAftermath.PHASE_RESOLVED then
@@ -615,6 +635,9 @@ function DarkPassengerAftermath.Resolve(result)
         DarkPassengerAftermath.generation
     DarkPassengerAftermath.silenceRemainingMs = 0
     DarkPassengerAftermath.Persist()
+    DarkPassengerAftermath.ApplyHungerOutcome(
+        DarkPassengerAftermath.result
+    )
     Log(
         "resolved generation=" ..
         tostring(DarkPassengerAftermath.generation) ..

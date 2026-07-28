@@ -142,19 +142,28 @@ function DarkPassengerHunger.EnsureInitialized()
     return lastSatisfaction
 end
 
-function DarkPassengerHunger.ResetNow()
+function DarkPassengerHunger.ResetNow(graceDays)
     local now = WorldTime()
     if now == nil then return false end
+    local clampedGraceDays = math.max(0, tonumber(graceDays) or 0)
+    local effectiveAnchor =
+        now +
+        clampedGraceDays *
+        DarkPassengerHunger.SECONDS_PER_DAY
     WriteGlobal(
         DarkPassengerHunger.SCHEMA_KEY,
         DarkPassengerHunger.SCHEMA_VERSION
     )
     local written = WriteGlobal(
         DarkPassengerHunger.LAST_SATISFACTION_KEY,
-        now
+        effectiveAnchor
     )
     if written then
-        Log("satisfaction timestamp reset=" .. tostring(now))
+        Log(
+            "satisfaction timestamp reset=" .. tostring(now) ..
+            " graceDays=" .. tostring(clampedGraceDays) ..
+            " effectiveAnchor=" .. tostring(effectiveAnchor)
+        )
     end
     return written
 end
@@ -240,15 +249,22 @@ function DarkPassengerHunger.ApplyTier(soul, tier)
     return true
 end
 
-function DarkPassengerHunger.ResetAfterHunt()
-    if not DarkPassengerHunger.ResetNow() then return false end
+function DarkPassengerHunger.ResetAfterHunt(graceDays, result)
+    local clampedGraceDays = math.max(0, tonumber(graceDays) or 0)
+    if not DarkPassengerHunger.ResetNow(graceDays) then return false end
     -- The native quest death branch has already added the hidden gate. Do not
     -- probe it: HasBuffDebug throws for this Cpp:Constant custom buff.
+    DarkPassengerHunger.lastGraceDays = clampedGraceDays
+    DarkPassengerHunger.lastResult = result
     DarkPassengerHunger.satisfactionGateExpected = true
     DarkPassengerHunger.currentTier = nil
     local hunger = DarkPassengerHunger.Evaluate()
     if hunger ~= nil then
-        Log("resolved hunt applied hunger=" .. tostring(hunger))
+        Log(
+            "resolved hunt applied hunger=" .. tostring(hunger) ..
+            " graceDays=" .. tostring(clampedGraceDays) ..
+            " result=" .. tostring(result)
+        )
     end
     return hunger ~= nil
 end
@@ -258,11 +274,23 @@ function DarkPassengerHunger.Status()
     local lastSatisfaction = DarkPassengerHunger.EnsureInitialized()
     local hunger = DarkPassengerHunger.Calculate(now, lastSatisfaction)
     local tier = DarkPassengerHunger.TierFor(hunger)
+    local graceRemainingDays = nil
+    if now ~= nil and lastSatisfaction ~= nil then
+        graceRemainingDays = math.max(
+            0,
+            (lastSatisfaction - now) /
+                DarkPassengerHunger.SECONDS_PER_DAY
+        )
+    end
+    local effectiveAnchor = lastSatisfaction
     Log(
         "status hunger=" .. tostring(hunger) ..
         " tier=" .. tostring(tier) ..
         " now=" .. tostring(now) ..
-        " lastSatisfactionWorldTime=" .. tostring(lastSatisfaction)
+        " lastSatisfactionWorldTime=" .. tostring(lastSatisfaction) ..
+        " graceRemainingDays=" .. tostring(graceRemainingDays) ..
+        " lastResult=" .. tostring(DarkPassengerHunger.lastResult) ..
+        " effectiveAnchor=" .. tostring(effectiveAnchor)
     )
     return hunger
 end

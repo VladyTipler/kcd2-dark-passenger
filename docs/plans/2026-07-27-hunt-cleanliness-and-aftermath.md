@@ -275,6 +275,12 @@ anchor.
 
 Expected: all existing hunger boundaries still pass plus grace mappings.
 
+**Completed 2026-07-29:** the existing satisfaction timestamp remains the
+single hunger-growth anchor. Clean, controlled, and noisy outcomes advance it
+by two, one, and zero game days; external death leaves hunger untouched.
+Status reports remaining grace, result, and effective anchor. Full suite:
+486 checks passed; hunger and aftermath Lua parsed successfully.
+
 ### Task 6: Establish the Lua-to-quest outcome signal
 
 **Files:**

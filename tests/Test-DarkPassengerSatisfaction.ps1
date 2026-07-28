@@ -786,13 +786,40 @@ Add-Result (
 ) 'positive tier swaps add the replacement before removing the old quest tag'
 Add-Result (
     $hungerLuaText -match (
-        '(?s)function DarkPassengerHunger\.ResetAfterHunt\(\).*?' +
-        'DarkPassengerHunger\.ResetNow\(\).*?' +
+        '(?s)function DarkPassengerHunger\.ResetAfterHunt\(graceDays, result\).*?' +
+        'DarkPassengerHunger\.ResetNow\(graceDays\).*?' +
         'DarkPassengerHunger\.satisfactionGateExpected = true.*?' +
         'DarkPassengerHunger\.currentTier = nil.*?' +
         'DarkPassengerHunger\.Evaluate\(\)'
     )
 ) 'resolved hunt directly resets persistent hunger without probing the gate buff'
+Add-Result (
+    $hungerLuaText -match (
+        '(?s)function DarkPassengerHunger\.ResetNow\(graceDays\).*?' +
+        'now \+.*?clampedGraceDays.*?' +
+        'DarkPassengerHunger\.SECONDS_PER_DAY'
+    ) -and
+    $hungerLuaText.Contains(
+        'local elapsed = math.max(0, current - previous)'
+    )
+) 'hunger grace advances the existing timestamp anchor and clamps elapsed time'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.ApplyHungerOutcome\(result\).*?' +
+        'result == "clean".*?ResetAfterHunt\(2, result\).*?' +
+        'result == "controlled".*?ResetAfterHunt\(1, result\).*?' +
+        'result == "noisy".*?ResetAfterHunt\(0, result\)'
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)if result == "external" then\s*return true'
+    )
+) 'aftermath maps clean controlled noisy and external outcomes to hunger grace'
+Add-Result (
+    $hungerLuaText -match (
+        '(?s)function DarkPassengerHunger\.Status\(\).*?' +
+        'graceRemainingDays.*?lastResult.*?effectiveAnchor'
+    )
+) 'hunger status logs grace result and effective growth anchor'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)requestBecameInactive.*?' +
