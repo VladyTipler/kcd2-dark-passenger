@@ -1312,6 +1312,15 @@ function DarkPassengerAftermathProbe.Attribution()
     end
 end
 
+pcall(function()
+    if System ~= nil and System.AddCCommand ~= nil then
+        System.AddCCommand("dp_aftermath_recover",
+            "DarkPassengerAftermath.EnsureRestoreFromPlayerAction()",
+            "Dark Passenger: retry aftermath recovery after save loading"
+        )
+    end
+end)
+
 local okCmd, errCmd = pcall(function()
     if System ~= nil and System.AddCCommand ~= nil then
         System.AddCCommand("dp_tag_nearest", "DarkPassengerTest.TagNearest(%line)",
@@ -1499,8 +1508,8 @@ if PlayerEventDispatcher ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_reload")
             end
             if DarkPassengerAftermath ~= nil and
-               DarkPassengerAftermath.Restore ~= nil then
-                DarkPassengerAftermath.Restore("player_reload")
+               DarkPassengerAftermath.ScheduleRestore ~= nil then
+                DarkPassengerAftermath.ScheduleRestore("player_reload")
             end
             return DarkPassengerQuestBridge.StartPolling("player_reload")
         end)
@@ -1511,8 +1520,8 @@ if PlayerEventDispatcher ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_init")
             end
             if DarkPassengerAftermath ~= nil and
-               DarkPassengerAftermath.Restore ~= nil then
-                DarkPassengerAftermath.Restore("player_init")
+               DarkPassengerAftermath.ScheduleRestore ~= nil then
+                DarkPassengerAftermath.ScheduleRestore("player_init")
             end
             return DarkPassengerQuestBridge.StartPolling("player_init")
         end)
@@ -1520,6 +1529,10 @@ if PlayerEventDispatcher ~= nil then
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.EnsureEvaluationFromPlayerAction ~= nil then
                 DarkPassengerHunger.EnsureEvaluationFromPlayerAction(...)
+            end
+            if DarkPassengerAftermath ~= nil and
+               DarkPassengerAftermath.EnsureRestoreFromPlayerAction ~= nil then
+                DarkPassengerAftermath.EnsureRestoreFromPlayerAction(...)
             end
             return DarkPassengerQuestBridge.EnsurePollingFromPlayerAction(...)
         end)

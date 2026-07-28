@@ -223,6 +223,12 @@ id. Version their key format so later content can migrate it.
 
 Expected: persistence-key, generation, and idempotency assertions pass.
 
+**Completed 2026-07-28:** persistence survived a live dev save/load test.
+Loading briefly cancels KCD2 Lua timers, so recovery is deferred and retried
+when a stale heartbeat is detected. The restored silence check continued from
+the saved remainder and resolved exactly once as `clean`. Full suite:
+483 checks passed; both Lua files parsed successfully.
+
 ### Task 5: Add hunger grace without duplicating hunger state
 
 **Files:**

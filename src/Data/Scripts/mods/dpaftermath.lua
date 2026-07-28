@@ -8,6 +8,8 @@ DarkPassengerAftermath.PHASE_RESOLVED = "RESOLVED"
 DarkPassengerAftermath.SILENCE_DURATION_MS = 90000
 DarkPassengerAftermath.DEFAULT_ZONE_RADIUS = 120
 DarkPassengerAftermath.PERSISTENCE_HEARTBEAT_MS = 1000
+DarkPassengerAftermath.HEARTBEAT_STALE_MS = 2500
+DarkPassengerAftermath.RESTORE_DELAY_MS = 1500
 DarkPassengerAftermath.SCHEMA_VERSION = 1
 
 DarkPassengerAftermath.KEYS = {
@@ -72,6 +74,12 @@ DarkPassengerAftermath.resolvedGeneration =
     tonumber(DarkPassengerAftermath.resolvedGeneration) or 0
 DarkPassengerAftermath.timerSerial =
     tonumber(DarkPassengerAftermath.timerSerial) or 0
+DarkPassengerAftermath.restoreSerial =
+    tonumber(DarkPassengerAftermath.restoreSerial) or 0
+DarkPassengerAftermath.loadRecoveryPending =
+    DarkPassengerAftermath.loadRecoveryPending == true
+DarkPassengerAftermath.actionRestoreRequested =
+    DarkPassengerAftermath.actionRestoreRequested == true
 
 local function Log(message)
     if System ~= nil and System.LogAlways ~= nil then
@@ -214,6 +222,43 @@ local function ScheduleSilenceTimer(requestedDelayMs)
     SchedulePersistenceHeartbeat(
         DarkPassengerAftermath.generation,
         DarkPassengerAftermath.timerSerial
+    )
+    return true
+end
+
+function DarkPassengerAftermath.ScheduleRestore(reason)
+    DarkPassengerAftermath.restoreSerial =
+        DarkPassengerAftermath.restoreSerial + 1
+    DarkPassengerAftermath.loadRecoveryPending = true
+    DarkPassengerAftermath.actionRestoreRequested = false
+
+    if Script == nil or Script.SetTimerForFunction == nil then
+        Log("deferred restore unavailable reason=" .. tostring(reason))
+        return false
+    end
+
+    local restoreSerial = DarkPassengerAftermath.restoreSerial
+    local ok, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            DarkPassengerAftermath.RESTORE_DELAY_MS,
+            "DarkPassengerAftermath.OnDeferredRestore",
+            {
+                reason = reason,
+                restoreSerial = restoreSerial,
+            }
+        )
+    end)
+    if not ok then
+        Log(
+            "deferred restore scheduling failed reason=" ..
+            tostring(reason) .. " error=" .. tostring(timerOrError)
+        )
+        return false
+    end
+
+    Log(
+        "restore scheduled reason=" .. tostring(reason) ..
+        " serial=" .. tostring(restoreSerial)
     )
     return true
 end
@@ -364,6 +409,63 @@ function DarkPassengerAftermath.Restore(reason)
         tostring(DarkPassengerAftermath.silenceRemainingMs)
     )
     return true
+end
+
+function DarkPassengerAftermath.OnDeferredRestore(userData, timerId)
+    local requestedSerial =
+        userData ~= nil and tonumber(userData.restoreSerial) or nil
+    if requestedSerial ~= DarkPassengerAftermath.restoreSerial then
+        return false
+    end
+
+    local restored = DarkPassengerAftermath.Restore(
+        userData ~= nil and userData.reason or "deferred"
+    )
+    if not restored or
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        DarkPassengerAftermath.loadRecoveryPending = false
+    end
+    return restored
+end
+
+function DarkPassengerAftermath.EnsureRestoreFromPlayerAction(...)
+    local heartbeatStale = false
+    if DarkPassengerAftermath.phase ==
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.timerActive then
+        local nowMs = MonotonicTimeMs()
+        heartbeatStale =
+            nowMs == nil or
+            DarkPassengerAftermath.lastHeartbeatTimeMs == nil or
+            nowMs < DarkPassengerAftermath.lastHeartbeatTimeMs or
+            nowMs - DarkPassengerAftermath.lastHeartbeatTimeMs >=
+                DarkPassengerAftermath.HEARTBEAT_STALE_MS
+    end
+
+    if not DarkPassengerAftermath.loadRecoveryPending and
+       not heartbeatStale then
+        return false
+    end
+    if DarkPassengerAftermath.actionRestoreRequested and
+       not heartbeatStale then
+        return false
+    end
+
+    DarkPassengerAftermath.actionRestoreRequested = true
+    Log(
+        "action restore requested pending=" ..
+        tostring(DarkPassengerAftermath.loadRecoveryPending) ..
+        " heartbeat_stale=" .. tostring(heartbeatStale)
+    )
+    local restored =
+        DarkPassengerAftermath.Restore("first_player_action")
+    if not restored or
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        DarkPassengerAftermath.loadRecoveryPending = false
+    end
+    return restored
 end
 
 function DarkPassengerAftermath.AdjustSettlementMetrics(
@@ -563,6 +665,9 @@ function DarkPassengerAftermath.OnPersistenceHeartbeat(userData, timerId)
            DarkPassengerAftermath.PHASE_SILENCE_CHECK then
         return false
     end
+
+    DarkPassengerAftermath.loadRecoveryPending = false
+    DarkPassengerAftermath.actionRestoreRequested = false
 
     local nowMs = MonotonicTimeMs()
     local elapsedMs = DarkPassengerAftermath.PERSISTENCE_HEARTBEAT_MS

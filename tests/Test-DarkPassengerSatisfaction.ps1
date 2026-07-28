@@ -940,7 +940,8 @@ Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_suspicion"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_witness_removed"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_exit"') -and
-    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_status"')
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_status"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_recover"')
 ) 'aftermath state machine exposes debug-only transition commands'
 Add-Result (
     $aftermathLuaText.Contains('dp_aftermath_schema_version') -and
@@ -978,10 +979,36 @@ Add-Result (
 ) 'aftermath resumes active-play silence time without duplicate timers'
 Add-Result (
     $runtimeLuaText -match (
-        '(?s)OnReloadEvent.*?DarkPassengerAftermath\.Restore' +
-        '.*?OnInitEvent.*?DarkPassengerAftermath\.Restore'
+        '(?s)OnReloadEvent.*?DarkPassengerAftermath\.ScheduleRestore' +
+        '.*?OnInitEvent.*?DarkPassengerAftermath\.ScheduleRestore'
     )
-) 'player load lifecycle restores aftermath state'
+) 'player load lifecycle schedules aftermath restore after load settles'
+Add-Result (
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.ScheduleRestore'
+    ) -and
+    $aftermathLuaText.Contains(
+        '"DarkPassengerAftermath.OnDeferredRestore"'
+    ) -and
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.OnDeferredRestore'
+    )
+) 'aftermath defers load restore so game loading cannot cancel resumed timers'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)OnActionEvent.*?' +
+        'DarkPassengerAftermath\.EnsureRestoreFromPlayerAction'
+    ) -and
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.EnsureRestoreFromPlayerAction'
+    ) -and
+    $aftermathLuaText.Contains(
+        'DarkPassengerAftermath.HEARTBEAT_STALE_MS'
+    ) -and
+    $aftermathLuaText.Contains(
+        'nowMs - DarkPassengerAftermath.lastHeartbeatTimeMs'
+    )
+) 'first player action retries aftermath restore when heartbeat becomes stale'
 Add-Result (
     $aftermathLuaText.Contains('dp_aftermath_attention_v1_') -and
     $aftermathLuaText.Contains('dp_aftermath_blood_trail_v1_') -and
