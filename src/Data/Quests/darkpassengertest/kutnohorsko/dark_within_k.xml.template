@@ -90,7 +90,10 @@
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="coldStartQuestNotActive.True" To="SetNone" />
           <Edge From="removeResetDelay.OnFinished" To="SetActive" />
-          <Edge From="cleanupProgress.OnDone" To="SetDone" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetDone" />
         </State>
         <IfFunction Name="wakeQuestActive" TypeT="wh::questmodule::QuestProgress" MethodName="Control::Compare" DeclaringType="Control">
           <Constant Name="Op" Value="Equals" />

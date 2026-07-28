@@ -778,9 +778,21 @@ Add-Result (
     $questText.Contains('<Constant Name="A" Value="27" />') -and
     $questText.Contains('<Constant Name="A" Value="28" />') -and
     $questText.Contains(
+        '<Edge From="cleanResultTrigger.OnAdded" To="SetDone" />'
+    ) -and
+    $questText.Contains(
+        '<Edge From="controlledResultTrigger.OnAdded" To="SetDone" />'
+    ) -and
+    $questText.Contains(
+        '<Edge From="noisyResultTrigger.OnAdded" To="SetDone" />'
+    ) -and
+    $questText.Contains(
+        '<Edge From="externalResultTrigger.OnAdded" To="SetDone" />'
+    ) -and
+    -not $questText.Contains(
         '<Edge From="cleanupProgress.OnDone" To="SetDone" />'
     )
-) 'all four result tags complete cleanup and then the Case'
+) 'all four result tags complete cleanup and the Case directly'
 
 Add-Result (Test-Path -LiteralPath $luaPath) 'satisfaction Lua bridge exists'
 Add-Result ($luaText.Contains($satisfactionGateGuid)) 'Lua bridge uses hidden satisfaction gate GUID'
