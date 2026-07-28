@@ -54,6 +54,28 @@ $expectedTag = '23'
 $satisfactionGateGuid = 'b5c59e05-cc10-4bf8-b82e-d82b913c841f'
 $targetGuid = 'a6046bb4-57c1-4a95-b743-880aba11f5ba'
 $targetTag = '24'
+$aftermathSignals = @(
+    @{
+        Result = 'clean'
+        Guid = 'ff7f94d9-51d5-4aff-9261-d259a63b005c'
+        Tag = '25'
+    },
+    @{
+        Result = 'controlled'
+        Guid = '02978719-2983-4f1a-bfde-5910f810e079'
+        Tag = '26'
+    },
+    @{
+        Result = 'noisy'
+        Guid = '16e10153-a09e-4df3-943e-26cb74aa555d'
+        Tag = '27'
+    },
+    @{
+        Result = 'external'
+        Guid = 'd79b7e38-cae0-404a-9df5-40a7e714cb40'
+        Tag = '28'
+    }
+)
 $failures = [System.Collections.Generic.List[string]]::new()
 $passes = [System.Collections.Generic.List[string]]::new()
 
@@ -485,6 +507,38 @@ Add-Result ($tagText.Contains('buff_ai_tag_id="23"')) 'custom AI tag uses id 23'
 Add-Result ($tagText.Contains('buff_ai_tag_name="darkpassenger_satisfaction"')) 'custom AI tag has expected name'
 Add-Result ($tagText.Contains("buff_ai_tag_id=`"$targetTag`"")) 'target AI tag uses id 24'
 Add-Result ($tagText.Contains('buff_ai_tag_name="darkpassenger_target"')) 'target AI tag has expected name'
+foreach ($signal in $aftermathSignals) {
+    Add-Result (
+        $tagText.Contains(
+            "buff_ai_tag_id=`"$($signal.Tag)`" buff_ai_tag_name=`"darkpassenger_result_$($signal.Result)`""
+        )
+    ) "aftermath $($signal.Result) result owns AI tag $($signal.Tag)"
+    Add-Result (
+        $buffText -match (
+            '<buff (?=[^>]*buff_ai_tag_id="' +
+            [regex]::Escape($signal.Tag) +
+            '")(?=[^>]*buff_exclusivity_id="0")' +
+            '(?=[^>]*buff_id="' +
+            [regex]::Escape($signal.Guid) +
+            '")(?=[^>]*buff_name="dp_result_' +
+            [regex]::Escape($signal.Result) +
+            '")(?=[^>]*buff_ui_visibility_id="0")[^>]*/>'
+        )
+    ) "aftermath $($signal.Result) result signal is hidden and non-exclusive"
+    Add-Result (
+        $aftermathLuaText.Contains(
+            "[$([char]34)$($signal.Result)$([char]34)] = $([char]34)$($signal.Guid)$([char]34)"
+        )
+    ) "aftermath Lua maps $($signal.Result) to its unique result buff"
+}
+$signalGuids = @($aftermathSignals.Guid)
+$signalTags = @($aftermathSignals.Tag)
+Add-Result (
+    @($signalGuids | Select-Object -Unique).Count -eq 4 -and
+    @($signalTags | Select-Object -Unique).Count -eq 4 -and
+    -not ($signalTags -contains $expectedTag) -and
+    -not ($signalTags -contains $targetTag)
+) 'aftermath result GUIDs and AI tags are unique and do not reuse core tags'
 
 Add-Result ($buffText.Contains('buff_name="dp_darkness_within"')) 'existing darkness debuff is preserved'
 Add-Result ($buffText.Contains("buff_id=`"$expectedGuid`"")) 'satisfaction buff uses expected GUID'
@@ -1004,6 +1058,18 @@ Add-Result (
     $aftermathLuaText.Contains('timerSerial') -and
     $aftermathLuaText.Contains('OnPersistenceHeartbeat')
 ) 'aftermath resumes active-play silence time without duplicate timers'
+Add-Result (
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.EmitResultSignal(result)'
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Resolve\(result\).*?' +
+        'PHASE_RESOLVED.*?return false.*?' +
+        'resolvedGeneration\s*=\s*DarkPassengerAftermath\.generation.*?' +
+        'DarkPassengerAftermath\.EmitResultSignal'
+    ) -and
+    $aftermathLuaText.Contains('playerSoul:AddBuff(resultGuid)')
+) 'aftermath emits one hidden result signal only on first resolution'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)OnReloadEvent.*?DarkPassengerAftermath\.ScheduleRestore' +

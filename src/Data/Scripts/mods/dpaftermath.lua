@@ -55,6 +55,12 @@ DarkPassengerAftermath.CODE_TO_RESULT = {
     [3] = "noisy",
     [4] = "external",
 }
+DarkPassengerAftermath.RESULT_BUFF_GUID_BY_RESULT = {
+    ["clean"] = "ff7f94d9-51d5-4aff-9261-d259a63b005c",
+    ["controlled"] = "02978719-2983-4f1a-bfde-5910f810e079",
+    ["noisy"] = "16e10153-a09e-4df3-943e-26cb74aa555d",
+    ["external"] = "d79b7e38-cae0-404a-9df5-40a7e714cb40",
+}
 
 DarkPassengerAftermath.phase =
     DarkPassengerAftermath.phase or DarkPassengerAftermath.PHASE_HUNTING
@@ -167,6 +173,16 @@ local function PlayerPosition()
     end)
     if not ok then return nil end
     return position
+end
+
+local function PlayerSoul()
+    local player = g_localActor
+    if player == nil and System ~= nil and
+       System.GetEntityByName ~= nil then
+        player = System.GetEntityByName("dude")
+    end
+    if player == nil then return nil end
+    return player.soul
 end
 
 local function SchedulePersistenceHeartbeat(generation, timerSerial)
@@ -614,6 +630,45 @@ function DarkPassengerAftermath.ApplyHungerOutcome(result)
     return false
 end
 
+function DarkPassengerAftermath.EmitResultSignal(result)
+    local resultGuid =
+        DarkPassengerAftermath.RESULT_BUFF_GUID_BY_RESULT[result]
+    local playerSoul = PlayerSoul()
+    if resultGuid == nil or playerSoul == nil then
+        Log(
+            "result signal unavailable result=" .. tostring(result) ..
+            " guid=" .. tostring(resultGuid) ..
+            " soul=" .. tostring(playerSoul)
+        )
+        return false
+    end
+
+    for _, previousGuid in pairs(
+        DarkPassengerAftermath.RESULT_BUFF_GUID_BY_RESULT
+    ) do
+        pcall(function()
+            playerSoul:RemoveAllBuffsByGuid(previousGuid)
+        end)
+    end
+
+    local ok, handleOrError = pcall(function()
+        return playerSoul:AddBuff(resultGuid)
+    end)
+    if not ok or handleOrError == nil then
+        Log(
+            "result signal failed result=" .. tostring(result) ..
+            " error=" .. tostring(handleOrError)
+        )
+        return false
+    end
+    Log(
+        "result signal emitted generation=" ..
+        tostring(DarkPassengerAftermath.generation) ..
+        " result=" .. tostring(result)
+    )
+    return true
+end
+
 function DarkPassengerAftermath.Resolve(result)
     if DarkPassengerAftermath.phase ==
        DarkPassengerAftermath.PHASE_RESOLVED then
@@ -635,6 +690,9 @@ function DarkPassengerAftermath.Resolve(result)
         DarkPassengerAftermath.generation
     DarkPassengerAftermath.silenceRemainingMs = 0
     DarkPassengerAftermath.Persist()
+    DarkPassengerAftermath.EmitResultSignal(
+        DarkPassengerAftermath.result
+    )
     DarkPassengerAftermath.ApplyHungerOutcome(
         DarkPassengerAftermath.result
     )

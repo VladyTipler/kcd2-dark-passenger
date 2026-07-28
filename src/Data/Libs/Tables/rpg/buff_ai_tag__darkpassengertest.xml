@@ -3,5 +3,9 @@
 	<buff_ai_tags version="1">
 		<buff_ai_tag buff_ai_tag_id="23" buff_ai_tag_name="darkpassenger_satisfaction" />
 		<buff_ai_tag buff_ai_tag_id="24" buff_ai_tag_name="darkpassenger_target" />
+		<buff_ai_tag buff_ai_tag_id="25" buff_ai_tag_name="darkpassenger_result_clean" />
+		<buff_ai_tag buff_ai_tag_id="26" buff_ai_tag_name="darkpassenger_result_controlled" />
+		<buff_ai_tag buff_ai_tag_id="27" buff_ai_tag_name="darkpassenger_result_noisy" />
+		<buff_ai_tag buff_ai_tag_id="28" buff_ai_tag_name="darkpassenger_result_external" />
 	</buff_ai_tags>
 </database>
