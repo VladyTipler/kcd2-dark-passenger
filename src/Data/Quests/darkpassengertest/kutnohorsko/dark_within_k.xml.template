@@ -149,14 +149,14 @@
         <{{DP_TARGET_OBJECTIVE_NAME}} Name="targetVisual">
           <Edge From="targetObjectiveProgress.State" To="Progress" />
         </{{DP_TARGET_OBJECTIVE_NAME}}>
-        <State Name="cleanupProgress" TypeT="Progress">
+        <State Name="cleanupProgress" TypeT="DP_CleanupProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_TARGET_CLEANUP_EDGES}}
-          <Edge From="cleanResultTrigger.OnAdded" To="SetDone" />
-          <Edge From="controlledResultTrigger.OnAdded" To="SetDone" />
-          <Edge From="noisyResultTrigger.OnAdded" To="SetDone" />
-          <Edge From="externalResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetClean" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetExternal" />
         </State>
         <{{DP_CLEANUP_OBJECTIVE_NAME}} Name="cleanupVisual">
           <Edge From="cleanupProgress.State" To="Progress" />
@@ -170,6 +170,14 @@
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_TARGET_TYPE_ENUMS}}
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+        <Type TypeName="DP_CleanupProgress">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="Noisy" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="External" ObjectiveValueType="Completed" />
         </Type>
       </Types>
       <Assets>
@@ -249,7 +257,7 @@
             <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>
-        <Objective TypeT="Progress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">
+        <Objective TypeT="DP_CleanupProgress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">
           <LocalizedName StringName="dark_within_cleanup_name" Text="Leave no trace">
             <Localization Text="Leave no trace" Language="WHS" />
           </LocalizedName>
@@ -260,7 +268,26 @@
                 <Localization Text="The work is done. Now I must make sure no one connects it to me." Language="WHS" />
               </Log>
             </EnumLog>
-            <EnumLog Type="Completed" Name="Done" />
+            <EnumLog Type="Completed" Name="Clean">
+              <Log StringName="dark_within_cleanup_clean" Text="Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.">
+                <Localization Text="Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="Controlled">
+              <Log StringName="dark_within_cleanup_controlled" Text="There were loose ends, but I cut them. It is enough to quiet the Passenger.">
+                <Localization Text="There were loose ends, but I cut them. It is enough to quiet the Passenger." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="Noisy">
+              <Log StringName="dark_within_cleanup_noisy" Text="It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising.">
+                <Localization Text="It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="External">
+              <Log StringName="dark_within_cleanup_external" Text="Death found the chosen one without me. The case is closed, but the Passenger got nothing from it.">
+                <Localization Text="Death found the chosen one without me. The case is closed, but the Passenger got nothing from it." Language="WHS" />
+              </Log>
+            </EnumLog>
           </Logs>
         </Objective>
       </Objectives>

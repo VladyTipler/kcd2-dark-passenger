@@ -765,13 +765,13 @@ Add-Result (
 ) 'selected victim death completes the generated hunt objective'
 Add-Result (
     $questText.Contains(
-        '<State Name="cleanupProgress" TypeT="Progress">'
+        '<State Name="cleanupProgress" TypeT="DP_CleanupProgress">'
     ) -and
     $questText.Contains(
         '<dark_within_cleanupk Name="cleanupVisual">'
     ) -and
     $questText.Contains(
-        '<Objective TypeT="Progress" Name="dark_within_cleanupk">'
+        '<Objective TypeT="DP_CleanupProgress" Name="dark_within_cleanupk">'
     )
 ) 'selected victim death hands off to a tracked cleanup objective'
 Add-Result (
@@ -1646,6 +1646,39 @@ Add-Result (
 Add-Result (
     $englishText.Contains('<Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell>')
 ) 'English target objective title is localized'
+foreach ($localizationText in @($englishText, $russianText)) {
+    foreach ($cleanupKey in @(
+        'dark_within_cleanup_name',
+        'dark_within_cleanup',
+        'dark_within_cleanup_clean',
+        'dark_within_cleanup_controlled',
+        'dark_within_cleanup_noisy',
+        'dark_within_cleanup_external'
+    )) {
+        Add-Result (
+            $localizationText.Contains("<Cell>$cleanupKey</Cell>")
+        ) "cleanup localization contains $cleanupKey"
+    }
+}
+Add-Result (
+    $questTemplateText.Contains('<State Name="cleanupProgress" TypeT="DP_CleanupProgress">') -and
+    $questTemplateText.Contains('<StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />') -and
+    $questTemplateText.Contains('<StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />') -and
+    $questTemplateText.Contains('<StateTypeEnumeration Name="Noisy" ObjectiveValueType="Completed" />') -and
+    $questTemplateText.Contains('<StateTypeEnumeration Name="External" ObjectiveValueType="Completed" />')
+) 'cleanup objective keeps a distinct completed state for every outcome'
+Add-Result (
+    $questTemplateText.Contains('<Edge From="cleanResultTrigger.OnAdded" To="SetClean" />') -and
+    $questTemplateText.Contains('<Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />') -and
+    $questTemplateText.Contains('<Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />') -and
+    $questTemplateText.Contains('<Edge From="externalResultTrigger.OnAdded" To="SetExternal" />')
+) 'result tags select their matching cleanup epilogues'
+Add-Result (
+    $questTemplateText.Contains('StringName="dark_within_cleanup_clean"') -and
+    $questTemplateText.Contains('StringName="dark_within_cleanup_controlled"') -and
+    $questTemplateText.Contains('StringName="dark_within_cleanup_noisy"') -and
+    $questTemplateText.Contains('StringName="dark_within_cleanup_external"')
+) 'generated quest references all cleanup epilogue localization keys'
 Add-Result (
     $englishText.Contains('I have learned to keep this darkness on a leash.')
 ) 'English quest description matches approved tone'

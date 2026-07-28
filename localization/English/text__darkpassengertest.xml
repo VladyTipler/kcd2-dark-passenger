@@ -8,6 +8,12 @@
 	<Row><Cell>dark_within_obj</Cell><Cell>The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
 	<Row><Cell>dark_within_target</Cell><Cell>The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
+	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_controlled</Cell><Cell>There were loose ends, but I cut them. It is enough to quiet the Passenger.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_noisy</Cell><Cell>It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_external</Cell><Cell>Death found the chosen one without me. The case is closed, but the Passenger got nothing from it.</Cell></Row>
 	<Row><Cell>dark_within_toast</Cell><Cell>The darkness within has awoken...</Cell></Row>
 	<Row><Cell>dp_sated_obj_name</Cell><Cell>The darkness sleeps</Cell></Row>
 	<Row><Cell>dp_sated_obj</Cell><Cell>The hunger is sated. For now.</Cell></Row>
