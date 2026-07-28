@@ -1646,6 +1646,14 @@ Add-Result (
 Add-Result (
     $englishText.Contains('<Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell>')
 ) 'English target objective title is localized'
+Add-Result (
+    $englishText.Contains('<Cell>dark_within_target_done</Cell>') -and
+    $russianText.Contains('<Cell>dark_within_target_done</Cell>') -and
+    $questTemplateText -match (
+        '(?s)<EnumLog Type="Completed" Name="Done">.*?' +
+        'StringName="dark_within_target_done".*?</EnumLog>'
+    )
+) 'completed target objective remains in the journal as case history'
 foreach ($localizationText in @($englishText, $russianText)) {
     foreach ($cleanupKey in @(
         'dark_within_cleanup_name',

@@ -8,6 +8,7 @@
 	<Row><Cell>dark_within_obj</Cell><Cell>The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
 	<Row><Cell>dark_within_target</Cell><Cell>The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.</Cell></Row>

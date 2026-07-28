@@ -254,7 +254,11 @@
           <Logs>
             <EnumLog Type="None" Name="None" />
 {{DP_TARGET_LOGS}}
-            <EnumLog Type="Completed" Name="Done" />
+            <EnumLog Type="Completed" Name="Done">
+              <Log StringName="dark_within_target_done" Text="The sentence has been carried out. Now I must leave no trace.">
+                <Localization Text="The sentence has been carried out. Now I must leave no trace." Language="WHS" />
+              </Log>
+            </EnumLog>
           </Logs>
         </Objective>
         <Objective TypeT="DP_CleanupProgress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">
