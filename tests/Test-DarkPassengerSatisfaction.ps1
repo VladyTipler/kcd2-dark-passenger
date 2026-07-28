@@ -1045,6 +1045,20 @@ Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_witness_probe_sample"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_witness_probe_clear"')
 ) 'witness probes have explicit read-only console commands'
+Add-Result (
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAftermathProbe.WitnessWatch'
+    ) -and
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAftermathProbe.WitnessWatchStop'
+    ) -and
+    $runtimeLuaText.Contains(
+        'System.AddCCommand("dp_witness_probe_watch"'
+    ) -and
+    $runtimeLuaText.Contains(
+        'System.AddCCommand("dp_witness_probe_stop"'
+    )
+) 'witness probe exposes a bounded live watcher'
 $witnessProbeReadOnlyMatch = [regex]::Match(
     $runtimeLuaText,
     '(?s)-- DP_WITNESS_PROBE_READ_ONLY_BEGIN(.*?)' +
@@ -1061,6 +1075,31 @@ Add-Result (
     -not $witnessProbeReadOnlyText.Contains('RecordSuspicion') -and
     -not $witnessProbeReadOnlyText.Contains('Resolve(')
 ) 'witness snapshot probes cannot mutate quest or aftermath state'
+Add-Result (
+    $witnessProbeReadOnlyMatch.Success -and
+    $witnessProbeReadOnlyText.Contains(
+        'XGenAIModule.FindLinks(linkSourceId, tag)'
+    ) -and
+    -not $witnessProbeReadOnlyText.Contains(
+        'XGenAIModule.FindLinks(entity.id, tag)'
+    )
+) 'witness link probe queries the NPC soul WUID'
+Add-Result (
+    $runtimeLuaText.Contains('"crime_anchor"') -and
+    $runtimeLuaText.Contains('"crime_playerAwareness"')
+) 'witness link probe covers active crime ownership links'
+Add-Result (
+    $witnessProbeReadOnlyMatch.Success -and
+    $witnessProbeReadOnlyText.Contains(
+        'DarkPassengerAftermathProbe.WITNESS_WATCH_INTERVAL_MS = 500'
+    ) -and
+    $witnessProbeReadOnlyText.Contains(
+        'DarkPassengerAftermathProbe.WitnessSample(tostring(radius), false)'
+    )
+) 'live witness watcher samples context and links without noisy brain reads'
+Add-Result (
+    -not $runtimeLuaText.Contains('"crime_greyOutEAndDisableChat"')
+) 'witness probe excludes the nonexistent grey-out chat context'
 Add-Result (
     $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dpaftermath.lua")')
 ) 'mod init explicitly loads aftermath state machine'

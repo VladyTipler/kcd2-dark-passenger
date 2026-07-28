@@ -1208,11 +1208,12 @@ DarkPassengerAftermathProbe.CRIME_CONTEXTS = {
     "crime_nrbLevel_searching",
     "crime_escalationLevel_looking",
     "crime_preventDespawn",
-    "crime_greyOutEAndDisableChat",
     "crime_greyOutGrabBody",
 }
 
 DarkPassengerAftermathProbe.CRIME_LINKS = {
+    "crime_anchor",
+    "crime_playerAwareness",
     "crime_npcCooldowns",
     "crime_districtOrigin",
     "crimeScene",
@@ -1470,6 +1471,11 @@ end
 
 -- DP_WITNESS_PROBE_READ_ONLY_BEGIN
 
+DarkPassengerAftermathProbe.WITNESS_WATCH_INTERVAL_MS = 500
+DarkPassengerAftermathProbe.WITNESS_WATCH_TICKS = 90
+DarkPassengerAftermathProbe.witnessWatchGeneration =
+    DarkPassengerAftermathProbe.witnessWatchGeneration or 0
+
 local function WitnessProbeValueSummary(value)
     local valueType = type(value)
     if valueType ~= "table" then
@@ -1534,15 +1540,18 @@ local function WitnessProbeContexts(entity)
 end
 
 local function WitnessProbeLinks(entity)
-    if entity == nil or entity.id == nil or
+    if entity == nil or
        not ProbeMethod(XGenAIModule, "FindLinks") then
         return ""
     end
 
+    local linkSourceId = WitnessProbeSoulId(entity)
+    if linkSourceId == nil then return "" end
+
     local summaries = {}
     for _, tag in ipairs(DarkPassengerAftermathProbe.CRIME_LINKS) do
         local ok, links = pcall(function()
-            return XGenAIModule.FindLinks(entity.id, tag)
+            return XGenAIModule.FindLinks(linkSourceId, tag)
         end)
         local count = 0
         if ok and type(links) == "table" then
@@ -1587,7 +1596,7 @@ local function WitnessProbeBrain(entity)
     return table.concat(summaries, ",")
 end
 
-local function WitnessProbeRow(entity, origin)
+local function WitnessProbeRow(entity, origin, includeBrain)
     local position = ProbeEntityPosition(entity)
     local distanceSquared = ProbeDistanceSquared(origin, position)
     local name = ProbeEntityName(entity)
@@ -1607,7 +1616,8 @@ local function WitnessProbeRow(entity, origin)
         ),
         contexts = WitnessProbeContexts(entity),
         links = WitnessProbeLinks(entity),
-        brain = WitnessProbeBrain(entity),
+        brain = includeBrain == false and "skipped" or
+            WitnessProbeBrain(entity),
     }
     row.signature = table.concat({
         row.dead,
@@ -1620,16 +1630,19 @@ local function WitnessProbeRow(entity, origin)
     return row
 end
 
-local function WitnessProbePlayerSignature()
+local function WitnessProbePlayerSignature(includeBrain)
     if g_localActor == nil then return "player=nil" end
     return table.concat({
         "contexts=" .. WitnessProbeContexts(g_localActor),
         "links=" .. WitnessProbeLinks(g_localActor),
-        "brain=" .. WitnessProbeBrain(g_localActor),
+        "brain=" .. (
+            includeBrain == false and "skipped" or
+            WitnessProbeBrain(g_localActor)
+        ),
     }, "|")
 end
 
-local function WitnessProbeCapture(radius)
+local function WitnessProbeCapture(radius, includeBrain)
     if g_localActor == nil or
        not ProbeMethod(System, "GetEntitiesInSphere") then
         return nil, "player or sphere binding unavailable"
@@ -1651,13 +1664,13 @@ local function WitnessProbeCapture(radius)
     for _, entity in pairs(entities) do
         if entity ~= nil and entity.id ~= nil and
            entity.id ~= g_localActor.id and entity.soul ~= nil then
-            local row = WitnessProbeRow(entity, origin)
+            local row = WitnessProbeRow(entity, origin, includeBrain)
             rows[row.key] = row
         end
     end
     return {
         radius = radius,
-        player = WitnessProbePlayerSignature(),
+        player = WitnessProbePlayerSignature(includeBrain),
         rows = rows,
     }
 end
@@ -1683,9 +1696,10 @@ local function WitnessProbeRowLog(prefix, row)
     )
 end
 
-function DarkPassengerAftermathProbe.WitnessArm(argsLine)
+function DarkPassengerAftermathProbe.WitnessArm(argsLine, includeBrain)
     local radius = WitnessProbeRadius(argsLine, 50)
-    local snapshot, errorMessage = WitnessProbeCapture(radius)
+    local snapshot, errorMessage =
+        WitnessProbeCapture(radius, includeBrain)
     if snapshot == nil then
         AftermathProbeLog("witness arm failed: " .. tostring(errorMessage))
         return false
@@ -1706,7 +1720,10 @@ function DarkPassengerAftermathProbe.WitnessArm(argsLine)
     return true
 end
 
-function DarkPassengerAftermathProbe.WitnessSample(argsLine)
+function DarkPassengerAftermathProbe.WitnessSample(
+    argsLine,
+    includeBrain
+)
     local previous = DarkPassengerAftermathProbe.witnessBaseline
     if previous == nil then
         AftermathProbeLog("witness sample unavailable: arm first")
@@ -1714,7 +1731,8 @@ function DarkPassengerAftermathProbe.WitnessSample(argsLine)
     end
 
     local radius = WitnessProbeRadius(argsLine, previous.radius or 50)
-    local current, errorMessage = WitnessProbeCapture(radius)
+    local current, errorMessage =
+        WitnessProbeCapture(radius, includeBrain)
     if current == nil then
         AftermathProbeLog(
             "witness sample failed: " .. tostring(errorMessage)
@@ -1767,6 +1785,65 @@ end
 function DarkPassengerAftermathProbe.WitnessClear()
     DarkPassengerAftermathProbe.witnessBaseline = nil
     AftermathProbeLog("witness baseline cleared")
+    return true
+end
+
+function DarkPassengerAftermathProbe.WitnessWatchStop()
+    DarkPassengerAftermathProbe.witnessWatchGeneration =
+        (DarkPassengerAftermathProbe.witnessWatchGeneration or 0) + 1
+    AftermathProbeLog("witness watch stopped")
+    return true
+end
+
+function DarkPassengerAftermathProbe.WitnessWatch(argsLine)
+    if Script == nil or Script.SetTimer == nil then
+        AftermathProbeLog("witness watch unavailable: timer binding missing")
+        return false
+    end
+
+    local radius = WitnessProbeRadius(argsLine, 30)
+    DarkPassengerAftermathProbe.witnessWatchGeneration =
+        (DarkPassengerAftermathProbe.witnessWatchGeneration or 0) + 1
+    local generation =
+        DarkPassengerAftermathProbe.witnessWatchGeneration
+    local ticksRemaining =
+        DarkPassengerAftermathProbe.WITNESS_WATCH_TICKS
+
+    if not DarkPassengerAftermathProbe.WitnessArm(
+        tostring(radius),
+        false
+    ) then
+        return false
+    end
+
+    local tick
+    tick = function()
+        if generation ~=
+           DarkPassengerAftermathProbe.witnessWatchGeneration then
+            return
+        end
+
+        DarkPassengerAftermathProbe.WitnessSample(tostring(radius), false)
+        ticksRemaining = ticksRemaining - 1
+        if ticksRemaining <= 0 then
+            AftermathProbeLog("witness watch complete")
+            return
+        end
+
+        Script.SetTimer(
+            DarkPassengerAftermathProbe.WITNESS_WATCH_INTERVAL_MS,
+            tick
+        )
+    end
+
+    Script.SetTimer(
+        DarkPassengerAftermathProbe.WITNESS_WATCH_INTERVAL_MS,
+        tick
+    )
+    AftermathProbeLog(
+        "witness watch started radius=" .. tostring(radius) ..
+        " ticks=" .. tostring(ticksRemaining)
+    )
     return true
 end
 
@@ -1823,6 +1900,10 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: diff nearby witness state against the last snapshot")
         System.AddCCommand("dp_witness_probe_clear", "DarkPassengerAftermathProbe.WitnessClear()",
             "Dark Passenger: clear the read-only witness snapshot")
+        System.AddCCommand("dp_witness_probe_watch", "DarkPassengerAftermathProbe.WitnessWatch(%line)",
+            "Dark Passenger: watch nearby witness state for 45 seconds")
+        System.AddCCommand("dp_witness_probe_stop", "DarkPassengerAftermathProbe.WitnessWatchStop()",
+            "Dark Passenger: stop the read-only witness watcher")
         System.AddCCommand("dp_aftermath_begin", "DarkPassengerAftermath.DebugBegin(%line)",
             "Dark Passenger: begin a synthetic aftermath case (zone radius)")
         System.AddCCommand("dp_aftermath_suspicion", "DarkPassengerAftermath.RecordSuspicion(%line)",
