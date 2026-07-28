@@ -1203,6 +1203,8 @@ DarkPassengerAftermathProbe = DarkPassengerAftermathProbe or {}
 DarkPassengerAftermathProbe.CRIME_CONTEXTS = {
     "crime_interrupt",
     "crime_interruptScan",
+    "crime_interruptReport",
+    "crime_disableReport",
     "crime_nrbLevel_searching",
     "crime_escalationLevel_looking",
     "crime_preventDespawn",
@@ -1214,6 +1216,20 @@ DarkPassengerAftermathProbe.CRIME_LINKS = {
     "crime_npcCooldowns",
     "crime_districtOrigin",
     "crimeScene",
+}
+
+DarkPassengerAftermathProbe.WITNESS_BRAIN_VARIABLES = {
+    "amIWitness",
+    "reportDestination",
+    "reportDestinationType",
+    "stimulusKind",
+    "previousReaction",
+    "criminalFreshness",
+    "freshlyAttributedCrime",
+    "reportedBy",
+    "shooter",
+    "target",
+    "scanData",
 }
 
 local function AftermathProbeLog(message)
@@ -1452,6 +1468,310 @@ function DarkPassengerAftermathProbe.Attribution()
     end
 end
 
+-- DP_WITNESS_PROBE_READ_ONLY_BEGIN
+
+local function WitnessProbeValueSummary(value)
+    local valueType = type(value)
+    if valueType ~= "table" then
+        return valueType .. ":" .. tostring(value)
+    end
+
+    local entries = {}
+    for key, entryValue in pairs(value) do
+        local entryType = type(entryValue)
+        if entryType ~= "table" and entryType ~= "function" then
+            table.insert(
+                entries,
+                tostring(key) .. "=" .. entryType .. ":" ..
+                tostring(entryValue)
+            )
+        end
+        if #entries >= 12 then break end
+    end
+    table.sort(entries)
+    return "table:{" .. table.concat(entries, ",") .. "}"
+end
+
+local function WitnessProbeSoulId(entity)
+    if entity == nil or entity.soul == nil or
+       not ProbeMethod(entity.soul, "GetId") then
+        return nil
+    end
+    local ok, value = pcall(function()
+        return entity.soul:GetId()
+    end)
+    if ok then return value end
+    return nil
+end
+
+local function WitnessProbeAiRelation(methodName, entity)
+    if entity == nil or entity.id == nil or g_localActor == nil or
+       g_localActor.id == nil or not ProbeMethod(AI, methodName) then
+        return nil
+    end
+    local ok, value = pcall(function()
+        return AI[methodName](entity.id, g_localActor.id)
+    end)
+    if ok then return value end
+    return nil
+end
+
+local function WitnessProbeContexts(entity)
+    local active = {}
+    for _, context in ipairs(
+        DarkPassengerAftermathProbe.CRIME_CONTEXTS
+    ) do
+        local value = ProbeSoulContext(entity, context)
+        if value ~= nil then
+            table.insert(
+                active,
+                context .. "=" .. tostring(value)
+            )
+        end
+    end
+    table.sort(active)
+    return table.concat(active, ",")
+end
+
+local function WitnessProbeLinks(entity)
+    if entity == nil or entity.id == nil or
+       not ProbeMethod(XGenAIModule, "FindLinks") then
+        return ""
+    end
+
+    local summaries = {}
+    for _, tag in ipairs(DarkPassengerAftermathProbe.CRIME_LINKS) do
+        local ok, links = pcall(function()
+            return XGenAIModule.FindLinks(entity.id, tag)
+        end)
+        local count = 0
+        if ok and type(links) == "table" then
+            for _ in pairs(links) do count = count + 1 end
+        end
+        table.insert(
+            summaries,
+            tag .. "=" .. tostring(ok) .. ":" ..
+            type(links) .. ":" .. tostring(count)
+        )
+    end
+    table.sort(summaries)
+    return table.concat(summaries, ",")
+end
+
+local function WitnessProbeBrain(entity)
+    if entity == nil or
+       not ProbeMethod(XGenAIModule, "GetBrainVariable") then
+        return ""
+    end
+
+    local soulId = WitnessProbeSoulId(entity)
+    if soulId == nil then return "" end
+
+    local summaries = {}
+    for _, variableName in ipairs(
+        DarkPassengerAftermathProbe.WITNESS_BRAIN_VARIABLES
+    ) do
+        local ok, value = pcall(function()
+            return XGenAIModule.GetBrainVariable(
+                soulId,
+                variableName
+            )
+        end)
+        table.insert(
+            summaries,
+            variableName .. "=" .. tostring(ok) .. ":" ..
+            WitnessProbeValueSummary(value)
+        )
+    end
+    table.sort(summaries)
+    return table.concat(summaries, ",")
+end
+
+local function WitnessProbeRow(entity, origin)
+    local position = ProbeEntityPosition(entity)
+    local distanceSquared = ProbeDistanceSquared(origin, position)
+    local name = ProbeEntityName(entity)
+    local id = entity ~= nil and entity.id or nil
+    local soulId = WitnessProbeSoulId(entity)
+    local row = {
+        key = name .. "|" .. tostring(id),
+        name = name,
+        id = tostring(id),
+        soulId = tostring(soulId),
+        distance = distanceSquared ~= nil and
+            string.format("%.1f", math.sqrt(distanceSquared)) or "?",
+        dead = tostring(ProbeEntityDead(entity)),
+        hostile = tostring(WitnessProbeAiRelation("Hostile", entity)),
+        personallyHostile = tostring(
+            WitnessProbeAiRelation("IsPersonallyHostile", entity)
+        ),
+        contexts = WitnessProbeContexts(entity),
+        links = WitnessProbeLinks(entity),
+        brain = WitnessProbeBrain(entity),
+    }
+    row.signature = table.concat({
+        row.dead,
+        row.hostile,
+        row.personallyHostile,
+        row.contexts,
+        row.links,
+        row.brain,
+    }, "|")
+    return row
+end
+
+local function WitnessProbePlayerSignature()
+    if g_localActor == nil then return "player=nil" end
+    return table.concat({
+        "contexts=" .. WitnessProbeContexts(g_localActor),
+        "links=" .. WitnessProbeLinks(g_localActor),
+        "brain=" .. WitnessProbeBrain(g_localActor),
+    }, "|")
+end
+
+local function WitnessProbeCapture(radius)
+    if g_localActor == nil or
+       not ProbeMethod(System, "GetEntitiesInSphere") then
+        return nil, "player or sphere binding unavailable"
+    end
+
+    local origin = ProbeEntityPosition(g_localActor)
+    if origin == nil then
+        return nil, "player position unavailable"
+    end
+
+    local ok, entities = pcall(function()
+        return System.GetEntitiesInSphere(origin, radius)
+    end)
+    if not ok or type(entities) ~= "table" then
+        return nil, "sphere query failed: " .. tostring(entities)
+    end
+
+    local rows = {}
+    for _, entity in pairs(entities) do
+        if entity ~= nil and entity.id ~= nil and
+           entity.id ~= g_localActor.id and entity.soul ~= nil then
+            local row = WitnessProbeRow(entity, origin)
+            rows[row.key] = row
+        end
+    end
+    return {
+        radius = radius,
+        player = WitnessProbePlayerSignature(),
+        rows = rows,
+    }
+end
+
+local function WitnessProbeRadius(argsLine, fallback)
+    local radius = tonumber((SplitArgs(argsLine or "")[1])) or fallback
+    return math.max(1, math.min(radius, 200))
+end
+
+local function WitnessProbeRowLog(prefix, row)
+    AftermathProbeLog(
+        prefix ..
+        " name=" .. tostring(row.name) ..
+        " id=" .. tostring(row.id) ..
+        " soul_id=" .. tostring(row.soulId) ..
+        " distance=" .. tostring(row.distance) ..
+        " dead=" .. tostring(row.dead) ..
+        " hostile=" .. tostring(row.hostile) ..
+        " personally_hostile=" .. tostring(row.personallyHostile) ..
+        " contexts=" .. tostring(row.contexts) ..
+        " links=" .. tostring(row.links) ..
+        " brain=" .. tostring(row.brain)
+    )
+end
+
+function DarkPassengerAftermathProbe.WitnessArm(argsLine)
+    local radius = WitnessProbeRadius(argsLine, 50)
+    local snapshot, errorMessage = WitnessProbeCapture(radius)
+    if snapshot == nil then
+        AftermathProbeLog("witness arm failed: " .. tostring(errorMessage))
+        return false
+    end
+
+    DarkPassengerAftermathProbe.witnessBaseline = snapshot
+    local keys = {}
+    for key in pairs(snapshot.rows) do table.insert(keys, key) end
+    table.sort(keys)
+    AftermathProbeLog(
+        "witness arm radius=" .. tostring(radius) ..
+        " npc_count=" .. tostring(#keys) ..
+        " player=" .. tostring(snapshot.player)
+    )
+    for _, key in ipairs(keys) do
+        WitnessProbeRowLog("witness baseline", snapshot.rows[key])
+    end
+    return true
+end
+
+function DarkPassengerAftermathProbe.WitnessSample(argsLine)
+    local previous = DarkPassengerAftermathProbe.witnessBaseline
+    if previous == nil then
+        AftermathProbeLog("witness sample unavailable: arm first")
+        return false
+    end
+
+    local radius = WitnessProbeRadius(argsLine, previous.radius or 50)
+    local current, errorMessage = WitnessProbeCapture(radius)
+    if current == nil then
+        AftermathProbeLog(
+            "witness sample failed: " .. tostring(errorMessage)
+        )
+        return false
+    end
+
+    local changes = {}
+    if current.player ~= previous.player then
+        table.insert(
+            changes,
+            "player before=" .. tostring(previous.player) ..
+            " after=" .. tostring(current.player)
+        )
+    end
+
+    for key, row in pairs(current.rows) do
+        local before = previous.rows[key]
+        if before == nil then
+            table.insert(changes, "added key=" .. key)
+        elseif before.signature ~= row.signature then
+            table.insert(changes, "changed key=" .. key)
+        end
+    end
+    for key in pairs(previous.rows) do
+        if current.rows[key] == nil then
+            table.insert(changes, "removed key=" .. key)
+        end
+    end
+    table.sort(changes)
+
+    AftermathProbeLog(
+        "witness sample radius=" .. tostring(radius) ..
+        " changes=" .. tostring(#changes)
+    )
+    for _, change in ipairs(changes) do
+        AftermathProbeLog("witness delta " .. change)
+        local key = string.match(change, "key=(.+)$")
+        if key ~= nil and current.rows[key] ~= nil then
+            WitnessProbeRowLog("witness current", current.rows[key])
+        elseif key ~= nil and previous.rows[key] ~= nil then
+            WitnessProbeRowLog("witness previous", previous.rows[key])
+        end
+    end
+
+    DarkPassengerAftermathProbe.witnessBaseline = current
+    return true
+end
+
+function DarkPassengerAftermathProbe.WitnessClear()
+    DarkPassengerAftermathProbe.witnessBaseline = nil
+    AftermathProbeLog("witness baseline cleared")
+    return true
+end
+
+-- DP_WITNESS_PROBE_READ_ONLY_END
+
 pcall(function()
     if System ~= nil and System.AddCCommand ~= nil then
         System.AddCCommand("dp_aftermath_recover",
@@ -1497,6 +1817,12 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: read-only crime contexts and links (radius, default 40)")
         System.AddCCommand("dp_aftermath_probe_attribution", "DarkPassengerAftermathProbe.Attribution()",
             "Dark Passenger: read-only target death and attribution API state")
+        System.AddCCommand("dp_witness_probe_arm", "DarkPassengerAftermathProbe.WitnessArm(%line)",
+            "Dark Passenger: arm a read-only nearby witness snapshot")
+        System.AddCCommand("dp_witness_probe_sample", "DarkPassengerAftermathProbe.WitnessSample(%line)",
+            "Dark Passenger: diff nearby witness state against the last snapshot")
+        System.AddCCommand("dp_witness_probe_clear", "DarkPassengerAftermathProbe.WitnessClear()",
+            "Dark Passenger: clear the read-only witness snapshot")
         System.AddCCommand("dp_aftermath_begin", "DarkPassengerAftermath.DebugBegin(%line)",
             "Dark Passenger: begin a synthetic aftermath case (zone radius)")
         System.AddCCommand("dp_aftermath_suspicion", "DarkPassengerAftermath.RecordSuspicion(%line)",

@@ -1030,6 +1030,38 @@ Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_probe_attribution"')
 ) 'aftermath exposes read-only attribution probe'
 Add-Result (
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAftermathProbe.WitnessArm'
+    ) -and
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAftermathProbe.WitnessSample'
+    ) -and
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAftermathProbe.WitnessClear'
+    )
+) 'aftermath exposes witness snapshot and diff probes'
+Add-Result (
+    $runtimeLuaText.Contains('System.AddCCommand("dp_witness_probe_arm"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_witness_probe_sample"') -and
+    $runtimeLuaText.Contains('System.AddCCommand("dp_witness_probe_clear"')
+) 'witness probes have explicit read-only console commands'
+$witnessProbeReadOnlyMatch = [regex]::Match(
+    $runtimeLuaText,
+    '(?s)-- DP_WITNESS_PROBE_READ_ONLY_BEGIN(.*?)' +
+    '-- DP_WITNESS_PROBE_READ_ONLY_END'
+)
+Add-Result (
+    $witnessProbeReadOnlyMatch.Success
+) 'witness probe marks its read-only implementation boundary'
+$witnessProbeReadOnlyText = $witnessProbeReadOnlyMatch.Groups[1].Value
+Add-Result (
+    $witnessProbeReadOnlyMatch.Success -and
+    -not $witnessProbeReadOnlyText.Contains(':AddBuff(') -and
+    -not $witnessProbeReadOnlyText.Contains('SetEntityContext') -and
+    -not $witnessProbeReadOnlyText.Contains('RecordSuspicion') -and
+    -not $witnessProbeReadOnlyText.Contains('Resolve(')
+) 'witness snapshot probes cannot mutate quest or aftermath state'
+Add-Result (
     $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dpaftermath.lua")')
 ) 'mod init explicitly loads aftermath state machine'
 Add-Result (
