@@ -387,7 +387,8 @@ foreach (
         '{{DP_TARGET_SELECTION_STOP_EDGES}}',
         '{{DP_TARGET_DETECTION_NODES}}',
         '{{DP_TARGET_DEATH_NODES}}',
-        '{{DP_TARGET_DEATH_REWARD_EDGES}}',
+        '{{DP_TARGET_DEATH_BRIDGE_NODES}}',
+        '{{DP_TARGET_CLEANUP_EDGES}}',
         '{{DP_TARGET_ASSETS}}',
         '{{DP_TARGET_LOGS}}'
 ) {
@@ -449,6 +450,16 @@ if ($enabledPritokyCandidates.Count -eq 37) {
                 "<Edge From=`"targetObjectiveProgress\.$slotName`" To=`"IsActive`" />"
             )
         ) "generated quest has death branch for $slotName"
+        Add-Result (
+            $questText -match (
+                "(?s)<dp_lua_call Name=`"$($slotNode)DeathBridge`">.*?" +
+                "<Constant Name=`"action`" Value=`"death\|" +
+                [regex]::Escape([string]$candidate.gameRegion) + "\|" +
+                [regex]::Escape([string]$candidate.settlement) + "\|" +
+                [regex]::Escape([string]$candidate.slot) + "`" />.*?" +
+                "<Edge From=`"$($slotNode)Death.OnDeath`" To=`"run`" />"
+            )
+        ) "generated quest dispatches death metadata for $slotName"
     }
 }
 
@@ -671,6 +682,14 @@ Add-Result (
 
 Add-Result ($levelText.Contains('<Edge From="OnWake" To="arm"')) 'Kuttenberg level arms quest watcher'
 Add-Result ($troskyLevelText.Contains('<Edge From="OnWake" To="arm"')) 'Trosky level arms quest watcher'
+Add-Result (
+    $levelText.Contains(
+        '<Definition File="kutnohorsko/dp_lua_call.xml" />'
+    ) -and
+    $troskyLevelText.Contains(
+        '<Definition File="kutnohorsko/dp_lua_call.xml" />'
+    )
+) 'both regional levels load the shared Lua death bridge module'
 Add-Result ($questText.Contains('<BuffTagTrigger Name="satisfactionTrigger"')) 'quest contains BuffTagTrigger'
 Add-Result ($questText.Contains('<Constant Name="A" Value="23"')) 'quest watches AI tag 23'
 Add-Result ($questText.Contains('satisfactionTrigger.OnAdded')) 'quest reacts to buff OnAdded'
@@ -745,9 +764,25 @@ Add-Result (
     $questText.Contains('<Edge From="targetSlot003Death.OnDeath" To="SetDone"')
 ) 'selected victim death completes the generated hunt objective'
 Add-Result (
-    $questText.Contains('<Function Name="grantSatisfactionOnTargetDeath"') -and
-    $questText.Contains("<Constant Name=`"Buff`" Value=`"$satisfactionGateGuid`"")
-) 'selected victim death grants satisfaction from the quest graph'
+    $questText.Contains(
+        '<State Name="cleanupProgress" TypeT="Progress">'
+    ) -and
+    $questText.Contains(
+        '<dark_within_cleanupk Name="cleanupVisual">'
+    ) -and
+    $questText.Contains(
+        '<Objective TypeT="Progress" Name="dark_within_cleanupk">'
+    )
+) 'selected victim death hands off to a tracked cleanup objective'
+Add-Result (
+    $questText.Contains('<Constant Name="A" Value="25" />') -and
+    $questText.Contains('<Constant Name="A" Value="26" />') -and
+    $questText.Contains('<Constant Name="A" Value="27" />') -and
+    $questText.Contains('<Constant Name="A" Value="28" />') -and
+    $questText.Contains(
+        '<Edge From="cleanupProgress.OnDone" To="SetDone" />'
+    )
+) 'all four result tags complete cleanup and then the Case'
 
 Add-Result (Test-Path -LiteralPath $luaPath) 'satisfaction Lua bridge exists'
 Add-Result ($luaText.Contains($satisfactionGateGuid)) 'Lua bridge uses hidden satisfaction gate GUID'
@@ -876,12 +911,15 @@ Add-Result (
 ) 'hunger status logs grace result and effective growth anchor'
 Add-Result (
     $runtimeLuaText -match (
-        '(?s)requestBecameInactive.*?' +
-        'DarkPassengerTarget\.targetCandidate ~= nil.*?' +
-        'DarkPassengerHunger\.ResetAfterHunt\(\).*?' +
+        '(?s)function DarkPassengerQuestBridge\.PollSelectionRequest.*?' +
+        'DarkPassengerTarget\.IsRegionQuestActive\(\s*request\.region\s*\).*?' +
         'DarkPassengerTarget\.ResetCase\(request\.region\)'
+    ) -and
+    $runtimeLuaText -notmatch (
+        '(?s)function DarkPassengerQuestBridge\.PollSelectionRequest.*?' +
+        'DarkPassengerHunger\.ResetAfterHunt'
     )
-) 'quest request falling edge resets hunger before target cleanup'
+) 'quest polling preserves target during cleanup and leaves hunger to aftermath'
 Add-Result (
     $hungerLuaText.Contains(
         'DarkPassengerHunger.satisfactionGateExpected'
@@ -949,8 +987,13 @@ Add-Result (
 Add-Result ($runtimeLuaText.Contains('result == "RESOLVED_CORRECT"')) 'correct case resolution is explicitly gated'
 Add-Result ($runtimeLuaText.Contains('previousState ~= "RESOLVED_CORRECT"')) 'already resolved cases cannot grant satisfaction twice'
 Add-Result (
-    $questText.Contains('<Function Name="grantSatisfactionOnTargetDeath"')
-) 'target death grants satisfaction independently of kill attribution'
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.OnTargetDeath.*?' +
+        'DarkPassengerAftermath\.Begin\(.*?' +
+        'gameRegion.*?settlement.*?expectedSlot'
+    ) -and
+    -not $runtimeLuaText.Contains('replacing after graph delay')
+) 'any selected-target death starts aftermath instead of choosing a replacement'
 Add-Result (
     $runtimeLuaText.Contains('function DarkPassengerTest.TestHudObjectiveMarker')
 ) 'runtime exposes HUD objective marker probe'
@@ -1058,6 +1101,26 @@ Add-Result (
     $aftermathLuaText.Contains('timerSerial') -and
     $aftermathLuaText.Contains('OnPersistenceHeartbeat')
 ) 'aftermath resumes active-play silence time without duplicate timers'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.OnPersistenceHeartbeat' +
+        '.*?PlayerPosition\(\).*?' +
+        'DarkPassengerAftermath\.OnPlayerPosition' +
+        '.*?function DarkPassengerAftermath\.OnPlayerPosition'
+    )
+) 'aftermath heartbeat polls player position for automatic zone exit'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Restore\(reason\)' +
+        '.*?PHASE_CLEANUP.*?SchedulePersistenceHeartbeat' +
+        '.*?function DarkPassengerAftermath\.OnDeferredRestore'
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordSuspicion\(reason\)' +
+        '.*?PHASE_CLEANUP.*?SchedulePersistenceHeartbeat' +
+        '.*?function DarkPassengerAftermath\.RecordWitnessRemoved'
+    )
+) 'cleanup zone polling starts on suspicion and resumes after load'
 Add-Result (
     $aftermathLuaText.Contains(
         'function DarkPassengerAftermath.EmitResultSignal(result)'
@@ -1207,10 +1270,9 @@ Add-Result (
     )
 ) 'active quest exposes a player script-context request for Lua selection'
 Add-Result (
-    -not $levelText.Contains('<Definition File="kutnohorsko/dp_lua_call.xml" />') -and
     -not $questTemplateText.Contains('<dp_lua_call Name="selectVictimPolicy"') -and
     -not $projectText.Contains('<SmartObjectAsset Name="player_scheduler" />')
-) 'standalone quest no longer depends on the Barbora player scheduler asset'
+) 'quest selection no longer depends on the Barbora player scheduler asset'
 Add-Result (
     $runtimeLuaText.Contains('DarkPassengerQuestBridge.REQUESTS = {') -and
     $runtimeLuaText -match (
@@ -1303,12 +1365,12 @@ Add-Result (
     $runtimeLuaText.Contains('IsLivingCandidate(currentEntity)')
 ) 'Lua revalidates the selected target immediately before marker state'
 Add-Result (
-    -not $questText.Contains('<dp_lua_call') -and
+    $questText.Contains('<dp_lua_call Name="targetSlot001DeathBridge">') -and
     $questText.Contains('Name="targetSlot001ValidationDelay"') -and
     $questText.Contains(
         '<Edge From="targetSlot001ValidationDelay.OnFinished" To="Exec" />'
     )
-) 'quest delays marker-state checks and verifies the hidden target tag directly'
+) 'quest uses Lua only for death handoff and keeps marker validation native'
 Add-Result (
     -not $questText.Contains('<Constant Name="Duration" Value="0.1s" />') -and
     $questText -match (
@@ -1317,16 +1379,17 @@ Add-Result (
     )
 ) 'target validation delay uses a valid whole-second TimeSpan'
 Add-Result (
-    $questText.Contains(
-        '<Function Name="grantSatisfactionOnTargetDeath" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">'
+    -not $questText.Contains(
+        '<Function Name="grantSatisfactionOnTargetDeath"'
     ) -and
-    $questText.Contains(
-        "<Constant Name=`"Buff`" Value=`"$satisfactionGateGuid`" />"
-    ) -and
-    $questText.Contains(
-        '<Edge From="targetSlot001Death.OnDeath" To="Exec" />'
-    )
-) 'selected target death grants satisfaction through the native quest graph'
+    $questText.Contains('<BuffTagTrigger Name="cleanResultTrigger">') -and
+    $questText.Contains('<BuffTagTrigger Name="controlledResultTrigger">') -and
+    $questText.Contains('<BuffTagTrigger Name="noisyResultTrigger">') -and
+    $questText.Contains('<BuffTagTrigger Name="externalResultTrigger">') -and
+    $questText.Contains('<Function Name="grantSatisfactionOnCleanResult"') -and
+    $questText.Contains('<Function Name="grantSatisfactionOnControlledResult"') -and
+    $questText.Contains('<Function Name="grantSatisfactionOnNoisyResult"')
+) 'result tags finish cleanup and only attributed outcomes grant satisfaction'
 Add-Result (
     $runtimeLuaText.Contains('local function IsVerifiedHenry(user)') -and
     $runtimeLuaText.Contains('user.id == g_localActor.id') -and
@@ -1366,13 +1429,13 @@ Add-Result (
     $questText.Contains(
         '<Edge From="targetSlot001Death.OnDeath" To="SetDone" />'
     ) -and
-    -not $questText.Contains(
+    $questText.Contains(
         '<Edge From="targetSlot001Death.OnDeath" To="SetActive" />'
     ) -and
     -not $questText.Contains(
         '<Edge From="targetSlot001Death.OnDeath" To="SetNone" />'
     )
-) 'target death completes the active target objective without reopening search'
+) 'target death completes target objective and activates cleanup'
 Add-Result (
     $questText.Contains(
         '<Edge From="targetSlot001Death.OnDeath" To="SetFalse" />'

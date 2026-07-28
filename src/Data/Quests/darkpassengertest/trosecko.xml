@@ -3,6 +3,7 @@
   <Skald>
     <Level Name="trosecko" HibernateMode="Auto" VoiceNamespace="false">
       <Definitions>
+        <Definition File="kutnohorsko/dp_lua_call.xml" />
         <Definition File="trosecko/dark_within_t.xml" />
       </Definitions>
       <Nodes>

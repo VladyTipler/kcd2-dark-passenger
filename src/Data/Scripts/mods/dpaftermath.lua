@@ -415,6 +415,13 @@ function DarkPassengerAftermath.Restore(reason)
                 DarkPassengerAftermath.silenceRemainingMs
             )
         end
+    elseif restoredPhase ==
+           DarkPassengerAftermath.PHASE_CLEANUP then
+        DarkPassengerAftermath.lastHeartbeatTimeMs = MonotonicTimeMs()
+        SchedulePersistenceHeartbeat(
+            DarkPassengerAftermath.generation,
+            DarkPassengerAftermath.timerSerial
+        )
     end
 
     Log(
@@ -437,9 +444,12 @@ function DarkPassengerAftermath.OnDeferredRestore(userData, timerId)
     local restored = DarkPassengerAftermath.Restore(
         userData ~= nil and userData.reason or "deferred"
     )
-    if not restored or
+    if not restored or (
        DarkPassengerAftermath.phase ~=
-           DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_CLEANUP
+    ) then
         DarkPassengerAftermath.loadRecoveryPending = false
     end
     return restored
@@ -447,9 +457,12 @@ end
 
 function DarkPassengerAftermath.EnsureRestoreFromPlayerAction(...)
     local heartbeatStale = false
-    if DarkPassengerAftermath.phase ==
-           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
-       DarkPassengerAftermath.timerActive then
+    if (
+        DarkPassengerAftermath.phase ==
+            DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+        DarkPassengerAftermath.timerActive
+    ) or DarkPassengerAftermath.phase ==
+           DarkPassengerAftermath.PHASE_CLEANUP then
         local nowMs = MonotonicTimeMs()
         heartbeatStale =
             nowMs == nil or
@@ -476,9 +489,12 @@ function DarkPassengerAftermath.EnsureRestoreFromPlayerAction(...)
     )
     local restored =
         DarkPassengerAftermath.Restore("first_player_action")
-    if not restored or
+    if not restored or (
        DarkPassengerAftermath.phase ~=
-           DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_CLEANUP
+    ) then
         DarkPassengerAftermath.loadRecoveryPending = false
     end
     return restored
@@ -573,6 +589,11 @@ function DarkPassengerAftermath.RecordSuspicion(reason)
         DarkPassengerAftermath.timerSerial + 1
     DarkPassengerAftermath.phase =
         DarkPassengerAftermath.PHASE_CLEANUP
+    DarkPassengerAftermath.lastHeartbeatTimeMs = MonotonicTimeMs()
+    SchedulePersistenceHeartbeat(
+        DarkPassengerAftermath.generation,
+        DarkPassengerAftermath.timerSerial
+    )
     DarkPassengerAftermath.Persist()
     Log(
         "suspicion generation=" ..
@@ -739,16 +760,39 @@ function DarkPassengerAftermath.OnPersistenceHeartbeat(userData, timerId)
         userData ~= nil and tonumber(userData.generation) or nil
     local requestedTimerSerial =
         userData ~= nil and tonumber(userData.timerSerial) or nil
+    local phase = DarkPassengerAftermath.phase
     if requestedGeneration ~= DarkPassengerAftermath.generation or
        requestedTimerSerial ~= DarkPassengerAftermath.timerSerial or
-       not DarkPassengerAftermath.timerActive or
-       DarkPassengerAftermath.phase ~=
-           DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+       (
+           phase ~= DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+           phase ~= DarkPassengerAftermath.PHASE_CLEANUP
+       ) or
+       (
+           phase == DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+           not DarkPassengerAftermath.timerActive
+       ) then
         return false
     end
 
     DarkPassengerAftermath.loadRecoveryPending = false
     DarkPassengerAftermath.actionRestoreRequested = false
+
+    local position = PlayerPosition()
+    if position ~= nil and DarkPassengerAftermath.OnPlayerPosition(
+        position.x,
+        position.y,
+        position.z
+    ) then
+        return true
+    end
+
+    if phase == DarkPassengerAftermath.PHASE_CLEANUP then
+        DarkPassengerAftermath.lastHeartbeatTimeMs = MonotonicTimeMs()
+        return SchedulePersistenceHeartbeat(
+            DarkPassengerAftermath.generation,
+            DarkPassengerAftermath.timerSerial
+        )
+    end
 
     local nowMs = MonotonicTimeMs()
     local elapsedMs = DarkPassengerAftermath.PERSISTENCE_HEARTBEAT_MS

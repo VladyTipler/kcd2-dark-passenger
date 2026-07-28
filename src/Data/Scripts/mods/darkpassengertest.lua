@@ -494,11 +494,6 @@ end
 
 function DarkPassengerTarget.OnTargetDeath(gameRegion, settlement, slot)
     local currentCase = CaseReady() and DarkPassengerCase.GetCurrent() or nil
-    if currentCase ~= nil and currentCase.state == "RESOLVED_CORRECT" then
-        TargetLog("target death already attributed to Henry; no replacement")
-        return true
-    end
-
     local expectedSlot = tonumber(slot)
     local candidate = DarkPassengerTarget.targetCandidate
     if candidate ~= nil and tonumber(candidate.slot) ~= expectedSlot then
@@ -506,11 +501,50 @@ function DarkPassengerTarget.OnTargetDeath(gameRegion, settlement, slot)
         return false
     end
 
+    candidate = candidate or FindCandidateBySlot(expectedSlot)
+    local targetEntity =
+        DarkPassengerTarget.targetEntityId ~= nil and
+        System.GetEntity(DarkPassengerTarget.targetEntityId) or nil
+    if targetEntity == nil and candidate ~= nil then
+        targetEntity = System.GetEntityByName(candidate.entityName)
+    end
+    local deathPosition = nil
+    if targetEntity ~= nil and targetEntity.GetWorldPos ~= nil then
+        local ok, positionOrError = pcall(function()
+            return targetEntity:GetWorldPos()
+        end)
+        if ok then deathPosition = positionOrError end
+    end
+    if deathPosition == nil and g_localActor ~= nil and
+       g_localActor.GetWorldPos ~= nil then
+        local ok, positionOrError = pcall(function()
+            return g_localActor:GetWorldPos()
+        end)
+        if ok then deathPosition = positionOrError end
+    end
+    if deathPosition == nil or DarkPassengerAftermath == nil or
+       DarkPassengerAftermath.Begin == nil then
+        TargetLog("target death aftermath unavailable slot=" .. tostring(expectedSlot))
+        return false
+    end
+
+    local attributedToHenry =
+        currentCase ~= nil and currentCase.state == "RESOLVED_CORRECT"
     TargetLog(
-        "target died without verified Henry event; replacing after graph delay"
+        "target death starts aftermath slot=" .. tostring(expectedSlot) ..
+        " attributedToHenry=" .. tostring(attributedToHenry)
+    )
+    local started = DarkPassengerAftermath.Begin(
+        gameRegion,
+        settlement,
+        expectedSlot,
+        deathPosition.x,
+        deathPosition.y,
+        deathPosition.z,
+        DarkPassengerAftermath.DEFAULT_ZONE_RADIUS
     )
     DarkPassengerTarget.Clear()
-    return DarkPassengerTarget.Select(gameRegion, settlement)
+    return started
 end
 
 function DarkPassengerTarget.SelectPritoky()
@@ -551,6 +585,23 @@ function DarkPassengerTarget.QuestStatus()
         " active=" .. tostring(ok and activeOrError or nil) ..
         " error=" .. tostring(ok and nil or activeOrError)
     )
+    return ok and activeOrError == true
+end
+
+DarkPassengerTarget.QUEST_BY_REGION = {
+    kutnohorsko = "dark_within_k",
+    trosecko = "dark_within_t",
+}
+
+function DarkPassengerTarget.IsRegionQuestActive(gameRegion)
+    local questName = DarkPassengerTarget.QUEST_BY_REGION[gameRegion]
+    if questName == nil or QuestSystem == nil or
+       QuestSystem.IsQuestActive == nil then
+        return false
+    end
+    local ok, activeOrError = pcall(function()
+        return QuestSystem.IsQuestActive(questName)
+    end)
     return ok and activeOrError == true
 end
 
@@ -761,13 +812,10 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
                 )
                 DarkPassengerTarget.SelectNearest(request.region)
             end
-        elseif previousState ~= false then
-            if requestBecameInactive and
-               DarkPassengerTarget.targetCandidate ~= nil and
-               DarkPassengerHunger ~= nil and
-               DarkPassengerHunger.ResetAfterHunt ~= nil then
-                DarkPassengerHunger.ResetAfterHunt()
-            end
+        elseif DarkPassengerTarget.targetCandidate ~= nil and
+               not DarkPassengerTarget.IsRegionQuestActive(
+                   request.region
+               ) then
             DarkPassengerTarget.ResetCase(request.region)
         end
     end

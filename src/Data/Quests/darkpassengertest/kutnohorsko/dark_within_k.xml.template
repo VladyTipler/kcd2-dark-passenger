@@ -22,6 +22,18 @@
         <MakeArray Name="targetTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
           <Constant Name="A" Value="24" />
         </MakeArray>
+        <MakeArray Name="cleanResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="25" />
+        </MakeArray>
+        <MakeArray Name="controlledResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="26" />
+        </MakeArray>
+        <MakeArray Name="noisyResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="27" />
+        </MakeArray>
+        <MakeArray Name="externalResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="28" />
+        </MakeArray>
         <BuffTagTrigger Name="targetTagTrigger">
           <Asset Name="Souls" Alias="RegionalTargetSouls" />
           <Edge From="targetTags.Array" To="BuffTags" />
@@ -31,6 +43,26 @@
           <Asset Name="Souls" Alias="player" />
           <Edge From="satisfactionTags.Array" To="BuffTags" />
           <Edge From="watcherActive.State" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="cleanResultTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="cleanResultTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="controlledResultTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="controlledResultTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="noisyResultTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="noisyResultTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="externalResultTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="externalResultTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
         </BuffTagTrigger>
         <State Name="satisfiedAtWake" TypeT="bool">
           <Edge From="satisfactionTrigger.OnAdded" To="SetTrue" />
@@ -58,7 +90,7 @@
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="coldStartQuestNotActive.True" To="SetNone" />
           <Edge From="removeResetDelay.OnFinished" To="SetActive" />
-          <Edge From="targetObjectiveProgress.OnDone" To="SetDone" />
+          <Edge From="cleanupProgress.OnDone" To="SetDone" />
         </State>
         <IfFunction Name="wakeQuestActive" TypeT="wh::questmodule::QuestProgress" MethodName="Control::Compare" DeclaringType="Control">
           <Constant Name="Op" Value="Equals" />
@@ -84,17 +116,22 @@
           <Edge From="targetObjectiveProgress.OnDone" To="SetFalse" />
         </State>
 {{DP_TARGET_DEATH_NODES}}
-        <Function Name="grantSatisfactionOnTargetDeath" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
+{{DP_TARGET_DEATH_BRIDGE_NODES}}
+        <Function Name="grantSatisfactionOnCleanResult" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
           <Asset Name="Souls" Alias="player" />
-                        <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />
-{{DP_TARGET_DEATH_REWARD_EDGES}}
+          <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />
+          <Edge From="cleanResultTrigger.OnAdded" To="Exec" />
         </Function>
-        <IfFunction Name="finishIfActive" TypeT="wh::questmodule::QuestProgress" MethodName="Control::Compare" DeclaringType="Control">
-          <Constant Name="Op" Value="Equals" />
-          <Constant Name="ValueB" Value="Active" />
-          <Edge From="questProgress.State" To="ValueA" />
-          <Edge From="satisfactionTrigger.OnAdded" To="Exec" />
-        </IfFunction>
+        <Function Name="grantSatisfactionOnControlledResult" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
+          <Asset Name="Souls" Alias="player" />
+          <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />
+          <Edge From="controlledResultTrigger.OnAdded" To="Exec" />
+        </Function>
+        <Function Name="grantSatisfactionOnNoisyResult" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
+          <Asset Name="Souls" Alias="player" />
+          <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />
+          <Edge From="noisyResultTrigger.OnAdded" To="Exec" />
+        </Function>
         <State Name="objectiveProgress" TypeT="Progress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetActive" />
@@ -107,12 +144,23 @@
         <State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
-          <Edge From="finishIfActive.True" To="SetDone" />
 {{DP_TARGET_STATE_EDGES}}
         </State>
         <{{DP_TARGET_OBJECTIVE_NAME}} Name="targetVisual">
           <Edge From="targetObjectiveProgress.State" To="Progress" />
         </{{DP_TARGET_OBJECTIVE_NAME}}>
+        <State Name="cleanupProgress" TypeT="Progress">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+{{DP_TARGET_CLEANUP_EDGES}}
+          <Edge From="cleanResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetDone" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetDone" />
+        </State>
+        <{{DP_CLEANUP_OBJECTIVE_NAME}} Name="cleanupVisual">
+          <Edge From="cleanupProgress.State" To="Progress" />
+        </{{DP_CLEANUP_OBJECTIVE_NAME}}>
         <Output Name="Output">
           <Edge From="questProgress.State" To="Progress" />
         </Output>
@@ -198,6 +246,20 @@
           <Logs>
             <EnumLog Type="None" Name="None" />
 {{DP_TARGET_LOGS}}
+            <EnumLog Type="Completed" Name="Done" />
+          </Logs>
+        </Objective>
+        <Objective TypeT="Progress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">
+          <LocalizedName StringName="dark_within_cleanup_name" Text="Leave no trace">
+            <Localization Text="Leave no trace" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+            <EnumLog Type="Started" Name="Active" IsTracked="true">
+              <Log StringName="dark_within_cleanup" Text="The work is done. Now I must make sure no one connects it to me.">
+                <Localization Text="The work is done. Now I must make sure no one connects it to me." Language="WHS" />
+              </Log>
+            </EnumLog>
             <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>
