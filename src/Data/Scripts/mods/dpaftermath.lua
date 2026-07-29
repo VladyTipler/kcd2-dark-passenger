@@ -406,6 +406,38 @@ function DarkPassengerAftermath.Restore(reason)
     DarkPassengerAftermath.region = restoredRegion
     DarkPassengerAftermath.settlement = restoredSettlement
 
+    if DarkPassengerWitness ~= nil and
+       DarkPassengerWitness.Restore ~= nil then
+        local witnessRestored =
+            DarkPassengerWitness.Restore(
+                "aftermath_" .. tostring(reason)
+            )
+        if not witnessRestored then
+            DarkPassengerWitness.BeginCase(
+                DarkPassengerAftermath.generation,
+                DarkPassengerAftermath.regionCode,
+                DarkPassengerAftermath.settlementCode,
+                DarkPassengerAftermath.targetSlot
+            )
+        elseif DarkPassengerWitness.activeCaseGeneration ~=
+               DarkPassengerAftermath.generation then
+            Log(
+                "witness generation mismatch witness=" ..
+                tostring(
+                    DarkPassengerWitness.activeCaseGeneration
+                ) ..
+                " aftermath=" ..
+                tostring(DarkPassengerAftermath.generation)
+            )
+            DarkPassengerWitness.BeginCase(
+                DarkPassengerAftermath.generation,
+                DarkPassengerAftermath.regionCode,
+                DarkPassengerAftermath.settlementCode,
+                DarkPassengerAftermath.targetSlot
+            )
+        end
+    end
+
     if restoredPhase ==
        DarkPassengerAftermath.PHASE_SILENCE_CHECK then
         if DarkPassengerAftermath.silenceRemainingMs <= 0 then
@@ -560,6 +592,15 @@ function DarkPassengerAftermath.Begin(
     DarkPassengerAftermath.result = nil
     DarkPassengerAftermath.suspicionReason = nil
 
+    if DarkPassengerWitness ~= nil and
+       DarkPassengerWitness.BeginCase ~= nil then
+        DarkPassengerWitness.BeginCase(
+            DarkPassengerAftermath.generation,
+            region,
+            settlement,
+            targetSlot
+        )
+    end
     ScheduleSilenceTimer(DarkPassengerAftermath.silenceRemainingMs)
     DarkPassengerAftermath.Persist()
     Log(
@@ -572,18 +613,19 @@ function DarkPassengerAftermath.Begin(
     return true
 end
 
-function DarkPassengerAftermath.RecordSuspicion(reason)
+local function EnterCleanup(reason, exposed)
     if DarkPassengerAftermath.phase ==
-       DarkPassengerAftermath.PHASE_RESOLVED then
-        return false
-    end
-    if DarkPassengerAftermath.phase ==
+       DarkPassengerAftermath.PHASE_RESOLVED or
+       DarkPassengerAftermath.phase ==
        DarkPassengerAftermath.PHASE_HUNTING then
         return false
     end
 
-    DarkPassengerAftermath.exposed = true
-    DarkPassengerAftermath.suspicionReason = reason or "unspecified"
+    if exposed == true then
+        DarkPassengerAftermath.exposed = true
+    end
+    DarkPassengerAftermath.suspicionReason =
+        reason or DarkPassengerAftermath.suspicionReason or "unspecified"
     DarkPassengerAftermath.timerActive = false
     DarkPassengerAftermath.timerSerial =
         DarkPassengerAftermath.timerSerial + 1
@@ -594,12 +636,155 @@ function DarkPassengerAftermath.RecordSuspicion(reason)
         DarkPassengerAftermath.generation,
         DarkPassengerAftermath.timerSerial
     )
+    return true
+end
+
+function DarkPassengerAftermath.RecordSuspicion(reason)
+    if not EnterCleanup(reason, true) then return false end
     DarkPassengerAftermath.Persist()
     Log(
         "suspicion generation=" ..
         tostring(DarkPassengerAftermath.generation) ..
         " reason=" .. tostring(DarkPassengerAftermath.suspicionReason)
     )
+    return true
+end
+
+function DarkPassengerAftermath.RecordWitness(
+    identityHigh,
+    identityLow,
+    evidenceCode,
+    identified,
+    incidentTime
+)
+    if DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_CLEANUP then
+        return false
+    end
+    if DarkPassengerWitness == nil or
+       DarkPassengerWitness.Confirm == nil then
+        return false
+    end
+
+    local record = DarkPassengerWitness.Confirm(
+        identityHigh,
+        identityLow,
+        evidenceCode,
+        identified,
+        incidentTime,
+        DarkPassengerAftermath.deathX,
+        DarkPassengerAftermath.deathY,
+        DarkPassengerAftermath.deathZ
+    )
+    if record == nil then return false end
+    if DarkPassengerAftermath.phase ==
+       DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        EnterCleanup("witness_confirmed", false)
+        DarkPassengerAftermath.Persist()
+    end
+    Log(
+        "witness confirmed generation=" ..
+        tostring(DarkPassengerAftermath.generation) ..
+        " record=" .. tostring(record.id)
+    )
+    return true
+end
+
+function DarkPassengerAftermath.RecordReport(
+    identityHigh,
+    identityLow,
+    reason,
+    reportTime
+)
+    if not DarkPassengerAftermath.RecordWitness(
+        identityHigh,
+        identityLow,
+        2,
+        true,
+        reportTime
+    ) then
+        return false
+    end
+    if not DarkPassengerWitness.MarkReported(
+        identityHigh,
+        identityLow,
+        reportTime
+    ) then
+        return false
+    end
+    DarkPassengerWitness.LockNoisy(reason or "witness_reported")
+    DarkPassengerAftermath.exposed = true
+    DarkPassengerAftermath.suspicionReason =
+        reason or "witness_reported"
+    DarkPassengerAftermath.Persist()
+    Log(
+        "report locked noisy generation=" ..
+        tostring(DarkPassengerAftermath.generation) ..
+        " reason=" .. tostring(DarkPassengerAftermath.suspicionReason)
+    )
+    return true
+end
+
+function DarkPassengerAftermath.LockNoisy(reason)
+    if DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_CLEANUP then
+        return false
+    end
+    if DarkPassengerWitness == nil or
+       DarkPassengerWitness.LockNoisy == nil then
+        return false
+    end
+    DarkPassengerWitness.LockNoisy(reason or "global_alarm")
+    EnterCleanup(reason or "global_alarm", true)
+    DarkPassengerAftermath.Persist()
+    return true
+end
+
+function DarkPassengerAftermath.RecordWitnessDeath(
+    identityHigh,
+    identityLow,
+    attributed,
+    deathTime,
+    deathX,
+    deathY,
+    deathZ
+)
+    if DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_SILENCE_CHECK and
+       DarkPassengerAftermath.phase ~=
+           DarkPassengerAftermath.PHASE_CLEANUP then
+        return false
+    end
+    if DarkPassengerWitness == nil or
+       DarkPassengerWitness.MarkDead == nil then
+        return false
+    end
+
+    local marked, changed = DarkPassengerWitness.MarkDead(
+        identityHigh,
+        identityLow,
+        deathTime,
+        deathX,
+        deathY,
+        deathZ,
+        attributed
+    )
+    if not marked then return false end
+    if DarkPassengerAftermath.phase ==
+       DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        EnterCleanup("witness_removed", false)
+    end
+    if changed and (attributed == true or attributed == 1) then
+        DarkPassengerAftermath.witnessRemovedCount =
+            DarkPassengerAftermath.witnessRemovedCount + 1
+        DarkPassengerAftermath.collateralCount =
+            DarkPassengerAftermath.collateralCount + 1
+    end
+    DarkPassengerAftermath.Persist()
     return true
 end
 
@@ -839,7 +1024,14 @@ function DarkPassengerAftermath.OnPlayerPosition(x, y, z)
     if distanceFromDeath >= zoneRadius then
         if DarkPassengerAftermath.phase ==
            DarkPassengerAftermath.PHASE_CLEANUP then
-            return DarkPassengerAftermath.Resolve("noisy")
+            local result = "noisy"
+            if DarkPassengerWitness ~= nil and
+               DarkPassengerWitness.GetCaseOutcome ~= nil then
+                result = DarkPassengerWitness.GetCaseOutcome(
+                    DarkPassengerAftermath.generation
+                )
+            end
+            return DarkPassengerAftermath.Resolve(result)
         end
         return DarkPassengerAftermath.Resolve("clean")
     end

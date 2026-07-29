@@ -131,6 +131,11 @@ local function StableCode(value)
     return code
 end
 
+local function CaseCode(value)
+    if type(value) == "number" then return value end
+    return StableCode(value)
+end
+
 local function RecordKey(recordId, field)
     return DarkPassengerWitness.RECORD_PREFIX ..
         tostring(recordId) .. "_" .. tostring(field)
@@ -376,8 +381,8 @@ function DarkPassengerWitness.BeginCase(
 )
     DarkPassengerWitness.activeCaseGeneration =
         math.max(0, NumberOr(generation, 0))
-    DarkPassengerWitness.activeRegionCode = StableCode(region)
-    DarkPassengerWitness.activeSettlementCode = StableCode(settlement)
+    DarkPassengerWitness.activeRegionCode = CaseCode(region)
+    DarkPassengerWitness.activeSettlementCode = CaseCode(settlement)
     DarkPassengerWitness.activeTargetSlot = NumberOr(targetSlot, 0)
     DarkPassengerWitness.noisyLocked = false
     DarkPassengerWitness.notificationEmitted = false
@@ -488,7 +493,8 @@ function DarkPassengerWitness.MarkDead(
     if record == nil then return false end
     local nextState =
         DarkPassengerWitness.DEATH_TRANSITIONS[record.state]
-    if nextState ~= nil then record.state = nextState end
+    local changed = nextState ~= nil
+    if changed then record.state = nextState end
     record.deathTime = math.max(
         record.deathTime or 0,
         NumberOr(deathTime, 0)
@@ -504,7 +510,7 @@ function DarkPassengerWitness.MarkDead(
         " state=" .. tostring(record.state) ..
         " attributed=" .. tostring(record.deathAttributed)
     )
-    return true
+    return true, changed, record
 end
 
 function DarkPassengerWitness.MarkLost(identityHigh, identityLow)

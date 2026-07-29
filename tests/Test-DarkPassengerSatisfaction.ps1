@@ -1176,6 +1176,18 @@ Add-Result (
     $witnessLuaText.Contains('return "noisy"')
 ) 'witness ledger exposes clean controlled and noisy outcomes'
 Add-Result (
+    $witnessLuaText -match (
+        '(?s)local function CaseCode\(value\).*?' +
+        'type\(value\)\s*==\s*"number".*?return value.*?' +
+        'return StableCode\(value\)'
+    ) -and
+    $witnessLuaText -match (
+        '(?s)function DarkPassengerWitness\.BeginCase.*?' +
+        'activeRegionCode\s*=\s*CaseCode\(region\).*?' +
+        'activeSettlementCode\s*=\s*CaseCode\(settlement\)'
+    )
+) 'witness case preserves numeric region and settlement codes on restore'
+Add-Result (
     $runtimeLuaText -match (
         '(?s)Script\.ReloadScript\("Scripts/mods/dpwitness\.lua"\).*?' +
         'Script\.ReloadScript\("Scripts/mods/dpaftermath\.lua"\)'
@@ -1196,6 +1208,10 @@ Add-Result (
 foreach ($aftermathFunction in @(
     'Begin',
     'RecordSuspicion',
+    'RecordWitness',
+    'RecordReport',
+    'RecordWitnessDeath',
+    'LockNoisy',
     'RecordWitnessRemoved',
     'OnPlayerPosition',
     'Resolve',
@@ -1221,6 +1237,49 @@ Add-Result (
         'RecordSuspicion\("witness_removed"\)'
     )
 ) 'removing a witness cancels clean silence and enters cleanup'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Begin.*?' +
+        'DarkPassengerWitness\.BeginCase\('
+    )
+) 'aftermath begins a matching persistent witness case'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordWitness.*?' +
+        'DarkPassengerWitness\.Confirm\('
+    )
+) 'aftermath confirms a witness without immediately locking noisy'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordReport.*?' +
+        'DarkPassengerWitness\.MarkReported\('
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordReport.*?' +
+        'DarkPassengerWitness\.LockNoisy\('
+    )
+) 'completed witness report irreversibly locks noisy'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordWitnessDeath.*?' +
+        'DarkPassengerWitness\.MarkDead\('
+    )
+) 'aftermath maps witness death into the persistent ledger'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.OnPlayerPosition.*?' +
+        'DarkPassengerWitness\.GetCaseOutcome\('
+    ) -and
+    $aftermathLuaText -notmatch (
+        '(?s)PHASE_CLEANUP.*?Resolve\("noisy"\)'
+    )
+) 'cleanup zone exit resolves from witness state instead of unconditional noisy'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Restore.*?' +
+        'DarkPassengerWitness\.Restore\('
+    )
+) 'aftermath restore reloads the matching witness ledger'
 Add-Result (
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_begin"') -and
     $runtimeLuaText.Contains('System.AddCCommand("dp_aftermath_suspicion"') -and
@@ -1278,9 +1337,9 @@ Add-Result (
         '.*?function DarkPassengerAftermath\.OnDeferredRestore'
     ) -and
     $aftermathLuaText -match (
-        '(?s)function DarkPassengerAftermath\.RecordSuspicion\(reason\)' +
+        '(?s)local function EnterCleanup\(reason, exposed\)' +
         '.*?PHASE_CLEANUP.*?SchedulePersistenceHeartbeat' +
-        '.*?function DarkPassengerAftermath\.RecordWitnessRemoved'
+        '.*?function DarkPassengerAftermath\.RecordSuspicion\(reason\)'
     )
 ) 'cleanup zone polling starts on suspicion and resumes after load'
 Add-Result (
