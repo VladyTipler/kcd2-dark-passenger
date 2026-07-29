@@ -15,6 +15,7 @@ DarkPassengerTest = DarkPassengerTest or {}
 -- correct-kill reward are available in retail builds.
 Script.ReloadScript("Scripts/mods/dpsatisfaction.lua")
 Script.ReloadScript("Scripts/mods/dphunger.lua")
+Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
 
@@ -1910,6 +1911,16 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: watch nearby witness state for 45 seconds")
         System.AddCCommand("dp_witness_probe_stop", "DarkPassengerAftermathProbe.WitnessWatchStop()",
             "Dark Passenger: stop the read-only witness watcher")
+        System.AddCCommand("dp_witness_status", "DarkPassengerWitness.Status()",
+            "Dark Passenger: print the persistent witness ledger")
+        System.AddCCommand("dp_witness_confirm", "DarkPassengerWitness.DebugConfirm(%line)",
+            "Dark Passenger: confirm a synthetic witness (identity high, low)")
+        System.AddCCommand("dp_witness_report", "DarkPassengerWitness.DebugReport(%line)",
+            "Dark Passenger: mark a synthetic witness as reported")
+        System.AddCCommand("dp_witness_dead", "DarkPassengerWitness.DebugDead(%line)",
+            "Dark Passenger: mark a synthetic witness as dead")
+        System.AddCCommand("dp_witness_lost", "DarkPassengerWitness.DebugLost(%line)",
+            "Dark Passenger: mark a synthetic witness as lost")
         System.AddCCommand("dp_aftermath_begin", "DarkPassengerAftermath.DebugBegin(%line)",
             "Dark Passenger: begin a synthetic aftermath case (zone radius)")
         System.AddCCommand("dp_aftermath_suspicion", "DarkPassengerAftermath.RecordSuspicion(%line)",

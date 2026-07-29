@@ -26,6 +26,7 @@ $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
 $aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
+$witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
@@ -218,6 +219,7 @@ $projectText = Read-OptionalText -LiteralPath $projectPath
 $luaText = Read-OptionalText -LiteralPath $luaPath
 $hungerLuaText = Read-OptionalText -LiteralPath $hungerLuaPath
 $aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
+$witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
@@ -1112,6 +1114,73 @@ Add-Result (
 Add-Result (
     -not $runtimeLuaText.Contains('"crime_greyOutEAndDisableChat"')
 ) 'witness probe excludes the nonexistent grey-out chat context'
+Add-Result (
+    Test-Path -LiteralPath $witnessLuaPath
+) 'persistent witness ledger module exists'
+foreach ($stateName in @(
+    'STATE_UNREPORTED',
+    'STATE_REPORTED',
+    'STATE_SILENCED_BEFORE_REPORT',
+    'STATE_SILENCED_AFTER_REPORT',
+    'STATE_LOST'
+)) {
+    Add-Result (
+        $witnessLuaText.Contains(
+            "DarkPassengerWitness.$stateName"
+        )
+    ) "witness ledger exports $stateName"
+}
+foreach ($functionName in @(
+    'BeginCase',
+    'Confirm',
+    'MarkReported',
+    'MarkDead',
+    'MarkLost',
+    'GetCaseOutcome',
+    'Persist',
+    'Restore',
+    'Status'
+)) {
+    Add-Result (
+        $witnessLuaText.Contains(
+            "function DarkPassengerWitness.$functionName"
+        )
+    ) "witness ledger exports $functionName"
+}
+foreach ($schemaKey in @(
+    'dp_witness_schema_version',
+    'dp_witness_record_count',
+    'dp_witness_next_record_id',
+    'dp_witness_active_case_generation',
+    'dp_witness_noisy_locked',
+    'dp_witness_notification_emitted',
+    'dp_witness_v1_'
+)) {
+    Add-Result (
+        $witnessLuaText.Contains($schemaKey)
+    ) "witness ledger persists $schemaKey"
+}
+Add-Result (
+    $witnessLuaText -match (
+        '(?s)STATE_UNREPORTED\]\s*=\s*' +
+        'DarkPassengerWitness\.STATE_SILENCED_BEFORE_REPORT'
+    ) -and
+    $witnessLuaText -match (
+        '(?s)STATE_REPORTED\]\s*=\s*' +
+        'DarkPassengerWitness\.STATE_SILENCED_AFTER_REPORT'
+    )
+) 'witness death transition preserves whether reporting already happened'
+Add-Result (
+    $witnessLuaText.Contains('return "clean"') -and
+    $witnessLuaText.Contains('return "controlled"') -and
+    $witnessLuaText.Contains('return "noisy"')
+) 'witness ledger exposes clean controlled and noisy outcomes'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)Script\.ReloadScript\("Scripts/mods/dpwitness\.lua"\).*?' +
+        'Script\.ReloadScript\("Scripts/mods/dpaftermath\.lua"\)'
+    )
+) 'mod init loads witness ledger before aftermath state machine'
 Add-Result (
     $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dpaftermath.lua")')
 ) 'mod init explicitly loads aftermath state machine'
