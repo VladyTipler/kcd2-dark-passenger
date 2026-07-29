@@ -1204,6 +1204,7 @@ DarkPassengerAftermathProbe.CRIME_CONTEXTS = {
     "crime_interrupt",
     "crime_interruptScan",
     "crime_interruptReport",
+    "crime_interruptReport_reporting",
     "crime_disableReport",
     "crime_nrbLevel_searching",
     "crime_escalationLevel_looking",

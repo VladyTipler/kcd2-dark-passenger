@@ -1089,6 +1089,9 @@ Add-Result (
     $runtimeLuaText.Contains('"crime_playerAwareness"')
 ) 'witness link probe covers active crime ownership links'
 Add-Result (
+    $runtimeLuaText.Contains('"crime_interruptReport_reporting"')
+) 'witness watcher observes the native completed-report handoff phase'
+Add-Result (
     $witnessProbeReadOnlyMatch.Success -and
     $witnessProbeReadOnlyText.Contains(
         'DarkPassengerAftermathProbe.WITNESS_WATCH_INTERVAL_MS = 500'
