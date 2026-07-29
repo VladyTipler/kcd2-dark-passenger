@@ -19,6 +19,8 @@
 - Seven real seconds, one game hour, energy `-10`, nourishment `-5`.
 - Quest-item uncertainty fails closed.
 - Burial never erases reports, alarms, wanted state, or testimony.
+- Vanilla corpse actions remain on `E`; burial is a dedicated native
+  hold-`F` secondary action.
 
 ### Task 1: Quest-item catalog
 
@@ -41,6 +43,11 @@ Add failing structural checks, then implement dead-human validation, shovel and
 quest-item gates, physics surface validation, action injection, SkipTime,
 costs, delayed entity removal, and failsafe cleanup.
 
+For the interaction regression, assert that an eligible burial uses the native
+`butcher` action with `AHT_HOLD`, and that fast-context injection does not skip
+the action merely because the vanilla primary action already exists. Run the
+structural suite red, remove that skip, then rerun green.
+
 ### Task 3: Case integration and localization
 
 **Files:**
@@ -55,7 +62,8 @@ action, disabled reasons, and SkipTime line.
 
 Run generator tests, 630+ structural checks, Lua parsing, build, PAK integrity,
 and installed-tree comparison. Install to dev, reload, and live-test one
-blocked and one successful burial.
+blocked and one successful burial. With a valid corpse and shovel, verify the
+HUD keeps the vanilla `E` action and visibly exposes hold-`F` for burial.
 
 ### Task 5: Finish
 

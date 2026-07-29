@@ -10,15 +10,16 @@ already escaped Henry's control.
 ## Player flow
 
 1. Look at a dead human body.
-2. Hold `Закопать тело` / `Bury the body`.
-3. The action is disabled with a reason when:
+2. Keep the vanilla `E` corpse action for looting or carrying.
+3. Hold the dedicated `F` action `Закопать тело` / `Bury the body`.
+4. The action is disabled with a reason when:
    - Henry has no shovel;
    - the ground cannot be dug;
    - the corpse carries a quest item;
    - another burial is running.
-4. The native SkipTime presentation runs for seven real seconds with digging
+5. The native SkipTime presentation runs for seven real seconds with digging
    audio and `Земля умеет хранить тайны...`.
-5. One game hour passes, energy drops by 10, nourishment by 5, then the corpse
+6. One game hour passes, energy drops by 10, nourishment by 5, then the corpse
    and its remaining ordinary loot disappear.
 
 The shovel is required but never consumed.
@@ -30,7 +31,9 @@ costs, corpse removal, and the aftermath callback.
 
 `BasicAIActions.GetActions` is wrapped because
 `PlayerEventDispatcher:BasicAIActionsGetActions` does not include the NPC
-`self`. The wrapper is hot-reload-safe and preserves `firstFast` behavior.
+`self`. The wrapper is hot-reload-safe. An eligible burial is appended as the
+native secondary `butcher` action even for the fast contextual query, so the
+HUD can expose hold-`F` beside the untouched vanilla `E` action.
 
 Suitable ground is proven by a downward physics ray. Diggable surface families
 are soil, mud, grass, forest, gravel, road, and field. Wood, stone, rock, water,
@@ -69,9 +72,10 @@ and can be rerun after a game update.
 
 Automated checks cover catalog generation, action injection, all validation
 gates, time and stat costs, native UI/audio cleanup, delayed removal, and
-aftermath rules.
+aftermath rules. The interaction contract asserts that the fast corpse action
+list retains its vanilla primary action and also receives the dedicated
+hold-`F` burial action.
 
 Live dev validation covers visible action reasons, one successful burial on
 soil, body and loot removal, one-hour advancement, audio stop, and no duplicate
 actions after reload.
-
