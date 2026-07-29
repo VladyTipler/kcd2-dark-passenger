@@ -34,6 +34,9 @@
         <MakeArray Name="externalResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
           <Constant Name="A" Value="28" />
         </MakeArray>
+        <MakeArray Name="witnessDetectedTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="29" />
+        </MakeArray>
         <BuffTagTrigger Name="targetTagTrigger">
           <Asset Name="Souls" Alias="RegionalTargetSouls" />
           <Edge From="targetTags.Array" To="BuffTags" />
@@ -62,6 +65,11 @@
         <BuffTagTrigger Name="externalResultTrigger">
           <Asset Name="Souls" Alias="player" />
           <Edge From="externalResultTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="witnessDetectedTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="witnessDetectedTags.Array" To="BuffTags" />
           <Edge From="questProgress.Active" To="IsActive" />
         </BuffTagTrigger>
         <State Name="satisfiedAtWake" TypeT="bool">
@@ -169,6 +177,7 @@
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_TARGET_CLEANUP_EDGES}}
+          <Edge From="witnessDetectedTrigger.OnAdded" To="SetWitnessed" />
           <Edge From="cleanResultTrigger.OnAdded" To="SetClean" />
           <Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />
           <Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />
@@ -190,6 +199,7 @@
         <Type TypeName="DP_CleanupProgress">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
           <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />
           <StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />
           <StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />
           <StateTypeEnumeration Name="Noisy" ObjectiveValueType="Completed" />
@@ -286,6 +296,11 @@
             <EnumLog Type="Started" Name="Active" IsTracked="true">
               <Log StringName="dark_within_cleanup" Text="The work is done. Now I must make sure no one connects it to me.">
                 <Localization Text="The work is done. Now I must make sure no one connects it to me." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Started" Name="Witnessed" IsTracked="true">
+              <Log StringName="dark_within_cleanup_witnessed" Text="Someone saw too much.">
+                <Localization Text="Someone saw too much." Language="WHS" />
               </Log>
             </EnumLog>
             <EnumLog Type="Completed" Name="Clean">

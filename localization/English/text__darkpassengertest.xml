@@ -11,6 +11,7 @@
 	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_witnessed</Cell><Cell>Someone saw too much.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_controlled</Cell><Cell>There were loose ends, but I cut them. It is enough to quiet the Passenger.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_noisy</Cell><Cell>It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising.</Cell></Row>

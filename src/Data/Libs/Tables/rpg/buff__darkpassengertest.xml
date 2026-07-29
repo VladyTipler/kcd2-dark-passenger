@@ -18,5 +18,6 @@
 		<buff buff_ai_tag_id="26" buff_class_id="1" buff_exclusivity_id="0" buff_id="02978719-2983-4f1a-bfde-5910f810e079" buff_lifetime_id="0" buff_name="dp_result_controlled" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
 		<buff buff_ai_tag_id="27" buff_class_id="1" buff_exclusivity_id="0" buff_id="16e10153-a09e-4df3-943e-26cb74aa555d" buff_lifetime_id="0" buff_name="dp_result_noisy" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
 		<buff buff_ai_tag_id="28" buff_class_id="1" buff_exclusivity_id="0" buff_id="d79b7e38-cae0-404a-9df5-40a7e714cb40" buff_lifetime_id="0" buff_name="dp_result_external" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
+		<buff buff_ai_tag_id="29" buff_class_id="1" buff_exclusivity_id="0" buff_id="4804f2b2-1462-44f1-b76d-5602426bcc1" buff_lifetime_id="0" buff_name="dp_witness_detected" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
 	</buffs>
 </database>

@@ -56,6 +56,8 @@ $expectedTag = '23'
 $satisfactionGateGuid = 'b5c59e05-cc10-4bf8-b82e-d82b913c841f'
 $targetGuid = 'a6046bb4-57c1-4a95-b743-880aba11f5ba'
 $targetTag = '24'
+$witnessSignalGuid = '4804f2b2-1462-44f1-b76d-5602426bcc1'
+$witnessSignalTag = '29'
 $aftermathSignals = @(
     @{
         Result = 'clean'
@@ -551,6 +553,22 @@ Add-Result (
     -not ($signalTags -contains $expectedTag) -and
     -not ($signalTags -contains $targetTag)
 ) 'aftermath result GUIDs and AI tags are unique and do not reuse core tags'
+Add-Result (
+    $tagText.Contains(
+        "buff_ai_tag_id=`"$witnessSignalTag`" buff_ai_tag_name=`"darkpassenger_witness_detected`""
+    )
+) 'anonymous witness update owns AI tag 29'
+Add-Result (
+    $buffText -match (
+        '<buff (?=[^>]*buff_ai_tag_id="' +
+        [regex]::Escape($witnessSignalTag) +
+        '")(?=[^>]*buff_exclusivity_id="0")' +
+        '(?=[^>]*buff_id="' +
+        [regex]::Escape($witnessSignalGuid) +
+        '")(?=[^>]*buff_name="dp_witness_detected")' +
+        '(?=[^>]*buff_ui_visibility_id="0")[^>]*/>'
+    )
+) 'anonymous witness update signal is hidden and non-exclusive'
 
 Add-Result ($buffText.Contains('buff_name="dp_darkness_within"')) 'existing darkness debuff is preserved'
 Add-Result ($buffText.Contains("buff_id=`"$expectedGuid`"")) 'satisfaction buff uses expected GUID'
@@ -798,6 +816,38 @@ Add-Result (
         '<Edge From="cleanupProgress.OnDone" To="SetDone" />'
     )
 ) 'all four result tags complete cleanup and the Case directly'
+Add-Result (
+    $questText.Contains('<MakeArray Name="witnessDetectedTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">') -and
+    $questText.Contains(
+        "<Constant Name=`"A`" Value=`"$witnessSignalTag`" />"
+    ) -and
+    $questText -match (
+        '(?s)<BuffTagTrigger Name="witnessDetectedTrigger">' +
+        '.*?<Asset Name="Souls" Alias="player" />' +
+        '.*?<Edge From="witnessDetectedTags\.Array" To="BuffTags" />' +
+        '.*?<Edge From="questProgress\.Active" To="IsActive" />' +
+        '.*?</BuffTagTrigger>'
+    )
+) 'quest watches the player for the anonymous witness signal'
+Add-Result (
+    $questText.Contains(
+        '<Edge From="witnessDetectedTrigger.OnAdded" To="SetWitnessed" />'
+    ) -and
+    $questText.Contains(
+        '<StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />'
+    ) -and
+    $questText -match (
+        '(?s)<EnumLog Type="Started" Name="Witnessed" IsTracked="true">' +
+        '.*?StringName="dark_within_cleanup_witnessed".*?</EnumLog>'
+    )
+) 'first witness advances cleanup to a tracked anonymous update'
+Add-Result (
+    $questText -notmatch (
+        '(?s)<EnumLog Type="Started" Name="Witnessed".*?' +
+        '(?:Marker=|Alias="RegionalTargetSouls"|Alias="PritokySouls").*?' +
+        '</EnumLog>'
+    )
+) 'anonymous witness update exposes no witness identity or marker'
 
 Add-Result (Test-Path -LiteralPath $luaPath) 'satisfaction Lua bridge exists'
 Add-Result ($luaText.Contains($satisfactionGateGuid)) 'Lua bridge uses hidden satisfaction gate GUID'
@@ -1439,6 +1489,34 @@ Add-Result (
     $aftermathLuaText.Contains('playerSoul:AddBuff(resultGuid)')
 ) 'aftermath emits one hidden result signal only on first resolution'
 Add-Result (
+    $aftermathLuaText.Contains($witnessSignalGuid) -and
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.EmitWitnessSignal()'
+    ) -and
+    $aftermathLuaText.Contains(
+        'DarkPassengerWitness.SetNotificationEmitted()'
+    ) -and
+    $aftermathLuaText -match (
+        'playerSoul:AddBuff\(\s*' +
+        'DarkPassengerAftermath\.WITNESS_SIGNAL_BUFF_GUID\s*\)'
+    )
+) 'aftermath emits the witness signal and persists one-shot delivery'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Begin\(.*?' +
+        'RemoveAllBuffsByGuid\(\s*' +
+        'DarkPassengerAftermath\.WITNESS_SIGNAL_BUFF_GUID\s*\).*?' +
+        'DarkPassengerWitnessDetector\.Start'
+    )
+) 'new aftermath clears the previous witness signal before detector scan'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordWitness\(.*?' +
+        'DarkPassengerAftermath\.EmitWitnessSignal\(\).*?' +
+        'return true'
+    )
+) 'confirmed witness requests the anonymous update signal'
+Add-Result (
     $runtimeLuaText -match (
         '(?s)OnReloadEvent.*?DarkPassengerAftermath\.ScheduleRestore' +
         '.*?OnInitEvent.*?DarkPassengerAftermath\.ScheduleRestore'
@@ -1982,6 +2060,7 @@ foreach ($localizationText in @($englishText, $russianText)) {
     foreach ($cleanupKey in @(
         'dark_within_cleanup_name',
         'dark_within_cleanup',
+        'dark_within_cleanup_witnessed',
         'dark_within_cleanup_clean',
         'dark_within_cleanup_controlled',
         'dark_within_cleanup_noisy',
@@ -1994,11 +2073,20 @@ foreach ($localizationText in @($englishText, $russianText)) {
 }
 Add-Result (
     $questTemplateText.Contains('<State Name="cleanupProgress" TypeT="DP_CleanupProgress">') -and
+    $questTemplateText.Contains('<StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Noisy" ObjectiveValueType="Completed" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="External" ObjectiveValueType="Completed" />')
 ) 'cleanup objective keeps a distinct completed state for every outcome'
+Add-Result (
+    $englishText.Contains(
+        '<Cell>dark_within_cleanup_witnessed</Cell><Cell>Someone saw too much.</Cell>'
+    ) -and
+    $russianText.Contains(
+        '<Cell>dark_within_cleanup_witnessed</Cell><Cell>Кто-то видел слишком много.</Cell>'
+    )
+) 'anonymous witness update is localized in English and Russian'
 Add-Result (
     $questTemplateText.Contains('<Edge From="cleanResultTrigger.OnAdded" To="SetClean" />') -and
     $questTemplateText.Contains('<Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />') -and

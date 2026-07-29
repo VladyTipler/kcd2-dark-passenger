@@ -61,6 +61,8 @@ DarkPassengerAftermath.RESULT_BUFF_GUID_BY_RESULT = {
     ["noisy"] = "16e10153-a09e-4df3-943e-26cb74aa555d",
     ["external"] = "d79b7e38-cae0-404a-9df5-40a7e714cb40",
 }
+DarkPassengerAftermath.WITNESS_SIGNAL_BUFF_GUID =
+    "4804f2b2-1462-44f1-b76d-5602426bcc1"
 
 DarkPassengerAftermath.phase =
     DarkPassengerAftermath.phase or DarkPassengerAftermath.PHASE_HUNTING
@@ -617,6 +619,14 @@ function DarkPassengerAftermath.Begin(
             targetSlot
         )
     end
+    local playerSoul = PlayerSoul()
+    if playerSoul ~= nil then
+        pcall(function()
+            playerSoul:RemoveAllBuffsByGuid(
+                DarkPassengerAftermath.WITNESS_SIGNAL_BUFF_GUID
+            )
+        end)
+    end
     ScheduleSilenceTimer(DarkPassengerAftermath.silenceRemainingMs)
     if DarkPassengerWitnessDetector ~= nil and
        DarkPassengerWitnessDetector.Start ~= nil then
@@ -699,6 +709,7 @@ function DarkPassengerAftermath.RecordWitness(
         DarkPassengerAftermath.deathZ
     )
     if record == nil then return false end
+    DarkPassengerAftermath.EmitWitnessSignal()
     if DarkPassengerAftermath.phase ==
        DarkPassengerAftermath.PHASE_SILENCE_CHECK then
         EnterCleanup("witness_confirmed", false)
@@ -832,6 +843,41 @@ function DarkPassengerAftermath.RecordWitnessRemoved(witnessId)
         " witness=" .. tostring(witnessId) ..
         " collateral=" ..
         tostring(DarkPassengerAftermath.collateralCount)
+    )
+    return true
+end
+
+function DarkPassengerAftermath.EmitWitnessSignal()
+    if DarkPassengerWitness == nil or
+       DarkPassengerWitness.SetNotificationEmitted == nil then
+        Log("witness signal unavailable ledger=nil")
+        return false
+    end
+    if DarkPassengerWitness.notificationEmitted == true then
+        return true
+    end
+
+    local playerSoul = PlayerSoul()
+    if playerSoul == nil then
+        Log("witness signal unavailable soul=nil")
+        return false
+    end
+    local ok, handleOrError = pcall(function()
+        return playerSoul:AddBuff(
+            DarkPassengerAftermath.WITNESS_SIGNAL_BUFF_GUID
+        )
+    end)
+    if not ok or handleOrError == nil then
+        Log("witness signal failed error=" .. tostring(handleOrError))
+        return false
+    end
+    if not DarkPassengerWitness.SetNotificationEmitted() then
+        Log("witness signal persistence failed")
+        return false
+    end
+    Log(
+        "witness signal emitted generation=" ..
+        tostring(DarkPassengerAftermath.generation)
     )
     return true
 end

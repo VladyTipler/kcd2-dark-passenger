@@ -11,6 +11,7 @@
 	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Не оставить следов</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>Приговор исполнен. Теперь нужно уйти чисто и убедиться, что никто не свяжет эту смерть со мной.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_witnessed</Cell><Cell>Кто-то видел слишком много.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Всё стихло. Никто ничего не заметил. Пассажир доволен, а мир стал немного чище.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_controlled</Cell><Cell>Остались лишние нити, но я их оборвал. Этого достаточно, чтобы Пассажир замолчал.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_noisy</Cell><Cell>Чистоты не вышло. Я оставил за собой слишком много шума. Голод утолён, но цена будет расти.</Cell></Row>
