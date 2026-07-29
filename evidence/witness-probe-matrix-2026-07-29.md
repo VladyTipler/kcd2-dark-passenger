@@ -162,6 +162,30 @@ held-body, hot-entity, and queued-stimulus paths.
 Therefore `Function_crime_addEyeWitness` is not a safe direct-perception
 boundary for the mod. The diagnostic AI override is rejected and removed.
 
+### Production detector end-to-end validation
+
+The Lua-only production detector was hot-loaded into the dev build and tested
+against the same `kpri_man_35` / `kpri_woman_18` scenario:
+
+- aftermath generation `4` began for target slot `897`;
+- the first 500 ms scan found
+  `crime_interruptReport=true` on Soul/WUID `05000000000007A2`;
+- record `9` was created once as `UNREPORTED`;
+- the rising `crime_interruptReport_reporting` edge changed record `9` to
+  `REPORTED`;
+- `native_report_handoff` irreversibly set `noisy_locked=true`;
+- aftermath entered `CLEANUP` with `exposed=true`;
+- leaving the 120-metre death zone resolved the Case as `noisy`;
+- the detector stopped, the noisy result signal fired once, hunger reset with
+  zero grace days, and the native quest completed once with
+  `quest_completed` audio.
+
+The detector tracked 58 loaded Soul identities inside the bounded zone and
+created only the reporter record. No proximity-only entity was registered.
+
+Structural and archive staging verification passed with `619` checks before
+the live run.
+
 ## Matrix
 
 | Scenario | NPC identity stable | Reaction delta | Henry link | Report/alarm | Save/load | False positive | Accepted predicate |
@@ -170,7 +194,7 @@ boundary for the mod. The diagnostic AI override is rejected and removed.
 | NPC discovers corpse only | stable reporter WUID confirmed in replay | report intent can start after discovery or a related assault | direct Henry attribution remains unavailable | exact report handoff captured | n/a | must not label as direct eyewitness | report intent/report only |
 | NPC directly sees stealth kill | two stable Soul/WUIDs confirmed | both entered `crime_interruptReport` | attribution brain fields unavailable | two completed murder-report chains; guard response confirmed | pending | `addEyeWitness` hook also fired for a downstream guard | report intent/report accepted; direct-eyewitness subtype pending |
 | Public melee kill and guard alarm | assault witness/guard identities confirmed | `crime_interrupt`, `crime_preventDespawn` are broad | victim/guard have crime links after report | native report chain confirmed | pending | broad reaction contexts include non-witnesses | reporter context only |
-| Witness lives long enough to report | stable reporter WUID confirmed | `crime_interruptReport` then reporting edge | n/a | `crime_interruptReport_reporting` exact handoff | pending | 500 ms watcher captured the short edge | accepted |
+| Witness lives long enough to report | stable reporter WUID confirmed and persisted as two numeric halves | `crime_interruptReport` then reporting edge | n/a | `crime_interruptReport_reporting` exact handoff | active Case resolved noisy end to end | detector tracked 58 loaded Souls and registered only the reporter | accepted and live-proven |
 | Witness dies before report | pending | pending | pending | pending | pending | pending | pending |
 | Save/load between reaction and report | pending | pending | pending | pending | pending | pending | pending |
 
