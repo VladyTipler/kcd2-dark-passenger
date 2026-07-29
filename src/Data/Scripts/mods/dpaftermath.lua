@@ -455,6 +455,22 @@ function DarkPassengerAftermath.Restore(reason)
             DarkPassengerAftermath.timerSerial
         )
     end
+    if DarkPassengerWitnessDetector ~= nil then
+        if (
+            DarkPassengerAftermath.phase ==
+                DarkPassengerAftermath.PHASE_SILENCE_CHECK or
+            DarkPassengerAftermath.phase ==
+                DarkPassengerAftermath.PHASE_CLEANUP
+        ) and DarkPassengerWitnessDetector.Start ~= nil then
+            DarkPassengerWitnessDetector.Start(
+                "aftermath_restore_" .. tostring(reason)
+            )
+        elseif DarkPassengerWitnessDetector.Stop ~= nil then
+            DarkPassengerWitnessDetector.Stop(
+                "aftermath_restore_inactive"
+            )
+        end
+    end
 
     Log(
         "restored reason=" .. tostring(reason) ..
@@ -602,6 +618,10 @@ function DarkPassengerAftermath.Begin(
         )
     end
     ScheduleSilenceTimer(DarkPassengerAftermath.silenceRemainingMs)
+    if DarkPassengerWitnessDetector ~= nil and
+       DarkPassengerWitnessDetector.Start ~= nil then
+        DarkPassengerWitnessDetector.Start("aftermath_begin")
+    end
     DarkPassengerAftermath.Persist()
     Log(
         "begin generation=" .. tostring(DarkPassengerAftermath.generation) ..
@@ -892,6 +912,13 @@ function DarkPassengerAftermath.Resolve(result)
     DarkPassengerAftermath.timerSerial =
         DarkPassengerAftermath.timerSerial + 1
     DarkPassengerAftermath.result = result or "clean"
+    if DarkPassengerWitnessDetector ~= nil and
+       DarkPassengerWitnessDetector.Stop ~= nil then
+        DarkPassengerWitnessDetector.Stop(
+            "aftermath_resolved_" ..
+            tostring(DarkPassengerAftermath.result)
+        )
+    end
     DarkPassengerAftermath.resolvedGeneration =
         DarkPassengerAftermath.generation
     DarkPassengerAftermath.silenceRemainingMs = 0

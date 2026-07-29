@@ -168,6 +168,14 @@ local function FindRecord(identityHigh, identityLow, generation)
     return DarkPassengerWitness.records[recordId]
 end
 
+function DarkPassengerWitness.GetRecord(
+    identityHigh,
+    identityLow,
+    generation
+)
+    return FindRecord(identityHigh, identityLow, generation)
+end
+
 local function PersistRecord(record)
     local values = {
         identity_high = record.identityHigh,

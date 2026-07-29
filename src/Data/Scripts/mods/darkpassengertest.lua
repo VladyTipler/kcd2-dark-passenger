@@ -17,6 +17,7 @@ Script.ReloadScript("Scripts/mods/dpsatisfaction.lua")
 Script.ReloadScript("Scripts/mods/dphunger.lua")
 Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
+Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
 
 -- %line hands the console command handler the ENTIRE remainder of the line
@@ -1921,6 +1922,10 @@ local okCmd, errCmd = pcall(function()
             "Dark Passenger: mark a synthetic witness as dead")
         System.AddCCommand("dp_witness_lost", "DarkPassengerWitness.DebugLost(%line)",
             "Dark Passenger: mark a synthetic witness as lost")
+        System.AddCCommand("dp_witness_detector_status", "DarkPassengerWitnessDetector.Status()",
+            "Dark Passenger: print the runtime witness detector state")
+        System.AddCCommand("dp_witness_detector_scan", "DarkPassengerWitnessDetector.Scan()",
+            "Dark Passenger: scan the active aftermath zone now")
         System.AddCCommand("dp_aftermath_begin", "DarkPassengerAftermath.DebugBegin(%line)",
             "Dark Passenger: begin a synthetic aftermath case (zone radius)")
         System.AddCCommand("dp_aftermath_suspicion", "DarkPassengerAftermath.RecordSuspicion(%line)",
@@ -1957,7 +1962,7 @@ local function IsVerifiedHenry(user)
         user.id == g_localActor.id
 end
 
-local function Report(user, victimId, victimName, method)
+local function Report(user, victimId, victimName, method, victim)
     if not CaseReady() then return end
     if not IsVerifiedHenry(user) then
         System.LogAlways(
@@ -1965,6 +1970,10 @@ local function Report(user, victimId, victimName, method)
             tostring(method)
         )
         return nil
+    end
+    if DarkPassengerWitnessDetector ~= nil and
+       DarkPassengerWitnessDetector.RecordAttributedDeath ~= nil then
+        DarkPassengerWitnessDetector.RecordAttributedDeath(victim, method)
     end
 
     local currentCase = DarkPassengerCase.GetCurrent()
@@ -1988,7 +1997,7 @@ end
 function DarkPassengerTest.OnStealthKill(user, slotId, victim)
     local victimId, victimName = ResolveVictim(victim, slotId)
     System.LogAlways("[DarkPassenger] === STEALTH_KILL (dagger) FIRED === victim=" .. tostring(victimName))
-    Report(user, victimId, victimName, "stealth_kill")
+    Report(user, victimId, victimName, "stealth_kill", victim)
 end
 
 function DarkPassengerTest.OnKnockout(user, slotId, victim)
@@ -2000,7 +2009,7 @@ end
 function DarkPassengerTest.OnMercyKill(user, slotId, victim)
     local victimId, victimName = ResolveVictim(victim, slotId)
     System.LogAlways("[DarkPassenger] === MERCY_KILL (finish downed) FIRED === victim=" .. tostring(victimName))
-    Report(user, victimId, victimName, "mercy_kill")
+    Report(user, victimId, victimName, "mercy_kill", victim)
 end
 
 function DarkPassengerTest.OnGrabCorpse(user, slotId, victim)

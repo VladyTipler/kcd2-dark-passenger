@@ -27,6 +27,7 @@ $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
 $aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
 $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
+$witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
@@ -220,6 +221,8 @@ $luaText = Read-OptionalText -LiteralPath $luaPath
 $hungerLuaText = Read-OptionalText -LiteralPath $hungerLuaPath
 $aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
 $witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
+$witnessDetectorLuaText =
+    Read-OptionalText -LiteralPath $witnessDetectorLuaPath
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
@@ -1133,6 +1136,7 @@ foreach ($stateName in @(
 foreach ($functionName in @(
     'BeginCase',
     'Confirm',
+    'GetRecord',
     'MarkReported',
     'MarkDead',
     'MarkLost',
@@ -1188,11 +1192,91 @@ Add-Result (
     )
 ) 'witness case preserves numeric region and settlement codes on restore'
 Add-Result (
+    Test-Path -LiteralPath $witnessDetectorLuaPath
+) 'runtime witness detector module exists'
+Add-Result (
+    $witnessDetectorLuaText -match 'SCAN_INTERVAL_MS\s*=\s*500' -and
+    $witnessDetectorLuaText.Contains(
+        'System.GetEntitiesInSphere(origin, radius)'
+    ) -and
+    $witnessDetectorLuaText.Contains(
+        'DarkPassengerAftermath.deathX'
+    ) -and
+    $witnessDetectorLuaText.Contains(
+        'DarkPassengerAftermath.zoneRadius'
+    )
+) 'witness detector scans only the bounded aftermath zone every 500 ms'
+Add-Result (
+    $witnessDetectorLuaText.Contains(
+        'HasScriptContext("crime_interruptReport")'
+    ) -and
+    $witnessDetectorLuaText.Contains(
+        'HasScriptContext("crime_interruptReport_reporting")'
+    ) -and
+    -not $witnessDetectorLuaText.Contains(
+        'HasScriptContext("crime_interrupt")'
+    ) -and
+    -not $witnessDetectorLuaText.Contains('wanted')
+) 'witness detector uses only proven report intent and handoff contexts'
+Add-Result (
+    $witnessDetectorLuaText -match (
+        '(?s)if reportIntent and not previous\.reportIntent then.*?' +
+        'DarkPassengerAftermath\.RecordWitness\('
+    ) -and
+    $witnessDetectorLuaText -match (
+        '(?s)if reporting and not previous\.reporting then.*?' +
+        'DarkPassengerAftermath\.RecordReport\('
+    )
+) 'witness detector maps rising native report edges into the ledger'
+Add-Result (
+    $witnessDetectorLuaText.Contains('entity.soul:GetId()') -and
+    $witnessDetectorLuaText.Contains(
+        'DarkPassengerWitness.IdentityFromWuid(soulId)'
+    )
+) 'witness detector keys records by stable Soul WUID halves'
+Add-Result (
+    $witnessDetectorLuaText.Contains('Calendar.GetWorldTime()')
+) 'witness ledger event times survive save reloads in game-world time'
+Add-Result (
+    $witnessDetectorLuaText -match (
+        '(?s)DarkPassengerWitness\.GetRecord\(.*?' +
+        'DarkPassengerAftermath\.RecordWitnessDeath\('
+    ) -and
+    $witnessDetectorLuaText.Contains(
+        'function DarkPassengerWitnessDetector.RecordAttributedDeath'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerWitnessDetector.RecordAttributedDeath(victim, method)'
+    )
+) 'witness detector tracks later death and verified Henry attribution'
+Add-Result (
+    $witnessDetectorLuaText -match (
+        '(?s)Script\.SetTimerForFunction\(.*?' +
+        '"DarkPassengerWitnessDetector\.OnTimer".*?' +
+        'generationToken.*?timerSerial'
+    )
+) 'witness detector timer rejects stale case generations'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Begin.*?' +
+        'DarkPassengerWitnessDetector\.Start\('
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Restore.*?' +
+        'DarkPassengerWitnessDetector\.Start\('
+    ) -and
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.Resolve.*?' +
+        'DarkPassengerWitnessDetector\.Stop\('
+    )
+) 'aftermath owns witness detector start restore and stop lifecycle'
+Add-Result (
     $runtimeLuaText -match (
         '(?s)Script\.ReloadScript\("Scripts/mods/dpwitness\.lua"\).*?' +
-        'Script\.ReloadScript\("Scripts/mods/dpaftermath\.lua"\)'
+        'Script\.ReloadScript\("Scripts/mods/dpaftermath\.lua"\).*?' +
+        'Script\.ReloadScript\("Scripts/mods/dpwitnessdetector\.lua"\)'
     )
-) 'mod init loads witness ledger before aftermath state machine'
+) 'mod init loads witness ledger aftermath and detector in dependency order'
 Add-Result (
     $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dpaftermath.lua")')
 ) 'mod init explicitly loads aftermath state machine'
