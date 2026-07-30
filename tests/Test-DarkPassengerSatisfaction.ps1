@@ -69,6 +69,8 @@ $targetGuid = 'a6046bb4-57c1-4a95-b743-880aba11f5ba'
 $targetTag = '24'
 $witnessSignalGuid = '4804f2b2-1462-44f1-b76d-5602426bcc1'
 $witnessSignalTag = '29'
+$targetRevealedGuid = '1aff569d-80ee-4250-b28e-0f08d0524aa4'
+$targetRevealedTag = '30'
 $aftermathSignals = @(
     @{
         Result = 'clean'
@@ -644,6 +646,40 @@ Add-Result (
         '(?=[^>]*buff_ui_visibility_id="0")[^>]*/>'
     )
 ) 'anonymous witness update signal is hidden and non-exclusive'
+Add-Result (
+    $tagText.Contains(
+        "buff_ai_tag_id=`"$targetRevealedTag`" buff_ai_tag_name=`"darkpassenger_target_revealed`""
+    )
+) 'target reveal signal owns AI tag 30'
+Add-Result (
+    $buffText -match (
+        '<buff (?=[^>]*buff_ai_tag_id="' +
+        [regex]::Escape($targetRevealedTag) +
+        '")(?=[^>]*buff_class_id="1")' +
+        '(?=[^>]*buff_exclusivity_id="0")' +
+        '(?=[^>]*buff_id="' +
+        [regex]::Escape($targetRevealedGuid) +
+        '")(?=[^>]*buff_lifetime_id="0")' +
+        '(?=[^>]*buff_name="dp_target_revealed")' +
+        '(?=[^>]*buff_ui_visibility_id="0")' +
+        '(?=[^>]*duration="-1")' +
+        '(?=[^>]*implementation="Cpp:Constant")' +
+        '(?=[^>]*is_persistent="true")[^>]*/>'
+    ) -and
+    ([regex]::Matches(
+        $buffText,
+        [regex]::Escape($targetRevealedGuid)
+    ).Count -eq 1)
+) 'target reveal buff is one unique hidden persistent constant signal'
+Add-Result (
+    -not $englishText.Contains('dp_target_revealed') -and
+    -not $russianText.Contains('dp_target_revealed') -and
+    $buffText -notmatch (
+        '<buff (?=[^>]*buff_id="' +
+        [regex]::Escape($targetRevealedGuid) +
+        '")(?=[^>]*(?:buff_desc|buff_ui_name|slot_buff_ui_name)=)[^>]*/>'
+    )
+) 'target reveal transport signal has no localization or UI metadata'
 
 Add-Result ($buffText.Contains('buff_name="dp_darkness_within"')) 'existing darkness debuff is preserved'
 Add-Result ($buffText.Contains("buff_id=`"$expectedGuid`"")) 'satisfaction buff uses expected GUID'
