@@ -428,7 +428,10 @@ Add-Result (Test-Path -LiteralPath $questTemplatePath) 'quest generator template
 foreach (
     $token in
         '{{DP_TARGET_TYPE_ENUMS}}',
+        '{{DP_SELECTED_TYPE_ENUMS}}',
+        '{{DP_SELECTED_STATE_EDGES}}',
         '{{DP_TARGET_STATE_EDGES}}',
+        '{{DP_TARGET_SEARCH_REVEAL_EDGES}}',
         '{{DP_TARGET_SELECTION_STOP_EDGES}}',
         '{{DP_TARGET_DETECTION_NODES}}',
         '{{DP_TARGET_DEATH_NODES}}',
@@ -481,43 +484,65 @@ if ($enabledPritokyCandidates.Count -eq 37) {
         ) "generated quest log $slotName owns $($candidate.alias) marker"
 
         Add-Result (
+            $questText -match (
+                "(?s)<State Name=`"selectedTarget`" TypeT=`"DP_SelectedTarget`">.*?" +
+                "<Edge From=`"$($slotNode)Tagged.True`" To=`"Set$slotName`" />.*?" +
+                "</State>"
+            )
+        ) "tag 24 selects internal $slotName without exposing its marker"
+        Add-Result (
             $questText.Contains("<MakeArray Name=`"$($slotNode)Souls`"") -and
             $questText.Contains("<Function Name=`"$($slotNode)TagCheck`"") -and
             $questText.Contains("<If Name=`"$($slotNode)Tagged`"") -and
-            $questText.Contains(
-                "<Edge From=`"$($slotNode)Tagged.True`" To=`"Set$slotName`" />"
+            $questText.Contains("<Function Name=`"$($slotNode)RevealCheck`"") -and
+            $questText.Contains("<If Name=`"$($slotNode)Revealed`"")
+        ) "generated quest has hidden selection and reveal checks for $slotName"
+        Add-Result (
+            $questText -match (
+                "(?s)<State Name=`"targetObjectiveProgress`" TypeT=`"DP_TargetProgress`">.*?" +
+                "<Edge From=`"$($slotNode)Revealed.True`" To=`"Set$slotName`" />.*?" +
+                "</State>"
+            ) -and
+            $questText -match (
+                "(?s)<State Name=`"objectiveProgress`" TypeT=`"Progress`">.*?" +
+                "<Edge From=`"$($slotNode)Revealed.True`" To=`"SetDone`" />.*?" +
+                "</State>"
             )
-        ) "generated quest has tag-check branch for $slotName"
+        ) "tag 30 reveals $slotName and completes the search area"
 
         Add-Result (
             $questText -match (
                 "(?s)<SoulDeathTrigger Name=`"$($slotNode)Death`">.*?" +
                 "<Asset Name=`"Souls`" Alias=`"$escapedAlias`" />.*?" +
-                "<Edge From=`"targetObjectiveProgress\.$slotName`" To=`"IsActive`" />"
+                "<Edge From=`"selectedTarget\.$slotName`" To=`"IsActive`" />"
             )
-        ) "generated quest has death branch for $slotName"
+        ) "pre-reveal death remains active for selected $slotName"
         Add-Result (
             $questText.Contains(
                 "<Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetTrue`" />"
             )
         ) "generated quest raises Lua-polled death context for $slotName"
+        Add-Result (
+            ([regex]::Matches(
+                $questText,
+                "Marker=`"$escapedAlias`""
+            ).Count -eq 1) -and
+            ([regex]::Matches(
+                $questText,
+                "From=`"$($slotNode)Revealed.True`" To=`"Set$slotName`""
+            ).Count -eq 1)
+        ) "exact marker and objective update for $slotName exist only once"
     }
 }
 
 Add-Result (
-    $questTemplateText.Contains(
-        '<TriggerAreaAsset Name="DP_PritokySearchArea" />'
-    ) -and
+    $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSET}}') -and
+    $questTemplateText.Contains('{{DP_SEARCH_MARKER_ATTRIBUTE}}') -and
     $questText.Contains(
         '<TriggerAreaAsset Name="DP_PritokySearchArea" />'
     )
 ) 'Kuttenberg quest declares the Pritoky TriggerArea asset'
 Add-Result (
-    $questTemplateText -match (
-        '(?s)<Objective TypeT="Progress".*?' +
-        '<EnumLog Type="Started" Name="Active" ' +
-        'IsTracked="true" Marker="DP_PritokySearchArea">'
-    ) -and
     $questText -match (
         '(?s)<Objective TypeT="Progress".*?' +
         '<EnumLog Type="Started" Name="Active" ' +
@@ -901,8 +926,13 @@ Add-Result (
     $questText.Contains('<Constant Name="A" Value="24"')
 ) 'quest watches the regional pool for dp_is_target'
 Add-Result (
-    $questText.Contains('<Edge From="targetTagTrigger.OnAdded" To="SetTrue"')
-) 'chosen runtime victim marks target resolution'
+    $questText.Contains(
+        '<State Name="selectedTarget" TypeT="DP_SelectedTarget">'
+    ) -and
+    $questText.Contains(
+        '<Edge From="targetSlot001Tagged.True" To="SetTarget001" />'
+    )
+) 'chosen runtime victim marks hidden target selection'
 Add-Result (
     -not $questText.Contains('<Function Name="clearTargetTag"')
 ) 'quest leaves hidden target tag ownership to Lua'
@@ -914,11 +944,16 @@ Add-Result (
     $questText.Contains('<Objective TypeT="DP_TargetProgress" Name="dark_within_targetk">')
 ) 'tracked target objective uses generated marker-state type'
 Add-Result (
-    $questText.Contains('<Edge From="targetTagTrigger.OnAdded" To="SetDone"') -and
-    $questText.Contains('To="SetTarget001"') -and
-    $questText.Contains('To="SetTarget002"') -and
-    $questText.Contains('To="SetTarget003"')
-) 'search objective hands off to one generated target state'
+    $questText.Contains(
+        '<Edge From="targetSlot001Revealed.True" To="SetDone" />'
+    ) -and
+    $questText.Contains(
+        '<Edge From="targetSlot001Revealed.True" To="SetTarget001" />'
+    ) -and
+    $questText.Contains(
+        '<Edge From="targetSlot002Revealed.True" To="SetTarget002" />'
+    )
+) 'reveal completes search and hands off to one generated target state'
 Add-Result (
     $questText.Contains('<Edge From="targetSlot001Death.OnDeath" To="SetDone"') -and
     $questText.Contains('<Edge From="targetSlot002Death.OnDeath" To="SetDone"') -and
@@ -2526,6 +2561,16 @@ Add-Result (
     $troskyQuestText -notmatch '\{\{DP_[A-Z_]+\}\}' -and
     $troskyQuestText.Contains('SharedSoulGuids=')
 ) 'Trosky quest graph is generated with static Soul aliases'
+Add-Result (
+    -not $troskyQuestText.Contains('DP_PritokySearchArea') -and
+    $questText.Contains('DP_PritokySearchArea')
+) 'Pritoky search area is scoped to Kuttenberg only'
+Add-Result (
+    $troskyQuestText -match (
+        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">.*?' +
+        '<Edge From="targetSlot\d+Tagged\.True" To="SetTarget\d+" />'
+    )
+) 'Trosky keeps its immediate target presentation in this slice'
 Add-Result (
     $runtimeLuaText.Contains(
         'function DarkPassengerTarget.SelectNearest(gameRegion)'

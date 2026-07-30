@@ -62,6 +62,7 @@ function New-RegionalQuest {
         [string]$QuestDescriptionKey,
         [string]$RequestContext,
         [string]$TargetDeathContext,
+        [AllowEmptyString()][string]$SearchAreaAlias,
         [string]$OutputPath,
         [string]$Template
     )
@@ -70,8 +71,11 @@ function New-RegionalQuest {
         throw "Region '$RegionId' has $($Candidates.Count) candidates; limit is $MaxCandidatesPerRegion."
     }
 
-    $typeEnumerations = [System.Collections.Generic.List[string]]::new()
-    $stateEdges = [System.Collections.Generic.List[string]]::new()
+    $selectedTypeEnumerations = [System.Collections.Generic.List[string]]::new()
+    $targetTypeEnumerations = [System.Collections.Generic.List[string]]::new()
+    $selectedStateEdges = [System.Collections.Generic.List[string]]::new()
+    $targetStateEdges = [System.Collections.Generic.List[string]]::new()
+    $searchRevealEdges = [System.Collections.Generic.List[string]]::new()
     $selectionStopEdges = [System.Collections.Generic.List[string]]::new()
     $cleanupEdges = [System.Collections.Generic.List[string]]::new()
     $targetDeathContextEdges = [System.Collections.Generic.List[string]]::new()
@@ -79,17 +83,34 @@ function New-RegionalQuest {
     $deathNodes = [System.Collections.Generic.List[string]]::new()
     $assets = [System.Collections.Generic.List[string]]::new()
     $logs = [System.Collections.Generic.List[string]]::new()
+    $presentationSignal = 'Revealed'
+    if ([string]::IsNullOrWhiteSpace($SearchAreaAlias)) {
+        $presentationSignal = 'Tagged'
+    }
 
     foreach ($candidate in $Candidates) {
         $slotNumber = [int]$candidate.slot
         $slotName = 'Target{0:D3}' -f $slotNumber
         $slotNode = 'targetSlot{0:D3}' -f $slotNumber
 
-        $typeEnumerations.Add(
+        $selectedTypeEnumerations.Add(
             "        <StateTypeEnumeration Name=`"$slotName`" ObjectiveValueType=`"Started`" />"
         )
-        $stateEdges.Add("          <Edge From=`"$($slotNode)Tagged.True`" To=`"Set$slotName`" />")
-        $stateEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetDone`" />")
+        $targetTypeEnumerations.Add(
+            "        <StateTypeEnumeration Name=`"$slotName`" ObjectiveValueType=`"Started`" />"
+        )
+        $selectedStateEdges.Add(
+            "          <Edge From=`"$($slotNode)Tagged.True`" To=`"Set$slotName`" />"
+        )
+        $targetStateEdges.Add(
+            "          <Edge From=`"$slotNode$presentationSignal.True`" To=`"Set$slotName`" />"
+        )
+        $searchRevealEdges.Add(
+            "          <Edge From=`"$slotNode$presentationSignal.True`" To=`"SetDone`" />"
+        )
+        $targetStateEdges.Add(
+            "          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetDone`" />"
+        )
         $selectionStopEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetFalse`" />")
         $cleanupEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetActive`" />")
         $targetDeathContextEdges.Add("          <Edge From=`"$($slotNode)Death.OnDeath`" To=`"SetTrue`" />")
@@ -110,10 +131,23 @@ function New-RegionalQuest {
         $detectionNodes.Add("          <Edge From=`"$($slotNode)TagCheck.HaveBuffTag`" To=`"Condition`" />")
         $detectionNodes.Add("          <Edge From=`"$($slotNode)ValidationDelay.OnFinished`" To=`"Exec`" />")
         $detectionNodes.Add('        </If>')
+        $detectionNodes.Add("        <Function Name=`"$($slotNode)RevealCheck`" MethodName=`"wh::rpgmodule::BuffTagCheck`" DeclaringType=`"wh::rpgmodule`">")
+        $detectionNodes.Add('          <Constant Name="BuffTag" Value="30" />')
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)Souls.Array`" To=`"Souls`" />")
+        $detectionNodes.Add('        </Function>')
+        $detectionNodes.Add("        <Timer Name=`"$($slotNode)RevealDelay`">")
+        $detectionNodes.Add('          <Constant Name="Duration" Value="1s" />')
+        $detectionNodes.Add('          <Constant Name="TimeType" Value="GameTime" />')
+        $detectionNodes.Add('          <Edge From="revealTagTrigger.OnAdded" To="SetRunning" />')
+        $detectionNodes.Add('        </Timer>')
+        $detectionNodes.Add("        <If Name=`"$($slotNode)Revealed`">")
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)RevealCheck.HaveBuffTag`" To=`"Condition`" />")
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)RevealDelay.OnFinished`" To=`"Exec`" />")
+        $detectionNodes.Add('        </If>')
 
         $deathNodes.Add("        <SoulDeathTrigger Name=`"$($slotNode)Death`">")
         $deathNodes.Add("          <Asset Name=`"Souls`" Alias=`"$($candidate.alias)`" />")
-        $deathNodes.Add("          <Edge From=`"targetObjectiveProgress.$slotName`" To=`"IsActive`" />")
+        $deathNodes.Add("          <Edge From=`"selectedTarget.$slotName`" To=`"IsActive`" />")
         $deathNodes.Add('        </SoulDeathTrigger>')
 
         $assets.Add("        <SoulAsset Name=`"$($candidate.alias)`" SharedSoulGuids=`"$($candidate.guid)`" />")
@@ -122,6 +156,14 @@ function New-RegionalQuest {
         $logs.Add('                <Localization Text="The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence." Language="WHS" />')
         $logs.Add('              </Log>')
         $logs.Add('            </EnumLog>')
+    }
+
+    $searchAreaAsset = ''
+    $searchMarkerAttribute = ''
+    if (-not [string]::IsNullOrWhiteSpace($SearchAreaAlias)) {
+        $searchAreaAsset =
+            "        <TriggerAreaAsset Name=`"$SearchAreaAlias`" />"
+        $searchMarkerAttribute = " Marker=`"$SearchAreaAlias`""
     }
 
     $replacements = [ordered]@{
@@ -134,8 +176,13 @@ function New-RegionalQuest {
         '{{DP_CLEANUP_OBJECTIVE_NAME}}' = $CleanupObjectiveName
         '{{DP_QUEST_DESCRIPTION_KEY}}' = $QuestDescriptionKey
         '{{DP_TARGET_POOL_GUIDS}}' = (@($Candidates.guid) -join ' ')
-        '{{DP_TARGET_TYPE_ENUMS}}' = $typeEnumerations -join "`n"
-        '{{DP_TARGET_STATE_EDGES}}' = $stateEdges -join "`n"
+        '{{DP_SEARCH_AREA_ASSET}}' = $searchAreaAsset
+        '{{DP_SEARCH_MARKER_ATTRIBUTE}}' = $searchMarkerAttribute
+        '{{DP_SELECTED_TYPE_ENUMS}}' = $selectedTypeEnumerations -join "`n"
+        '{{DP_TARGET_TYPE_ENUMS}}' = $targetTypeEnumerations -join "`n"
+        '{{DP_SELECTED_STATE_EDGES}}' = $selectedStateEdges -join "`n"
+        '{{DP_TARGET_STATE_EDGES}}' = $targetStateEdges -join "`n"
+        '{{DP_TARGET_SEARCH_REVEAL_EDGES}}' = $searchRevealEdges -join "`n"
         '{{DP_TARGET_SEARCH_RESET_EDGES}}' = ''
         '{{DP_TARGET_SELECTION_STOP_EDGES}}' = $selectionStopEdges -join "`n"
         '{{DP_TARGET_CLEANUP_EDGES}}' = $cleanupEdges -join "`n"
@@ -219,6 +266,7 @@ $regionSpecifications = @(
         descriptionKey = 'dark_within_description_k'
         requestContext = 'dp_select_victim_kutnohorsko'
         targetDeathContext = 'dp_target_dead_kutnohorsko'
+        searchAreaAlias = 'DP_PritokySearchArea'
         output = $KuttenbergQuestOutputPath
     }
     [ordered]@{
@@ -230,6 +278,7 @@ $regionSpecifications = @(
         descriptionKey = 'dark_within_description_t'
         requestContext = 'dp_select_victim_trosecko'
         targetDeathContext = 'dp_target_dead_trosecko'
+        searchAreaAlias = ''
         output = $TroskyQuestOutputPath
     }
 )
@@ -249,6 +298,7 @@ foreach ($specification in $regionSpecifications) {
         -QuestDescriptionKey $specification.descriptionKey `
         -RequestContext $specification.requestContext `
         -TargetDeathContext $specification.targetDeathContext `
+        -SearchAreaAlias $specification.searchAreaAlias `
         -OutputPath $specification.output `
         -Template $template
 }
