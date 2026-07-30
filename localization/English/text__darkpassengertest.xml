@@ -4,10 +4,10 @@
 	<Row><Cell>dark_within_t</Cell><Cell>Dark Within</Cell></Row>
 	<Row><Cell>dark_within_description_k</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
 	<Row><Cell>dark_within_description_t</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
-	<Row><Cell>dark_within_obj_name</Cell><Cell>Find someone who deserves to die</Cell></Row>
-	<Row><Cell>dark_within_obj</Cell><Cell>The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Uncover the rot in Pritoky</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>The Passenger senses rot in Pritoky. Before I pass sentence, I must learn who here truly deserves to die.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
-	<Row><Cell>dark_within_target</Cell><Cell>The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>

@@ -274,14 +274,14 @@
       </QuestDescription>
       <Objectives>
         <Objective TypeT="Progress" Name="{{DP_SEARCH_OBJECTIVE_NAME}}">
-          <LocalizedName StringName="dark_within_obj_name" Text="Find someone who deserves to die">
-            <Localization Text="Find someone who deserves to die" Language="WHS" />
+          <LocalizedName StringName="dark_within_obj_name" Text="Uncover the rot in Pritoky">
+            <Localization Text="Uncover the rot in Pritoky" Language="WHS" />
           </LocalizedName>
           <Logs>
             <EnumLog Type="None" Name="None" />
             <EnumLog Type="Started" Name="Active" IsTracked="true"{{DP_SEARCH_MARKER_ATTRIBUTE}}>
-              <Log StringName="dark_within_obj" Text="The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.">
-                <Localization Text="The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner." Language="WHS" />
+              <Log StringName="dark_within_obj" Text="The Passenger senses rot in Pritoky. Before I pass sentence, I must learn who here truly deserves to die.">
+                <Localization Text="The Passenger senses rot in Pritoky. Before I pass sentence, I must learn who here truly deserves to die." Language="WHS" />
               </Log>
             </EnumLog>
             <EnumLog Type="Completed" Name="Done" />

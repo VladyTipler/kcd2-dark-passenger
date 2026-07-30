@@ -2702,17 +2702,43 @@ Add-Result (
     $russianText.Contains('Я научился держать эту тьму в узде.')
 ) 'Russian quest description uses approved lore'
 Add-Result (
-    $russianText.Contains('Найти того, кто заслуживает смерти')
-) 'Russian objective title uses approved lore'
+    $russianText.Contains(
+        '<Cell>dark_within_obj_name</Cell><Cell>Раскрыть гниль в Пржитоках</Cell>'
+    )
+) 'Russian search-area objective uses approved Pritoky lore'
 Add-Result (
-    $russianText.Contains('Мне нужна жертва — виновный')
-) 'Russian active objective log uses approved lore'
+    $russianText.Contains(
+        '<Cell>dark_within_obj</Cell><Cell>Пассажир чует гниль в Пржитоках. Прежде чем вершить приговор, я должен узнать, кто здесь и вправду заслуживает смерти.</Cell>'
+    )
+) 'Russian search-area log keeps confidence hidden'
 Add-Result (
     $russianText.Contains('<Cell>dark_within_target_name</Cell><Cell>Настигнуть избранную жертву</Cell>')
 ) 'Russian target objective title is localized'
 Add-Result (
     $englishText.Contains('<Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell>')
 ) 'English target objective title is localized'
+Add-Result (
+    $englishText.Contains(
+        '<Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell>'
+    ) -and
+    $russianText.Contains(
+        '<Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell>'
+    )
+) 'reveal update is localized in English and Russian'
+$investigationLocalizationKeys = @(
+    'dark_within_obj_name',
+    'dark_within_obj',
+    'dark_within_target_name',
+    'dark_within_target'
+)
+Add-Result (
+    @($investigationLocalizationKeys | Where-Object {
+        -not $englishText.Contains("<Cell>$_</Cell>") -or
+        -not $russianText.Contains("<Cell>$_</Cell>") -or
+        $englishText.Contains("@$_") -or
+        $russianText.Contains("@$_")
+    }).Count -eq 0
+) 'investigation copy has matching RU EN keys without raw key output'
 Add-Result (
     $englishText.Contains('<Cell>dark_within_target_done</Cell>') -and
     $russianText.Contains('<Cell>dark_within_target_done</Cell>') -and
@@ -2782,14 +2808,22 @@ Add-Result (
     $englishText.Contains('I have learned to keep this darkness on a leash.')
 ) 'English quest description matches approved tone'
 Add-Result (
-    $englishText.Contains('Find someone who deserves to die')
-) 'English objective title matches approved tone'
+    $englishText.Contains(
+        '<Cell>dark_within_obj_name</Cell><Cell>Uncover the rot in Pritoky</Cell>'
+    ) -and
+    $englishText.Contains(
+        '<Cell>dark_within_obj</Cell><Cell>The Passenger senses rot in Pritoky. Before I pass sentence, I must learn who here truly deserves to die.</Cell>'
+    )
+) 'English search-area copy matches approved tone'
 Add-Result (
     $questText.Contains('I have learned to keep this darkness on a leash.')
 ) 'quest fallback description matches approved lore'
 Add-Result (
-    $questText.Contains('Find someone who deserves to die')
-) 'quest fallback objective title matches approved lore'
+    $questText.Contains('Uncover the rot in Pritoky') -and
+    $questText.Contains(
+        'Every whisper and trace now points to one person.'
+    )
+) 'quest fallback investigation copy matches approved lore'
 
 $textFiles = @(
     Get-ChildItem -LiteralPath $stageRoot -Recurse -File -ErrorAction SilentlyContinue |

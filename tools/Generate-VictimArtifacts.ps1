@@ -152,8 +152,8 @@ function New-RegionalQuest {
 
         $assets.Add("        <SoulAsset Name=`"$($candidate.alias)`" SharedSoulGuids=`"$($candidate.guid)`" />")
         $logs.Add("            <EnumLog Type=`"Started`" Name=`"$slotName`" IsTracked=`"true`" Marker=`"$($candidate.alias)`">")
-        $logs.Add('              <Log StringName="dark_within_target" Text="The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.">')
-        $logs.Add('                <Localization Text="The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence." Language="WHS" />')
+        $logs.Add('              <Log StringName="dark_within_target" Text="Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.">')
+        $logs.Add('                <Localization Text="Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence." Language="WHS" />')
         $logs.Add('              </Log>')
         $logs.Add('            </EnumLog>')
     }

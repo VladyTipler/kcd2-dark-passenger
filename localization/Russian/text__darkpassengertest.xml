@@ -4,10 +4,10 @@
 	<Row><Cell>dark_within_t</Cell><Cell>Тьма внутри…</Cell></Row>
 	<Row><Cell>dark_within_description_k</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
 	<Row><Cell>dark_within_description_t</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
-	<Row><Cell>dark_within_obj_name</Cell><Cell>Найти того, кто заслуживает смерти</Cell></Row>
-	<Row><Cell>dark_within_obj</Cell><Cell>Голод снова требует своего. Мне нужна жертва — виновный, чья смерть сделает мир хоть немного чище.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Раскрыть гниль в Пржитоках</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>Пассажир чует гниль в Пржитоках. Прежде чем вершить приговор, я должен узнать, кто здесь и вправду заслуживает смерти.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Настигнуть избранную жертву</Cell></Row>
-	<Row><Cell>dark_within_target</Cell><Cell>Тёмный пассажир сделал свой выбор. Осталось настигнуть жертву и привести приговор в исполнение.</Cell></Row>
+	<Row><Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Не оставить следов</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>Приговор исполнен. Теперь нужно уйти чисто и убедиться, что никто не свяжет эту смерть со мной.</Cell></Row>
