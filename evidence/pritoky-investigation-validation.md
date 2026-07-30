@@ -45,11 +45,15 @@
 
 | Artifact | SHA-256 |
 |---|---|
-| `Data\darkpassengertest.pak` | `758A38EF358FA7506853F0AF497C18BFC139C3ED6F316328A1FEC9C6A87A4272` |
-| `Data\Levels\kutnohorsko\darkpassengertest.pak` | `F24F129D68FEE240174A4FE6307B3F556E92FD43E1872810B30819C0EE6D54B2` |
+| `Data\darkpassengertest.pak` | `195FBF84E913FA2BD77B1E9E0F33D43D7258818533D2AE7753D96952A6EBCEAE` |
+| `Data\Levels\kutnohorsko\darkpassengertest.pak` | `13A852B361D7A7CAD9E6C883E350C11A26A8760D7D632A7AE2DE7A91A1238D6F` |
 | `Localization\English_xml.pak` | `FEF98176D7E62C9641A865272EE7B0943C0E810CA47C16E08EB23BE2772C121C` |
 | `Localization\Russian_xml.pak` | `F4987AB0DB5F6F3C80400F6A987A27485DAB577A57666C12187B9923F1A4270E` |
 
 ## Live integration
 
-Pending dev validation.
+- Dev target: `H:\SteamLibrary\steamapps\common\KCD2Mod\Mods\b_DarkPassengerTest`
+- Pre-deployment backup: `H:\KCD2Mod\_deployment-backups\DarkPassenger\dev-20260731-014955`
+- Deployment comparison: 29 source files, 29 target files, no extras, all SHA-256 hashes equal.
+- Post-deployment structural/build suite: `RESULT: PASS (843 checks)`.
+- Runtime validation remains pending.
