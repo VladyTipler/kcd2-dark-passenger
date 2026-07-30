@@ -27,6 +27,7 @@ $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
 $aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
+$investigationLuaPath = "$stageRoot\Data\Scripts\mods\dpinvestigation.lua"
 $burialLuaPath = "$stageRoot\Data\Scripts\mods\dpburial.lua"
 $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
@@ -236,6 +237,8 @@ $projectText = Read-OptionalText -LiteralPath $projectPath
 $luaText = Read-OptionalText -LiteralPath $luaPath
 $hungerLuaText = Read-OptionalText -LiteralPath $hungerLuaPath
 $aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
+$investigationLuaText =
+    Read-OptionalText -LiteralPath $investigationLuaPath
 $burialLuaText = Read-OptionalText -LiteralPath $burialLuaPath
 $witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
 $witnessDetectorLuaText =
@@ -1186,6 +1189,88 @@ Add-Result (
 Add-Result (
     $runtimeLuaText.Contains('Script.ReloadScript("Scripts/mods/dphunger.lua")')
 ) 'mod init explicitly loads persistent hunger probe'
+Add-Result (
+    Test-Path -LiteralPath $investigationLuaPath
+) 'persistent investigation Lua module exists'
+Add-Result (
+    $investigationLuaText.Contains(
+        'DarkPassengerInvestigation.SCHEMA_VERSION = 1'
+    ) -and
+    $investigationLuaText.Contains(
+        'DarkPassengerInvestigation.REVEAL_THRESHOLD = 70'
+    )
+) 'investigation owns schema version 1 and seventy confidence threshold'
+foreach (
+    $investigationFunction in
+        'Open',
+        'Restore',
+        'AddEvidence',
+        'OnTargetDeath',
+        'Clear',
+        'Status'
+) {
+    Add-Result (
+        $investigationLuaText.Contains(
+            "function DarkPassengerInvestigation.$investigationFunction"
+        )
+    ) "investigation exports $investigationFunction"
+}
+Add-Result (
+    $investigationLuaText.Contains(
+        'function DarkPassengerInvestigation.Transition'
+    ) -and
+    $investigationLuaText.Contains(
+        'function DarkPassengerInvestigation.RunSelfTest'
+    ) -and
+    $investigationLuaText.Contains(
+        'DarkPassengerInvestigation.Transition('
+    )
+) 'investigation exposes one pure transition used by its self-test'
+foreach (
+    $investigationKey in
+        'dp_investigation_schema_version',
+        'dp_investigation_active_generation',
+        'dp_investigation_confidence',
+        'dp_investigation_revealed',
+        'dp_investigation_reveal_dispatched'
+) {
+    Add-Result (
+        $investigationLuaText.Contains($investigationKey)
+    ) "investigation persists $investigationKey"
+}
+Add-Result (
+    $investigationLuaText.Contains('dp_active_target_slot') -and
+    -not $investigationLuaText.Contains('dp_investigation_target_slot')
+) 'investigation reuses the canonical target slot without duplicating identity'
+Add-Result (
+    $investigationLuaText.Contains('Variables.GetGlobal') -and
+    $investigationLuaText.Contains('Variables.SetGlobal') -and
+    $investigationLuaText.Contains('pcall(function()')
+) 'investigation protects scalar persistence calls'
+Add-Result (
+    $investigationLuaText -match (
+        '(?s)PersistState\(nextState\).*?' +
+        'AddBuff\(DarkPassengerInvestigation.REVEAL_BUFF_GUID\).*?' +
+        'nextState.revealDispatched = true.*?PersistState\(nextState\)'
+    )
+) 'investigation persists reveal before buff and dispatch after acceptance'
+Add-Result (
+    $investigationLuaText.Contains(
+        'System.AddCCommand("dp_investigation_status"'
+    ) -and
+    $investigationLuaText.Contains(
+        'System.AddCCommand("dp_investigation_selftest"'
+    )
+) 'investigation registers status and self-test commands'
+$investigationReload =
+    'Script.ReloadScript("Scripts/mods/dpinvestigation.lua")'
+$investigationReloadIndex = $runtimeLuaText.IndexOf($investigationReload)
+$targetLifecycleIndex =
+    $runtimeLuaText.IndexOf('DarkPassengerTarget = DarkPassengerTarget or {}')
+Add-Result (
+    $investigationReloadIndex -ge 0 -and
+    $targetLifecycleIndex -gt $investigationReloadIndex
+) 'mod init loads investigation before target lifecycle code'
 Add-Result ($runtimeLuaText.Contains('result == "RESOLVED_CORRECT"')) 'correct case resolution is explicitly gated'
 Add-Result ($runtimeLuaText.Contains('previousState ~= "RESOLVED_CORRECT"')) 'already resolved cases cannot grant satisfaction twice'
 Add-Result (

@@ -19,6 +19,7 @@ Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
+Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
 
