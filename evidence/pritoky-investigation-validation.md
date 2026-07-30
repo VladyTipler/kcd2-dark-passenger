@@ -30,6 +30,26 @@
 - Structural validation proves the quest declaration, layer binding, package paths and archive integrity.
 - Runtime marker resolution remains pending live validation.
 
+## Investigation slice static validation - 2026-07-31
+
+- Commit: `4469e23fedbf3396f23e3f4122bbb24007c8b1a7`
+- Generated candidates: 819 Kuttenberg, 140 Trosky, 959 total
+- `dpinvestigation.lua`: parsed by the KCD2 Lua compiler
+- `darkpassengertest.lua`: parsed by the KCD2 Lua compiler
+- Full build: passed
+- Structural/build suite: `RESULT: PASS (843 checks)`
+- `git diff --check 6a33836..HEAD`: passed
+- Simplification review found no safe behavior-preserving cleanup in the feature diff.
+
+### Current packaged artifact SHA-256
+
+| Artifact | SHA-256 |
+|---|---|
+| `Data\darkpassengertest.pak` | `758A38EF358FA7506853F0AF497C18BFC139C3ED6F316328A1FEC9C6A87A4272` |
+| `Data\Levels\kutnohorsko\darkpassengertest.pak` | `F24F129D68FEE240174A4FE6307B3F556E92FD43E1872810B30819C0EE6D54B2` |
+| `Localization\English_xml.pak` | `FEF98176D7E62C9641A865272EE7B0943C0E810CA47C16E08EB23BE2772C121C` |
+| `Localization\Russian_xml.pak` | `F4987AB0DB5F6F3C80400F6A987A27485DAB577A57666C12187B9923F1A4270E` |
+
 ## Live integration
 
 Pending dev validation.
