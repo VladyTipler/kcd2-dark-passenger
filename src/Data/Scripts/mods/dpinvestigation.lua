@@ -7,6 +7,9 @@ DarkPassengerInvestigation.REVEAL_BUFF_GUID =
 DarkPassengerInvestigation.TARGET_BUFF_GUID =
     "a6046bb4-57c1-4a95-b743-880aba11f5ba"
 DarkPassengerInvestigation.ACTIVE_TARGET_SLOT_KEY = "dp_active_target_slot"
+DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES = {
+    kutnohorsko = "pritoky",
+}
 
 local KEYS = {
     schema = "dp_investigation_schema_version",
@@ -146,6 +149,10 @@ local function RemoveRevealBuff(entity)
         )
     end)
     return ok
+end
+
+function DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
+    return DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES[gameRegion]
 end
 
 function DarkPassengerInvestigation.Transition(state, event)

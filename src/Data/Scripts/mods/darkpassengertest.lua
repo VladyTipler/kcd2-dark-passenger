@@ -203,6 +203,7 @@ local function BindRecoveredTarget(candidate, entity)
         status = "ACTIVE",
     }
     RememberTarget(candidate)
+    DarkPassengerInvestigation.Restore(candidate, entity)
     return true
 end
 
@@ -213,7 +214,7 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
         local runtimeEntity =
             System.GetEntityByName(runtimeCandidate.entityName)
         if HasTargetBuff(runtimeEntity) then
-            RememberTarget(runtimeCandidate)
+            BindRecoveredTarget(runtimeCandidate, runtimeEntity)
             return true
         end
     end
@@ -226,7 +227,7 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
                     if runtimeCandidate ~= nil and
                        tonumber(runtimeCandidate.slot) ==
                            tonumber(candidate.slot) then
-                        RememberTarget(runtimeCandidate)
+                        BindRecoveredTarget(runtimeCandidate, entity)
                         return true
                     end
                     BindRecoveredTarget(candidate, entity)
@@ -249,7 +250,10 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
     end
 
     if runtimeCandidate ~= nil and runtimeCandidate.gameRegion == gameRegion then
-        RememberTarget(runtimeCandidate)
+        BindRecoveredTarget(
+            runtimeCandidate,
+            System.GetEntityByName(runtimeCandidate.entityName)
+        )
         return true
     end
 
@@ -303,6 +307,7 @@ end
 function DarkPassengerTarget.Clear()
     local previousId = DarkPassengerTarget.targetEntityId
     local previous = previousId ~= nil and System.GetEntity(previousId) or nil
+    DarkPassengerInvestigation.Clear(previous)
     if previous ~= nil and previous.soul ~= nil then
         pcall(function()
             previous.soul:RemoveAllBuffsByGuid(
@@ -428,6 +433,7 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
         status = "ACTIVE",
     }
     RememberTarget(selectedCandidate)
+    DarkPassengerInvestigation.Open(selectedCandidate, selected)
     if CaseReady() then
         DarkPassengerCase.Open(selected.id, displayName, settlement)
     end
@@ -448,6 +454,25 @@ function DarkPassengerTarget.SelectNearest(gameRegion)
     if g_localActor == nil or g_localActor.GetWorldPos == nil then
         TargetLog("nearest selection failed: player position unavailable")
         return false
+    end
+
+    if DarkPassengerTarget.RestoreExisting(gameRegion) then return true end
+
+    local settlementOverride =
+        DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
+    if settlementOverride ~= nil then
+        DarkPassengerTarget.activeRegion = gameRegion
+        DarkPassengerTarget.cases[gameRegion] = {
+            settlement = settlementOverride,
+            target = nil,
+            status = "SELECTING",
+        }
+        TargetLog(
+            "investigation settlement override region=" ..
+            tostring(gameRegion) ..
+            " settlement=" .. tostring(settlementOverride)
+        )
+        return DarkPassengerTarget.Select(gameRegion, settlementOverride)
     end
 
     local existingCase = DarkPassengerTarget.cases[gameRegion]
@@ -567,6 +592,7 @@ function DarkPassengerTarget.OnTargetDeath(gameRegion, settlement, slot)
         end)
         if ok then deathPosition = positionOrError end
     end
+    DarkPassengerInvestigation.OnTargetDeath()
     if deathPosition == nil or DarkPassengerAftermath == nil or
        DarkPassengerAftermath.Begin == nil then
         TargetLog("target death aftermath unavailable slot=" .. tostring(expectedSlot))
@@ -599,24 +625,31 @@ end
 function DarkPassengerTarget.SelectCommand(argsLine)
     local parts = SplitArgs(argsLine)
     local gameRegion = parts[1] or "kutnohorsko"
-    local settlement = parts[2] or "pritoky"
+    local settlement = parts[2] or
+        DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
     return DarkPassengerTarget.Select(gameRegion, settlement)
 end
 
 function DarkPassengerTarget.ValidateCommand(argsLine)
     local parts = SplitArgs(argsLine)
+    local gameRegion = parts[1] or "kutnohorsko"
+    local settlement = parts[2] or
+        DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
     return DarkPassengerTarget.Revalidate(
-        parts[1] or "kutnohorsko",
-        parts[2] or "pritoky",
+        gameRegion,
+        settlement,
         parts[3]
     )
 end
 
 function DarkPassengerTarget.DeathCommand(argsLine)
     local parts = SplitArgs(argsLine)
+    local gameRegion = parts[1] or "kutnohorsko"
+    local settlement = parts[2] or
+        DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
     return DarkPassengerTarget.OnTargetDeath(
-        parts[1] or "kutnohorsko",
-        parts[2] or "pritoky",
+        gameRegion,
+        settlement,
         parts[3]
     )
 end
@@ -1030,11 +1063,11 @@ end
 
 -- Manually adds confidence, simulating "found a clue" for this vertical slice.
 function DarkPassengerTest.Evidence(argsLine)
-    if not CaseReady() then return end
     local parts = SplitArgs(argsLine)
     local amount = tonumber(parts[1]) or 0
-    local label = parts[2] or "manual_test"
-    DarkPassengerCase.AddEvidence(amount, label)
+    local label = table.concat(parts, " ", 2)
+    if label == "" then label = "manual_test" end
+    return DarkPassengerInvestigation.AddEvidence(amount, label)
 end
 
 -- v8: experimental marker test. GameRules.SetObjectiveEntity is a generic

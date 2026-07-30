@@ -1271,6 +1271,81 @@ Add-Result (
     $investigationReloadIndex -ge 0 -and
     $targetLifecycleIndex -gt $investigationReloadIndex
 ) 'mod init loads investigation before target lifecycle code'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)RememberTarget\(selectedCandidate\).*?' +
+        'DarkPassengerInvestigation\.Open\(selectedCandidate, selected\)'
+    )
+) 'successful target selection opens investigation after slot persistence'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)local function BindRecoveredTarget\(candidate, entity\).*?' +
+        'DarkPassengerInvestigation\.Restore\(candidate, entity\).*?' +
+        'end'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'BindRecoveredTarget\(.*?' +
+        'end\s+local function OrderedSettlements'
+    ) -and
+    $runtimeLuaText -notmatch (
+        '(?s)function DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'RememberTarget\(.*?' +
+        'end\s+local function OrderedSettlements'
+    )
+) 'every recovered target restores investigation through one binding path'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.OnTargetDeath.*?' +
+        'DarkPassengerInvestigation\.OnTargetDeath\(.*?' +
+        'DarkPassengerTarget\.Clear\(\)'
+    )
+) 'target death notifies investigation before target state is cleared'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.Clear\(\).*?' +
+        'DarkPassengerInvestigation\.Clear\(previous\).*?' +
+        'ForgetPersistedTarget\(\)'
+    )
+) 'target reset removes reveal signal and clears investigation state'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.SelectNearest\(gameRegion\).*?' +
+        'DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'DarkPassengerTarget\.Select\('
+    )
+) 'nearest selection restores a valid target instead of rerolling it'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTest\.Evidence\(argsLine\).*?' +
+        'DarkPassengerInvestigation\.AddEvidence\(amount, label\).*?' +
+        'end'
+    ) -and
+    $runtimeLuaText -notmatch (
+        '(?s)function DarkPassengerTest\.Evidence\(argsLine\).*?' +
+        'DarkPassengerCase\.AddEvidence\(.*?end'
+    )
+) 'legacy evidence command delegates only to persistent investigation'
+Add-Result (
+    $investigationLuaText.Contains(
+        'DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES'
+    ) -and
+    $investigationLuaText.Contains(
+        'function DarkPassengerInvestigation.GetSettlementOverride'
+    ) -and
+    ([regex]::Matches(
+        $investigationLuaText,
+        '"pritoky"'
+    ).Count -eq 1) -and
+    -not $runtimeLuaText.Contains('"pritoky"')
+) 'Pritoky slice override has one source of truth'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.SelectNearest\(gameRegion\).*?' +
+        'DarkPassengerInvestigation\.GetSettlementOverride\(gameRegion\).*?' +
+        'DarkPassengerTarget\.Select\(gameRegion, settlementOverride\)'
+    )
+) 'automatic Kuttenberg selection uses the investigation settlement override'
 Add-Result ($runtimeLuaText.Contains('result == "RESOLVED_CORRECT"')) 'correct case resolution is explicitly gated'
 Add-Result ($runtimeLuaText.Contains('previousState ~= "RESOLVED_CORRECT"')) 'already resolved cases cannot grant satisfaction twice'
 Add-Result (
