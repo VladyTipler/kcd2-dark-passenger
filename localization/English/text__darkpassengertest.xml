@@ -36,5 +36,6 @@
 	<Row><Cell>dp_burial_bad_ground</Cell><Cell>The ground here cannot be dug.</Cell></Row>
 	<Row><Cell>dp_burial_quest_item</Cell><Cell>Something important is still on the body.</Cell></Row>
 	<Row><Cell>dp_burial_busy</Cell><Cell>You are already burying a body.</Cell></Row>
+	<Row><Cell>dp_burial_in_combat</Cell><Cell>You cannot bury a body during combat.</Cell></Row>
 	<Row><Cell>dp_burial_skiptime</Cell><Cell>The earth keeps its secrets...</Cell></Row>
 </Table>

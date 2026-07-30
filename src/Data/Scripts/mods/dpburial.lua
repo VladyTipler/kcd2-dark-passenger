@@ -11,8 +11,6 @@ DarkPassengerBurial.SAVE_LOCK = "DarkPassengerBurial"
 DarkPassengerBurial.STEP_INTERVAL_MS = 10
 DarkPassengerBurial.FADE_OUT_MS = 1000
 DarkPassengerBurial.FAILSAFE_MS = 10000
-DarkPassengerBurial.RECOVERY_TREE =
-    "darkPassengerRecoverBuriedBody"
 DarkPassengerBurial.RECOVERY_EDGE_MIN = 16
 DarkPassengerBurial.RECOVERY_GRID_SIZE = 16
 DarkPassengerBurial.RECOVERY_GRID_STEP = 2
@@ -63,6 +61,20 @@ local function IsDeadHuman(corpse)
         return corpse.actor:IsDead()
     end)
     return ok and dead == true
+end
+
+local function IsInCombatDanger(actor)
+    if actor == nil or actor.soul == nil or
+       actor.soul.IsInCombatDanger == nil then
+        return false
+    end
+
+    local ok, danger = pcall(function()
+        return actor.soul:IsInCombatDanger()
+    end)
+    return ok and (
+        danger == true or (tonumber(danger) or 0) == 1
+    )
 end
 
 local function ReadSoulState(actor, stateName)
@@ -242,6 +254,9 @@ function DarkPassengerBurial.CanBury(corpse, user)
     end
 
     local actor = user or PlayerEntity()
+    if IsInCombatDanger(actor) then
+        return false, "@dp_burial_in_combat"
+    end
     if not HasShovel(actor) then
         return false, "@dp_burial_no_shovel"
     end
@@ -407,6 +422,12 @@ local function BeginPresentation(corpse, actor)
         return false
     end
 
+    if not DarkPassengerBurial.RecoverEntity(corpse) then
+        DarkPassengerBurial.active = nil
+        Log("burial blocked: corpse recovery failed")
+        return false
+    end
+
     Calendar.SetWorldTime(
         startWorldTime + DarkPassengerBurial.WORLD_TIME_SECONDS
     )
@@ -539,7 +560,7 @@ function DarkPassengerBurial.RecoverEntity(corpse)
     if recoveryPosition == nil then return false end
 
     -- Persistent Souls must survive old-save reloads. Move the dead actor
-    -- through the native dead-body context; never destroy or hide its entity.
+    -- without destroying or hiding its entity.
     active.corpseRecoveryAttempted = true
     local moved = pcall(function()
         corpse:SetWorldPos(recoveryPosition)
@@ -574,28 +595,6 @@ local function BeginCorpseRecovery(active)
     if active.corpseRecoveryPosition == nil then
         Log("corpse recovery blocked: terrain unavailable")
         return false
-    end
-
-    if active.corpseRecoveryRequested ~= true and
-       AI ~= nil and AI.StartModularBehaviorTree ~= nil then
-        active.corpseRecoveryRequested = true
-        local okTree, treeResult = pcall(function()
-            return AI.StartModularBehaviorTree(
-                corpse.id,
-                DarkPassengerBurial.RECOVERY_TREE
-            )
-        end)
-        if not okTree or treeResult == false then
-            active.corpseRecoveryRequested = false
-            Log(
-                "corpse recovery tree failed result=" ..
-                tostring(treeResult)
-            )
-        end
-    end
-
-    if active.corpseRecoveryRequested == true then
-        return true
     end
 
     return DarkPassengerBurial.RecoverEntity(corpse)

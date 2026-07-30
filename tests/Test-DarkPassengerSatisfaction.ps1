@@ -39,7 +39,10 @@ $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_
 $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml.template"
 $questBridgeModulePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dp_lua_call.xml"
 $schedulerBridgePath = "$stageRoot\Data\AI\player\scheduler\darkPassengerExecuteLua.xml"
-$burialRecoveryTreePath = "$stageRoot\Data\AI\world\darkPassengerRecoverBuriedBody.xml"
+$burialRecoveryTreePath =
+    "$stageRoot\Data\Scripts\AI\BehaviorTrees\darkPassengerRecoverBuriedBody.xml"
+$legacyBurialRecoveryTreePath =
+    "$stageRoot\Data\AI\world\darkPassengerRecoverBuriedBody.xml"
 $generatedCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_candidate_catalog.lua"
 $questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item_catalog.lua"
 $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
@@ -221,8 +224,6 @@ $questText = Read-OptionalText -LiteralPath $questPath
 $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
-$burialRecoveryTreeText =
-    Read-OptionalText -LiteralPath $burialRecoveryTreePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
 $levelText = Read-OptionalText -LiteralPath $levelPath
@@ -1716,6 +1717,48 @@ Add-Result (
     $burialLuaText.Contains('AHT_HOLD') -and
     $burialLuaText.Contains(':reason(reason)')
 ) 'burial uses the native held-F contextual action with disabled reasons'
+$burialCanBuryMatch = [regex]::Match(
+    $burialLuaText,
+    '(?s)function DarkPassengerBurial\.CanBury\(corpse, user\).*?^end$',
+    [System.Text.RegularExpressions.RegexOptions]::Multiline
+)
+$burialCanBuryText = $burialCanBuryMatch.Value
+Add-Result (
+    $burialLuaText.Contains(
+        'local function IsInCombatDanger(actor)'
+    ) -and
+    $burialLuaText.Contains(
+        'actor.soul:IsInCombatDanger()'
+    ) -and
+    $burialLuaText.Contains(
+        'pcall(function()'
+    )
+) 'burial reads native combat danger through a protected helper'
+Add-Result (
+    $burialCanBuryMatch.Success -and
+    $burialCanBuryText.Contains(
+        'return false, "@dp_burial_in_combat"'
+    ) -and
+    $burialCanBuryText.IndexOf(
+        'IsInCombatDanger(actor)'
+    ) -ge 0 -and
+    $burialCanBuryText.IndexOf(
+        'IsInCombatDanger(actor)'
+    ) -lt $burialCanBuryText.IndexOf(
+        'HasShovel(actor)'
+    )
+) 'burial disables the action for combat before inventory and ground checks'
+$burialInvokeMatch = [regex]::Match(
+    $burialLuaText,
+    '(?s)function DarkPassengerBurial\.OnBuryBody\(corpse, user, slotId\).*?^end$',
+    [System.Text.RegularExpressions.RegexOptions]::Multiline
+)
+Add-Result (
+    $burialInvokeMatch.Success -and
+    $burialInvokeMatch.Value.Contains(
+        'DarkPassengerBurial.CanBury(corpse, user)'
+    )
+) 'burial revalidates combat danger when the held action is invoked'
 Add-Result (
     $burialLuaText -match 'TOTAL_TIME_SECONDS\s*=\s*7' -and
     $burialLuaText -match 'WORLD_TIME_SECONDS\s*=\s*3600' -and
@@ -1743,36 +1786,26 @@ Add-Result (
     $burialLuaText.Contains('function DarkPassengerBurial.OnFailsafe')
 ) 'burial always has save-lock and failsafe cleanup'
 Add-Result (
-    Test-Path -LiteralPath $burialRecoveryTreePath
-) 'save-safe burial recovery behavior tree exists'
+    -not (Test-Path -LiteralPath $burialRecoveryTreePath) -and
+    -not (Test-Path -LiteralPath $legacyBurialRecoveryTreePath) -and
+    -not $burialLuaText.Contains('AI.StartModularBehaviorTree(')
+) 'burial does not invoke the incompatible CryEngine modular tree loader'
+$burialBeginPresentationMatch = [regex]::Match(
+    $burialLuaText,
+    '(?s)local function BeginPresentation\(corpse, actor\).*?^end$',
+    [System.Text.RegularExpressions.RegexOptions]::Multiline
+)
 Add-Result (
-    $burialRecoveryTreeText.Contains(
-        '<BehaviorTree name="darkPassengerRecoverBuriedBody"'
+    $burialBeginPresentationMatch.Success -and
+    $burialBeginPresentationMatch.Value.Contains(
+        'DarkPassengerBurial.RecoverEntity(corpse)'
     ) -and
-    $burialRecoveryTreeText.Contains(
-        '<EntityContext context="deadBody_allowActorAnimsForDeadNPC"'
-    ) -and
-    $burialRecoveryTreeText.Contains(
-        '<Root OneTimeOnly="true"'
-    ) -and
-    $burialRecoveryTreeText.Contains(
-        'DarkPassengerBurial.RecoverEntity(entity)'
-    ) -and
-    $burialRecoveryTreeText.Contains(
-        'fragment="&apos;DeadBody_Ragdoll&apos;"'
+    $burialBeginPresentationMatch.Value.IndexOf(
+        'DarkPassengerBurial.RecoverEntity(corpse)'
+    ) -lt $burialBeginPresentationMatch.Value.IndexOf(
+        'Calendar.SetWorldTime('
     )
-) 'burial recovery mirrors the native dead-body teleport lifecycle'
-Add-Result (
-    $burialLuaText.Contains(
-        'AI.StartModularBehaviorTree('
-    ) -and
-    $burialLuaText.Contains(
-        '"darkPassengerRecoverBuriedBody"'
-    ) -and
-    $burialLuaText.Contains(
-        'function DarkPassengerBurial.RecoverEntity'
-    )
-) 'burial delegates persistent NPC recovery through AI'
+) 'burial moves the corpse before advancing SkipTime world time'
 Add-Result (
     $burialLuaText.Contains(
         'local function SameEntityId(left, right)'
@@ -2411,6 +2444,7 @@ foreach ($key in @(
     'dp_burial_bad_ground',
     'dp_burial_quest_item',
     'dp_burial_busy',
+    'dp_burial_in_combat',
     'dp_burial_skiptime'
 )) {
     Add-Result (

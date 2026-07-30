@@ -36,5 +36,6 @@
 	<Row><Cell>dp_burial_bad_ground</Cell><Cell>Здесь не получится выкопать могилу.</Cell></Row>
 	<Row><Cell>dp_burial_quest_item</Cell><Cell>На теле осталось что-то важное.</Cell></Row>
 	<Row><Cell>dp_burial_busy</Cell><Cell>Ты уже закапываешь тело.</Cell></Row>
+	<Row><Cell>dp_burial_in_combat</Cell><Cell>Нельзя закапывать тело в бою.</Cell></Row>
 	<Row><Cell>dp_burial_skiptime</Cell><Cell>Земля умеет хранить тайны...</Cell></Row>
 </Table>
