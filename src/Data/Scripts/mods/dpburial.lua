@@ -665,6 +665,7 @@ function DarkPassengerBurial.OnSkipTimeStep(userData, timerId)
                 DarkPassengerBurial.AUDIO_TRIGGER
             )
         end
+        BeginCorpseRecovery(active)
     end
 
     local elapsed =

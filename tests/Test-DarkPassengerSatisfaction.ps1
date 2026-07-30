@@ -1816,6 +1816,18 @@ $burialSkipStepMatch = [regex]::Match(
 $burialSkipStepText = $burialSkipStepMatch.Value
 Add-Result (
     $burialSkipStepMatch.Success -and
+    $burialSkipStepText.IndexOf(
+        'UIAction.CallFunction("Overlay", 1, "SetAlpha", 5, 255)'
+    ) -ge 0 -and
+    $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -gt
+        $burialSkipStepText.IndexOf(
+            'UIAction.CallFunction("Overlay", 1, "SetAlpha", 5, 255)'
+        ) -and
+    $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -lt
+        $burialSkipStepText.IndexOf('local elapsed =')
+) 'burial starts corpse recovery while the opening overlay is fully black'
+Add-Result (
+    $burialSkipStepMatch.Success -and
     $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -ge 0 -and
     $burialSkipStepText.IndexOf('"FadeOutDialog"') -ge 0 -and
     $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -lt

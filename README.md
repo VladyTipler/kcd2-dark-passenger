@@ -34,7 +34,7 @@ SkipTime presentation.
 
 - [x] Add a 90-second silence check after the target dies
 - [x] Enter cleanup when witnesses, suspicion, or an alarm appear
-- [ ] Allow unreported witnesses to be removed before leaving the area
+- [x] Allow unreported witnesses to be removed before leaving the area
 - [x] Grade hunts as clean, controlled, or noisy without restricting kill method
 - [x] Extend satisfaction after cleaner hunts
 - [x] Persist settlement attention and the long-term blood trail
