@@ -19,8 +19,8 @@
 - Seven real seconds, one game hour, energy `-10`, nourishment `-5`.
 - Quest-item uncertainty fails closed.
 - Burial never erases reports, alarms, wanted state, or testimony.
-- Vanilla corpse actions remain on `E`; burial is a dedicated native
-  hold-`F` secondary action.
+- Burial starts directly by holding `F`; no prior `E` input is required.
+  Vanilla corpse actions remain independently available on `E`.
 
 ### Task 1: Quest-item catalog
 

@@ -10,16 +10,16 @@ already escaped Henry's control.
 ## Player flow
 
 1. Look at a dead human body.
-2. Keep the vanilla `E` corpse action for looting or carrying.
-3. Hold the dedicated `F` action `Закопать тело` / `Bury the body`.
-4. The action is disabled with a reason when:
+2. Hold the dedicated `F` action `Закопать тело` / `Bury the body`.
+   No prior `E` input is required; vanilla `E` corpse actions remain separate.
+3. The action is disabled with a reason when:
    - Henry has no shovel;
    - the ground cannot be dug;
    - the corpse carries a quest item;
    - another burial is running.
-5. The native SkipTime presentation runs for seven real seconds with digging
+4. The native SkipTime presentation runs for seven real seconds with digging
    audio and `Земля умеет хранить тайны...`.
-6. One game hour passes, energy drops by 10, nourishment by 5, then the corpse
+5. One game hour passes, energy drops by 10, nourishment by 5, then the corpse
    and its remaining ordinary loot disappear.
 
 The shovel is required but never consumed.

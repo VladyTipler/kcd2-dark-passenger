@@ -941,6 +941,47 @@ function DarkPassengerAftermath.EmitResultSignal(result)
     return true
 end
 
+function DarkPassengerAftermath.RecordBurial(corpseId)
+    if DarkPassengerAftermath.phase ~=
+       DarkPassengerAftermath.PHASE_SILENCE_CHECK then
+        return false
+    end
+    if DarkPassengerCase == nil or
+       DarkPassengerCase.GetCurrent == nil then
+        return false
+    end
+
+    local currentCase = DarkPassengerCase.GetCurrent()
+    if currentCase == nil or currentCase.target_id == nil or
+       corpseId == nil or
+       (
+           currentCase.target_id ~= corpseId and
+           tostring(currentCase.target_id) ~= tostring(corpseId)
+       ) then
+        return false
+    end
+
+    if DarkPassengerWitness ~= nil and
+       DarkPassengerWitness.GetCaseOutcome ~= nil then
+        local outcome = DarkPassengerWitness.GetCaseOutcome(
+            DarkPassengerAftermath.generation
+        )
+        if outcome ~= "clean" then
+            Log(
+                "target burial cannot erase witness outcome=" ..
+                tostring(outcome)
+            )
+            return false
+        end
+    end
+
+    Log(
+        "target buried during clean silence check corpse=" ..
+        tostring(corpseId)
+    )
+    return DarkPassengerAftermath.Resolve("clean")
+end
+
 function DarkPassengerAftermath.Resolve(result)
     if DarkPassengerAftermath.phase ==
        DarkPassengerAftermath.PHASE_RESOLVED then

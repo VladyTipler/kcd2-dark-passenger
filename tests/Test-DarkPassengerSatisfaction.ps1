@@ -16,6 +16,7 @@ $testRoot = Split-Path -Parent $PSScriptRoot
 $stageRoot = Join-Path $testRoot 'build\mod'
 $manifestPath = "$stageRoot\mod.manifest"
 $tagPath = "$stageRoot\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml"
+$buffClassPath = "$stageRoot\Data\Libs\Tables\rpg\buff_class__darkpassengertest.xml"
 $buffPath = "$stageRoot\Data\Libs\Tables\rpg\buff__darkpassengertest.xml"
 $scriptContextPath = "$stageRoot\Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml"
 $questPath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml"
@@ -26,6 +27,7 @@ $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
 $aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
+$burialLuaPath = "$stageRoot\Data\Scripts\mods\dpburial.lua"
 $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
@@ -38,6 +40,8 @@ $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\da
 $questBridgeModulePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dp_lua_call.xml"
 $schedulerBridgePath = "$stageRoot\Data\AI\player\scheduler\darkPassengerExecuteLua.xml"
 $generatedCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_candidate_catalog.lua"
+$questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item_catalog.lua"
+$questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
 $kuttenbergWaitingLinksPath = "$stageRoot\Data\Levels\kutnohorsko\waitinglinks.xml"
 $assetLinkerRoot = $ReferenceDataRoot
 $kuttenbergBaseWaitingLinksPath = "$assetLinkerRoot\kutnohorsko\kut_waitinglinks.xml"
@@ -53,6 +57,7 @@ $russianPath = "$testRoot\localization\Russian\text__darkpassengertest.xml"
 
 $expectedGuid = '16de3823-48bf-4f86-8498-ce45819a48f0'
 $expectedTag = '23'
+$hungerBuffClassId = '2301'
 $satisfactionGateGuid = 'b5c59e05-cc10-4bf8-b82e-d82b913c841f'
 $targetGuid = 'a6046bb4-57c1-4a95-b743-880aba11f5ba'
 $targetTag = '24'
@@ -208,6 +213,7 @@ if (
 }
 
 $tagText = Read-OptionalText -LiteralPath $tagPath
+$buffClassText = Read-OptionalText -LiteralPath $buffClassPath
 $buffText = Read-OptionalText -LiteralPath $buffPath
 $scriptContextText = Read-OptionalText -LiteralPath $scriptContextPath
 $questText = Read-OptionalText -LiteralPath $questPath
@@ -222,10 +228,13 @@ $projectText = Read-OptionalText -LiteralPath $projectPath
 $luaText = Read-OptionalText -LiteralPath $luaPath
 $hungerLuaText = Read-OptionalText -LiteralPath $hungerLuaPath
 $aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
+$burialLuaText = Read-OptionalText -LiteralPath $burialLuaPath
 $witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
 $witnessDetectorLuaText =
     Read-OptionalText -LiteralPath $witnessDetectorLuaPath
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
+$questItemCatalogLuaText =
+    Read-OptionalText -LiteralPath $questItemCatalogLuaPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
@@ -519,6 +528,12 @@ Add-Result ($allMarkerAliasesExist) 'every generated marker references an existi
 Add-Result (Test-Path -LiteralPath $tagPath) 'custom buff AI tag table exists'
 Add-Result ($tagText.Contains('buff_ai_tag_id="23"')) 'custom AI tag uses id 23'
 Add-Result ($tagText.Contains('buff_ai_tag_name="darkpassenger_satisfaction"')) 'custom AI tag has expected name'
+Add-Result (Test-Path -LiteralPath $buffClassPath) 'custom Dark Passenger buff class table exists'
+Add-Result (
+    $buffClassText.Contains(
+        "buff_class_id=`"$hungerBuffClassId`" buff_class_name=`"DarkPassengerHunger`""
+    )
+) 'hunger tiers own a custom buff class'
 Add-Result ($tagText.Contains("buff_ai_tag_id=`"$targetTag`"")) 'target AI tag uses id 24'
 Add-Result ($tagText.Contains('buff_ai_tag_name="darkpassenger_target"')) 'target AI tag has expected name'
 foreach ($signal in $aftermathSignals) {
@@ -625,6 +640,32 @@ Add-Result (
     ).Where({ $buffText.Contains("buff_name=`"$_`"") }).Count -eq 10 -and
     -not $buffText.Contains('buff_name="dp_hunger_50"')
 ) 'buff table defines every ten-percent hunger tier except neutral fifty'
+$visibleHungerBuffNames = @(
+    'dp_satisfaction',
+    'dp_satisfaction_10',
+    'dp_satisfaction_20',
+    'dp_satisfaction_30',
+    'dp_satisfaction_40',
+    'dp_hunger_60',
+    'dp_hunger_70',
+    'dp_hunger_80',
+    'dp_hunger_90',
+    'dp_hunger_100'
+)
+Add-Result (
+    @(
+        $visibleHungerBuffNames |
+            Where-Object {
+                $buffText -notmatch (
+                    '<buff (?=[^>]*buff_class_id="' +
+                    [regex]::Escape($hungerBuffClassId) +
+                    '")(?=[^>]*buff_name="' +
+                    [regex]::Escape($_) +
+                    '")[^>]*/>'
+                )
+            }
+    ).Count -eq 0
+) 'every visible hunger tier is isolated from vanilla buff classes'
 Add-Result (
     ([regex]::Matches(
         $buffText,
@@ -1556,6 +1597,190 @@ Add-Result (
     )
 ) 'aftermath persists versioned settlement attention and blood trail'
 Add-Result (
+    Test-Path -LiteralPath $questItemGeneratorPath
+) 'quest-item catalog generator exists'
+Add-Result (
+    Test-Path -LiteralPath $questItemCatalogLuaPath
+) 'generated base-game quest-item catalog exists'
+Add-Result (
+    $questItemCatalogLuaText.Contains(
+        'DarkPassengerQuestItemCatalog = {'
+    ) -and
+    ([regex]::Matches($questItemCatalogLuaText, '= true')).Count -eq 293
+) 'quest-item catalog contains all 293 authoritative base classes'
+Add-Result (
+    Test-Path -LiteralPath $burialLuaPath
+) 'global corpse burial Lua module exists'
+foreach ($export in @(
+    'InstallActionHook',
+    'AddBuryAction',
+    'CanBury',
+    'HasQuestItem',
+    'IsDiggableGround',
+    'OnBuryBody',
+    'OnSkipTimeStep',
+    'Finish'
+)) {
+    Add-Result (
+        $burialLuaText.Contains(
+            "function DarkPassengerBurial.$export"
+        )
+    ) "corpse burial exports $export"
+}
+Add-Result (
+    $runtimeLuaText.IndexOf(
+        'Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")'
+    ) -ge 0 -and
+    $runtimeLuaText.IndexOf(
+        'Script.ReloadScript("Scripts/mods/dpburial.lua")'
+    ) -gt
+    $runtimeLuaText.IndexOf(
+        'Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")'
+    )
+) 'mod init loads quest-item catalog before corpse burial'
+Add-Result (
+    $burialLuaText.Contains(
+        'local actionClassNames = { "NPC", "NPC_Female", "NPC_NAI" }'
+    )
+) 'burial targets the live NPC action classes used by entity GetActions'
+Add-Result (
+    $burialLuaText.Contains('classTable.GetActions = wrapper') -and
+    $burialLuaText.Contains(
+        'DarkPassengerBurial.AddBuryAction(self, user, firstFast, output)'
+    )
+) 'burial injects the contextual action through the live NPC class method'
+Add-Result (
+    -not $burialLuaText.Contains('BasicAIActions.GetActions = wrapper')
+) 'burial does not rely on a late BasicAIActions mutation invisible to merged NPC classes'
+Add-Result (
+    $burialLuaText.Contains(':uiOrder(3)')
+) 'burial action uses the proven Mercenaries interaction ordering'
+Add-Result (
+    $burialLuaText -notmatch (
+        '(?s)function DarkPassengerBurial\.AddBuryAction.*?' +
+        'if firstFast and #output > 0 then return false end'
+    )
+) 'burial action remains available beside the fast vanilla corpse action'
+Add-Result (
+    $burialLuaText.Contains('corpse.human == nil') -and
+    $burialLuaText.Contains('corpse.actor:IsDead()')
+) 'burial is restricted to dead humans'
+Add-Result (
+    $burialLuaText.Contains(
+        '85409fc6-36ff-4de7-b337-e2889e435f1b'
+    ) -and
+    $burialLuaText.Contains('GetCountOfClass') -and
+    -not $burialLuaText.Contains('DeleteItemOfClass')
+) 'burial requires but never consumes the shovel'
+Add-Result (
+    $burialLuaText.Contains('GetInventoryTable') -and
+    $burialLuaText.Contains('ItemManager.GetItem') -and
+    $burialLuaText.Contains('DarkPassengerQuestItemCatalog') -and
+    $burialLuaText.Contains('quest_catalog_unavailable')
+) 'burial blocks quest items and fails closed when metadata is unavailable'
+Add-Result (
+    $burialLuaText.Contains('Physics.RayWorldIntersection') -and
+    $burialLuaText.Contains('System.GetSurfaceTypeNameById') -and
+    @(
+        'mat_soil',
+        'mat_mud',
+        'mat_grass',
+        'mat_forest',
+        'mat_gravel',
+        'mat_road',
+        'mat_field'
+    ).Where({ $burialLuaText.Contains($_) }).Count -eq 7
+) 'burial validates the proven diggable surface families'
+Add-Result (
+    $burialLuaText.Contains('@dp_burial_action') -and
+    $burialLuaText.Contains(':action("butcher")') -and
+    $burialLuaText.Contains('AHT_HOLD') -and
+    $burialLuaText.Contains(':reason(reason)')
+) 'burial uses the native held-F contextual action with disabled reasons'
+Add-Result (
+    $burialLuaText -match 'TOTAL_TIME_SECONDS\s*=\s*7' -and
+    $burialLuaText -match 'WORLD_TIME_SECONDS\s*=\s*3600' -and
+    $burialLuaText -match 'EXHAUST_COST\s*=\s*10' -and
+    $burialLuaText -match 'HUNGER_COST\s*=\s*5'
+) 'burial uses the approved duration time and stat costs'
+Add-Result (
+    $burialLuaText.Contains('UIAction.HideElement("hud", 0)') -and
+    $burialLuaText.Contains('"AddOverlay"') -and
+    $burialLuaText.Contains('"AddDialog"') -and
+    $burialLuaText.Contains('"SetStats"') -and
+    $burialLuaText.Contains('"SetInterval"') -and
+    $burialLuaText.Contains('"SetTime"') -and
+    $burialLuaText.Contains('"FadeOutDialog"')
+) 'burial uses the live-proven native SkipTime presentation'
+Add-Result (
+    $burialLuaText.Contains('special_skiptime_digging') -and
+    $burialLuaText.Contains('AudioUtils.LookupTriggerID') -and
+    $burialLuaText.Contains('actor:StopAudioTrigger(') -and
+    $burialLuaText.Contains('actor:GetDefaultAuxAudioProxyID()')
+) 'burial stops digging audio through the proven native entity method'
+Add-Result (
+    $burialLuaText.Contains('Game.AddSaveLock(') -and
+    $burialLuaText.Contains('Game.RemoveSaveLock(') -and
+    $burialLuaText.Contains('function DarkPassengerBurial.OnFailsafe')
+) 'burial always has save-lock and failsafe cleanup'
+Add-Result (
+    $burialLuaText -match (
+        '(?s)local function RemoveActiveCorpse.*?' +
+        'System\.RemoveEntity\(corpse\.id\)'
+    ) -and
+    $burialLuaText -notmatch 'RemoveAllItems'
+) 'burial removes body and ordinary loot only after presentation completion'
+$burialSkipStepMatch = [regex]::Match(
+    $burialLuaText,
+    '(?s)function DarkPassengerBurial\.OnSkipTimeStep.*?^end$',
+    [System.Text.RegularExpressions.RegexOptions]::Multiline
+)
+$burialSkipStepText = $burialSkipStepMatch.Value
+Add-Result (
+    $burialSkipStepMatch.Success -and
+    $burialSkipStepText.IndexOf('RemoveActiveCorpse(active)') -ge 0 -and
+    $burialSkipStepText.IndexOf('"FadeOutDialog"') -ge 0 -and
+    $burialSkipStepText.IndexOf('RemoveActiveCorpse(active)') -lt
+        $burialSkipStepText.IndexOf('"FadeOutDialog"')
+) 'burial removes the corpse before the SkipTime overlay starts revealing the world'
+$burialFinishMatch = [regex]::Match(
+    $burialLuaText,
+    '(?s)function DarkPassengerBurial\.Finish.*?^end$',
+    [System.Text.RegularExpressions.RegexOptions]::Multiline
+)
+$burialFinishText = $burialFinishMatch.Value
+Add-Result (
+    $burialFinishMatch.Success -and
+    $burialFinishText.IndexOf('RemoveActiveCorpse(active)') -ge 0 -and
+    $burialFinishText.IndexOf('RestorePresentation()') -ge 0 -and
+    $burialFinishText.IndexOf('RemoveActiveCorpse(active)') -lt
+        $burialFinishText.IndexOf('RestorePresentation()')
+) 'burial retries corpse removal before restoring the world'
+Add-Result (
+    (
+        $burialLuaText.Contains(
+            'DarkPassengerAftermath.RecordBurial(corpse.id)'
+        ) -or
+        $burialLuaText.Contains(
+            'DarkPassengerAftermath.RecordBurial(corpseId)'
+        )
+    ) -and
+    $aftermathLuaText.Contains(
+        'function DarkPassengerAftermath.RecordBurial(corpseId)'
+    )
+) 'target burial reports into the aftermath state machine'
+Add-Result (
+    $aftermathLuaText -match (
+        '(?s)function DarkPassengerAftermath\.RecordBurial\(corpseId\).*?' +
+        'PHASE_SILENCE_CHECK.*?currentCase\.target_id.*?' +
+        'DarkPassengerAftermath\.Resolve\("clean"\)'
+    ) -and
+    $aftermathLuaText -notmatch (
+        '(?s)function DarkPassengerAftermath\.RecordBurial.*?' +
+        '(MarkReported|LockNoisy|noisyLocked\s*=\s*false)'
+    )
+) 'target burial resolves only a still-clean silence check'
+Add-Result (
     $runtimeLuaText.Contains("DarkPassengerTarget.TARGET_BUFF_GUID = `"$targetGuid`"")
 ) 'Lua target selector uses the hidden target buff'
 Add-Result (
@@ -2087,6 +2312,19 @@ Add-Result (
         '<Cell>dark_within_cleanup_witnessed</Cell><Cell>Кто-то видел слишком много.</Cell>'
     )
 ) 'anonymous witness update is localized in English and Russian'
+foreach ($key in @(
+    'dp_burial_action',
+    'dp_burial_no_shovel',
+    'dp_burial_bad_ground',
+    'dp_burial_quest_item',
+    'dp_burial_busy',
+    'dp_burial_skiptime'
+)) {
+    Add-Result (
+        $englishText.Contains("<Cell>$key</Cell>") -and
+        $russianText.Contains("<Cell>$key</Cell>")
+    ) "burial localization contains $key in English and Russian"
+}
 Add-Result (
     $questTemplateText.Contains('<Edge From="cleanResultTrigger.OnAdded" To="SetClean" />') -and
     $questTemplateText.Contains('<Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />') -and

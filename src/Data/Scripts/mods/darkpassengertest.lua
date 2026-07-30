@@ -19,6 +19,8 @@ Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
+Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
+Script.ReloadScript("Scripts/mods/dpburial.lua")
 
 -- %line hands the console command handler the ENTIRE remainder of the line
 -- as one string (e.g. "40 rumor"), not separate Lua arguments. Split it

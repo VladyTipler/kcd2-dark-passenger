@@ -15,7 +15,9 @@ matters is not how the sentence is carried out, but whether Henry gets caught.
 
 The retail-confirmed core supports persistent hunger, nearest-settlement victim
 selection in both regions, native quest objectives and markers, and automatic
-post-target-death satisfaction reset.
+post-target-death satisfaction reset. The dev-confirmed aftermath layer tracks
+witness outcomes and adds global hold-to-bury corpse disposal with native
+SkipTime presentation.
 
 ## Roadmap
 
@@ -30,12 +32,13 @@ post-target-death satisfaction reset.
 
 ### Phase 2 — The first rule: do not get caught
 
-- [ ] Add a 90-second silence check after the target dies
-- [ ] Enter cleanup when witnesses, suspicion, or an alarm appear
+- [x] Add a 90-second silence check after the target dies
+- [x] Enter cleanup when witnesses, suspicion, or an alarm appear
 - [ ] Allow unreported witnesses to be removed before leaving the area
-- [ ] Grade hunts as clean, controlled, or noisy without restricting kill method
-- [ ] Extend satisfaction after cleaner hunts
-- [ ] Persist settlement attention and the long-term blood trail
+- [x] Grade hunts as clean, controlled, or noisy without restricting kill method
+- [x] Extend satisfaction after cleaner hunts
+- [x] Persist settlement attention and the long-term blood trail
+- [x] Bury suitable human bodies with a shovel and native SkipTime
 
 ### Phase 3 — Investigation
 

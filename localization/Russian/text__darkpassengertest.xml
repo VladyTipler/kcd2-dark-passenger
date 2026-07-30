@@ -31,4 +31,10 @@
 	<Row><Cell>dp_hunger_80_desc</Cell><Cell>&lt;p&gt;Потребность гложет без передышки. Каждое виновное лицо начинает казаться приглашением.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -2, ловкость -2, живучесть -1, меткость -2, скрытность -2, воровство -2, красноречие -2, харизма -3.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_90_desc</Cell><Cell>&lt;p&gt;Пассажир больше не просит. Его требование заглушает и осторожность, и милосердие.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -2, ловкость -2, живучесть -2, меткость -3, скрытность -3, воровство -3, красноречие -3, харизма -4.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_100_desc</Cell><Cell>&lt;p&gt;Тишины больше нет. Остались лишь Пассажир, голод и уверенность в том, что кто-то должен умереть.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -3, ловкость -3, живучесть -3, меткость -4, скрытность -4, воровство -3, красноречие -4, харизма -5.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_burial_action</Cell><Cell>Закопать тело</Cell></Row>
+	<Row><Cell>dp_burial_no_shovel</Cell><Cell>Нужна лопата.</Cell></Row>
+	<Row><Cell>dp_burial_bad_ground</Cell><Cell>Здесь не получится выкопать могилу.</Cell></Row>
+	<Row><Cell>dp_burial_quest_item</Cell><Cell>На теле осталось что-то важное.</Cell></Row>
+	<Row><Cell>dp_burial_busy</Cell><Cell>Ты уже закапываешь тело.</Cell></Row>
+	<Row><Cell>dp_burial_skiptime</Cell><Cell>Земля умеет хранить тайны...</Cell></Row>
 </Table>
