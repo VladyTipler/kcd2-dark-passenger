@@ -258,7 +258,21 @@ function DarkPassengerWitness.Persist(record)
     return allWritten
 end
 
+local function ResetRuntimeState()
+    DarkPassengerWitness.records = {}
+    DarkPassengerWitness.index = {}
+    DarkPassengerWitness.recordCount = 0
+    DarkPassengerWitness.nextRecordId = 1
+    DarkPassengerWitness.activeCaseGeneration = 0
+    DarkPassengerWitness.activeRegionCode = 0
+    DarkPassengerWitness.activeSettlementCode = 0
+    DarkPassengerWitness.activeTargetSlot = 0
+    DarkPassengerWitness.noisyLocked = false
+    DarkPassengerWitness.notificationEmitted = false
+end
+
 function DarkPassengerWitness.Restore(reason)
+    ResetRuntimeState()
     local keys = DarkPassengerWitness.KEYS
     if ReadGlobal(keys.schema) ~= DarkPassengerWitness.SCHEMA_VERSION then
         Log("restore skipped reason=" .. tostring(reason) .. " state=missing")

@@ -11,6 +11,11 @@ DarkPassengerBurial.SAVE_LOCK = "DarkPassengerBurial"
 DarkPassengerBurial.STEP_INTERVAL_MS = 10
 DarkPassengerBurial.FADE_OUT_MS = 1000
 DarkPassengerBurial.FAILSAFE_MS = 10000
+DarkPassengerBurial.RECOVERY_TREE =
+    "darkPassengerRecoverBuriedBody"
+DarkPassengerBurial.RECOVERY_EDGE_MIN = 16
+DarkPassengerBurial.RECOVERY_GRID_SIZE = 16
+DarkPassengerBurial.RECOVERY_GRID_STEP = 2
 
 DarkPassengerBurial.DIGGABLE_SURFACES = {
     mat_soil = true,
@@ -432,34 +437,182 @@ function DarkPassengerBurial.OnBuryBody(corpse, user, slotId)
     return BeginPresentation(corpse, actor)
 end
 
-local function RemoveActiveCorpse(active)
+local function CorpseForActive(active)
+    if active == nil or System == nil or
+       System.GetEntity == nil then
+        return nil
+    end
+    return System.GetEntity(active.corpseId)
+end
+
+local function SameEntityId(left, right)
+    if left == right then return true end
+    if left == nil or right == nil then return false end
+    return tostring(left) == tostring(right)
+end
+
+local function RecoverySeed(corpseId)
+    local value = tostring(corpseId or "")
+    local hash = 0
+    for index = 1, string.len(value) do
+        hash = (
+            hash * 33 + string.byte(value, index)
+        ) % 65536
+    end
+    return hash
+end
+
+local function BuildRecoveryPosition(corpse)
+    if corpse == nil or corpse.id == nil or
+       System == nil or System.GetTerrainElevation == nil then
+        return nil
+    end
+
+    local seed = RecoverySeed(corpse.id)
+    local gridSize = DarkPassengerBurial.RECOVERY_GRID_SIZE
+    local gridStep = DarkPassengerBurial.RECOVERY_GRID_STEP
+    local xIndex = seed % gridSize
+    local yIndex = math.floor(seed / gridSize) % gridSize
+    local position = {
+        x = DarkPassengerBurial.RECOVERY_EDGE_MIN +
+            xIndex * gridStep,
+        y = DarkPassengerBurial.RECOVERY_EDGE_MIN +
+            yIndex * gridStep,
+        z = 0,
+    }
+    local okTerrain, terrainOrError = pcall(function()
+        return System.GetTerrainElevation(position)
+    end)
+    local terrain = okTerrain and tonumber(terrainOrError) or nil
+    if terrain == nil then return nil end
+
+    position.z = terrain + 0.5
+    return position
+end
+
+local function IsNearPosition(entity, expected)
+    if entity == nil or entity.GetWorldPos == nil or
+       expected == nil then
+        return false
+    end
+
+    local okPosition, positionOrError = pcall(function()
+        return entity:GetWorldPos()
+    end)
+    if not okPosition or positionOrError == nil then
+        return false
+    end
+
+    local dx = (tonumber(positionOrError.x) or 0) - expected.x
+    local dy = (tonumber(positionOrError.y) or 0) - expected.y
+    local dz = (tonumber(positionOrError.z) or 0) - expected.z
+    return dx * dx + dy * dy + dz * dz <= 16
+end
+
+local function RecordRecoveredBurial(active)
+    if active == nil or active.burialRecorded == true or
+       DarkPassengerAftermath == nil or
+       DarkPassengerAftermath.RecordBurial == nil then
+        return false
+    end
+
+    DarkPassengerAftermath.RecordBurial(active.corpseId)
+    active.burialRecorded = true
+    return true
+end
+
+function DarkPassengerBurial.RecoverEntity(corpse)
+    local active = DarkPassengerBurial.active
     if active == nil then return false end
-    if active.corpseRemoved == true then return true end
-
-    local corpseId = active.corpseId
-    local corpse = nil
-    if System ~= nil and System.GetEntity ~= nil then
-        corpse = System.GetEntity(corpseId)
+    if active.corpseRecovered == true then return true end
+    if corpse == nil or
+       not SameEntityId(corpse.id, active.corpseId) or
+       not IsDeadHuman(corpse) or corpse.SetWorldPos == nil then
+        return false
     end
 
-    active.corpseRemovalAttempted = true
-    if IsDeadHuman(corpse) and System.RemoveEntity ~= nil then
-        active.corpseRemoved = pcall(function()
-            System.RemoveEntity(corpse.id)
+    local recoveryPosition = active.corpseRecoveryPosition
+    if recoveryPosition == nil then
+        recoveryPosition = BuildRecoveryPosition(corpse)
+        active.corpseRecoveryPosition = recoveryPosition
+    end
+    if recoveryPosition == nil then return false end
+
+    -- Persistent Souls must survive old-save reloads. Move the dead actor
+    -- through the native dead-body context; never destroy or hide its entity.
+    active.corpseRecoveryAttempted = true
+    local moved = pcall(function()
+        corpse:SetWorldPos(recoveryPosition)
+    end)
+    active.corpseRecovered =
+        moved and IsNearPosition(corpse, recoveryPosition)
+
+    if active.corpseRecovered == true then
+        RecordRecoveredBurial(active)
+        Log(
+            "corpse recovered id=" .. tostring(corpse.id) ..
+            " x=" .. tostring(recoveryPosition.x) ..
+            " y=" .. tostring(recoveryPosition.y) ..
+            " z=" .. tostring(recoveryPosition.z)
+        )
+    end
+
+    return active.corpseRecovered == true
+end
+
+local function BeginCorpseRecovery(active)
+    if active == nil then return false end
+    if active.corpseRecovered == true then return true end
+
+    local corpse = CorpseForActive(active)
+    if not IsDeadHuman(corpse) then return false end
+
+    if active.corpseRecoveryPosition == nil then
+        active.corpseRecoveryPosition =
+            BuildRecoveryPosition(corpse)
+    end
+    if active.corpseRecoveryPosition == nil then
+        Log("corpse recovery blocked: terrain unavailable")
+        return false
+    end
+
+    if active.corpseRecoveryRequested ~= true and
+       AI ~= nil and AI.StartModularBehaviorTree ~= nil then
+        active.corpseRecoveryRequested = true
+        local okTree, treeResult = pcall(function()
+            return AI.StartModularBehaviorTree(
+                corpse.id,
+                DarkPassengerBurial.RECOVERY_TREE
+            )
         end)
-    else
-        active.corpseRemoved = false
+        if not okTree or treeResult == false then
+            active.corpseRecoveryRequested = false
+            Log(
+                "corpse recovery tree failed result=" ..
+                tostring(treeResult)
+            )
+        end
     end
 
-    if active.corpseRemoved == true and
-       active.burialRecorded ~= true and
-       DarkPassengerAftermath ~= nil and
-       DarkPassengerAftermath.RecordBurial ~= nil then
-        DarkPassengerAftermath.RecordBurial(corpseId)
-        active.burialRecorded = true
+    if active.corpseRecoveryRequested == true then
+        return true
     end
 
-    return active.corpseRemoved == true
+    return DarkPassengerBurial.RecoverEntity(corpse)
+end
+
+local function FinishCorpseRecovery(active)
+    if active == nil then return false end
+    if active.corpseRecovered == true then return true end
+
+    local corpse = CorpseForActive(active)
+    if IsNearPosition(corpse, active.corpseRecoveryPosition) then
+        active.corpseRecovered = true
+        RecordRecoveredBurial(active)
+        return true
+    end
+
+    return DarkPassengerBurial.RecoverEntity(corpse)
 end
 
 function DarkPassengerBurial.OnSkipTimeStep(userData, timerId)
@@ -565,7 +718,7 @@ function DarkPassengerBurial.OnSkipTimeStep(userData, timerId)
     WriteSoulState(actor, "exhaust", active.targetExhaust)
     WriteSoulState(actor, "hunger", active.targetHunger)
     RemoveSaveLock()
-    RemoveActiveCorpse(active)
+    BeginCorpseRecovery(active)
     UIAction.CallFunction("SkipTime", 1, "FadeOutDialog")
     UIAction.CallFunction("Overlay", 1, "RemoveOverlay", 5)
     StopDiggingAudio(actor)
@@ -588,16 +741,16 @@ function DarkPassengerBurial.Finish(userData, timerId)
 
     RemoveSaveLock()
     StopDiggingAudio(PlayerEntity())
-    RemoveActiveCorpse(active)
+    FinishCorpseRecovery(active)
     RestorePresentation()
 
     Log(
         "burial finished corpse=" .. tostring(active.corpseId) ..
-        " removed=" .. tostring(active.corpseRemoved)
+        " recovered=" .. tostring(active.corpseRecovered)
     )
-    local removed = active.corpseRemoved == true
+    local recovered = active.corpseRecovered == true
     DarkPassengerBurial.active = nil
-    return removed
+    return recovered
 end
 
 function DarkPassengerBurial.OnFailsafe(userData, timerId)

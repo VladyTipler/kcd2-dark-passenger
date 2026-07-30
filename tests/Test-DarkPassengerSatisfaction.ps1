@@ -39,6 +39,7 @@ $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_
 $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml.template"
 $questBridgeModulePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dp_lua_call.xml"
 $schedulerBridgePath = "$stageRoot\Data\AI\player\scheduler\darkPassengerExecuteLua.xml"
+$burialRecoveryTreePath = "$stageRoot\Data\AI\world\darkPassengerRecoverBuriedBody.xml"
 $generatedCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_candidate_catalog.lua"
 $questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item_catalog.lua"
 $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
@@ -220,6 +221,8 @@ $questText = Read-OptionalText -LiteralPath $questPath
 $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
+$burialRecoveryTreeText =
+    Read-OptionalText -LiteralPath $burialRecoveryTreePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
 $levelText = Read-OptionalText -LiteralPath $levelPath
@@ -1257,6 +1260,21 @@ foreach ($schemaKey in @(
 }
 Add-Result (
     $witnessLuaText -match (
+        '(?s)local function ResetRuntimeState\(\).*?' +
+        'DarkPassengerWitness\.records\s*=\s*\{\}.*?' +
+        'DarkPassengerWitness\.index\s*=\s*\{\}.*?' +
+        'DarkPassengerWitness\.recordCount\s*=\s*0.*?' +
+        'DarkPassengerWitness\.nextRecordId\s*=\s*1'
+    ) -and
+    $witnessLuaText -match (
+        '(?s)function DarkPassengerWitness\.Restore\(reason\)\s*' +
+        'ResetRuntimeState\(\)\s*local keys.*?' +
+        'if ReadGlobal\(keys\.schema\)\s*~=\s*' +
+        'DarkPassengerWitness\.SCHEMA_VERSION'
+    )
+) 'missing save witness schema clears stale runtime records before restore'
+Add-Result (
+    $witnessLuaText -match (
         '(?s)STATE_UNREPORTED\]\s*=\s*' +
         'DarkPassengerWitness\.STATE_SILENCED_BEFORE_REPORT'
     ) -and
@@ -1619,6 +1637,7 @@ foreach ($export in @(
     'IsDiggableGround',
     'OnBuryBody',
     'OnSkipTimeStep',
+    'RecoverEntity',
     'Finish'
 )) {
     Add-Result (
@@ -1724,12 +1743,71 @@ Add-Result (
     $burialLuaText.Contains('function DarkPassengerBurial.OnFailsafe')
 ) 'burial always has save-lock and failsafe cleanup'
 Add-Result (
-    $burialLuaText -match (
-        '(?s)local function RemoveActiveCorpse.*?' +
-        'System\.RemoveEntity\(corpse\.id\)'
+    Test-Path -LiteralPath $burialRecoveryTreePath
+) 'save-safe burial recovery behavior tree exists'
+Add-Result (
+    $burialRecoveryTreeText.Contains(
+        '<BehaviorTree name="darkPassengerRecoverBuriedBody"'
     ) -and
-    $burialLuaText -notmatch 'RemoveAllItems'
-) 'burial removes body and ordinary loot only after presentation completion'
+    $burialRecoveryTreeText.Contains(
+        '<EntityContext context="deadBody_allowActorAnimsForDeadNPC"'
+    ) -and
+    $burialRecoveryTreeText.Contains(
+        '<Root OneTimeOnly="true"'
+    ) -and
+    $burialRecoveryTreeText.Contains(
+        'DarkPassengerBurial.RecoverEntity(entity)'
+    ) -and
+    $burialRecoveryTreeText.Contains(
+        'fragment="&apos;DeadBody_Ragdoll&apos;"'
+    )
+) 'burial recovery mirrors the native dead-body teleport lifecycle'
+Add-Result (
+    $burialLuaText.Contains(
+        'AI.StartModularBehaviorTree('
+    ) -and
+    $burialLuaText.Contains(
+        '"darkPassengerRecoverBuriedBody"'
+    ) -and
+    $burialLuaText.Contains(
+        'function DarkPassengerBurial.RecoverEntity'
+    )
+) 'burial delegates persistent NPC recovery through AI'
+Add-Result (
+    $burialLuaText.Contains(
+        'local function SameEntityId(left, right)'
+    ) -and
+    $burialLuaText.Contains(
+        'not SameEntityId(corpse.id, active.corpseId)'
+    )
+) 'burial accepts equivalent engine handles returned by a fresh entity lookup'
+Add-Result (
+    $burialLuaText -match 'RECOVERY_EDGE_MIN\s*=\s*16' -and
+    $burialLuaText -match 'RECOVERY_GRID_SIZE\s*=\s*16' -and
+    $burialLuaText -match 'RECOVERY_GRID_STEP\s*=\s*2' -and
+    $burialLuaText.Contains('System.GetTerrainElevation(position)')
+) 'burial derives an in-bounds map-edge recovery grid from live terrain'
+Add-Result (
+    (Test-Path -LiteralPath (
+        Join-Path $DevGameRoot 'Data\Levels\kutnohorsko\terrainnm\00_00.bmp'
+    )) -and
+    (Test-Path -LiteralPath (
+        Join-Path $DevGameRoot 'Data\Levels\trosecko\terrainnm\00_00.bmp'
+    ))
+) 'both open-world regions contain terrain at the recovery edge'
+Add-Result (
+    $null -ne $rawWorldCandidates -and
+    @($rawWorldCandidates.candidates | Where-Object {
+        [double]$_.position.x -le 50 -and
+        [double]$_.position.y -le 50
+    }).Count -eq 0
+) 'the recovery grid contains no extracted settlement NPC'
+Add-Result (
+    -not $burialLuaText.Contains('System.RemoveEntity') -and
+    -not $burialLuaText.Contains('System.ReturnEntityToPool') -and
+    -not $burialLuaText.Contains(':Hide(') -and
+    -not $burialLuaText.Contains('RemoveAllItems')
+) 'burial never destroys or hides a persistent NPC entity'
 $burialSkipStepMatch = [regex]::Match(
     $burialLuaText,
     '(?s)function DarkPassengerBurial\.OnSkipTimeStep.*?^end$',
@@ -1738,11 +1816,11 @@ $burialSkipStepMatch = [regex]::Match(
 $burialSkipStepText = $burialSkipStepMatch.Value
 Add-Result (
     $burialSkipStepMatch.Success -and
-    $burialSkipStepText.IndexOf('RemoveActiveCorpse(active)') -ge 0 -and
+    $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -ge 0 -and
     $burialSkipStepText.IndexOf('"FadeOutDialog"') -ge 0 -and
-    $burialSkipStepText.IndexOf('RemoveActiveCorpse(active)') -lt
+    $burialSkipStepText.IndexOf('BeginCorpseRecovery(active)') -lt
         $burialSkipStepText.IndexOf('"FadeOutDialog"')
-) 'burial removes the corpse before the SkipTime overlay starts revealing the world'
+) 'burial starts corpse recovery before the SkipTime overlay reveals the world'
 $burialFinishMatch = [regex]::Match(
     $burialLuaText,
     '(?s)function DarkPassengerBurial\.Finish.*?^end$',
@@ -1751,11 +1829,11 @@ $burialFinishMatch = [regex]::Match(
 $burialFinishText = $burialFinishMatch.Value
 Add-Result (
     $burialFinishMatch.Success -and
-    $burialFinishText.IndexOf('RemoveActiveCorpse(active)') -ge 0 -and
+    $burialFinishText.IndexOf('FinishCorpseRecovery(active)') -ge 0 -and
     $burialFinishText.IndexOf('RestorePresentation()') -ge 0 -and
-    $burialFinishText.IndexOf('RemoveActiveCorpse(active)') -lt
+    $burialFinishText.IndexOf('FinishCorpseRecovery(active)') -lt
         $burialFinishText.IndexOf('RestorePresentation()')
-) 'burial retries corpse removal before restoring the world'
+) 'burial verifies corpse recovery before restoring the world'
 Add-Result (
     (
         $burialLuaText.Contains(
@@ -1763,6 +1841,9 @@ Add-Result (
         ) -or
         $burialLuaText.Contains(
             'DarkPassengerAftermath.RecordBurial(corpseId)'
+        ) -or
+        $burialLuaText.Contains(
+            'DarkPassengerAftermath.RecordBurial(active.corpseId)'
         )
     ) -and
     $aftermathLuaText.Contains(
