@@ -468,7 +468,7 @@ git commit -m "refactor: simplify investigation slice"
 
 **Files:**
 - Deploy from: `H:\KCD2Mod\DarkPassenger\build\mod`
-- Deploy to: `H:\SteamLibrary\steamapps\common\KCD2Mod\Mods\darkpassengertest`
+- Deploy to: `H:\SteamLibrary\steamapps\common\KCD2Mod\Mods\b_DarkPassengerTest`
 - Update: `H:\KCD2Mod\DarkPassenger\evidence\pritoky-investigation-validation.md`
 
 **Step 1: Prepare a recoverable dev deployment**
