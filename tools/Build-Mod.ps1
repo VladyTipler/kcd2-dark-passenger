@@ -60,6 +60,34 @@ if ($LASTEXITCODE -ne 0) {
     throw "7-Zip failed to build $dataPak"
 }
 
+$kuttenbergLevelRoot = Join-Path $dataRoot 'Levels\kutnohorsko'
+if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
+    $kuttenbergLevelPak = Join-Path $kuttenbergLevelRoot 'darkpassengertest.pak'
+    $kuttenbergLevelInputs = @('waitinglinks.xml', 'layers') |
+        Where-Object {
+            Test-Path -LiteralPath (Join-Path $kuttenbergLevelRoot $_)
+        }
+
+    if ($kuttenbergLevelInputs.Count -gt 0) {
+        Push-Location $kuttenbergLevelRoot
+        try {
+            & $sevenZip a -tzip -mx=9 -mtc=off $kuttenbergLevelPak $kuttenbergLevelInputs |
+                Out-Null
+            if ($LASTEXITCODE -ne 0) {
+                throw "7-Zip failed to build $kuttenbergLevelPak"
+            }
+        }
+        finally {
+            Pop-Location
+        }
+
+        & $sevenZip t $kuttenbergLevelPak | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "7-Zip integrity test failed for $kuttenbergLevelPak"
+        }
+    }
+}
+
 foreach ($language in @('English', 'Russian')) {
     $sourceFile = Join-Path $localizationRoot "$language\text__darkpassengertest.xml"
     $outputPak = Join-Path $localizationOutput "${language}_xml.pak"

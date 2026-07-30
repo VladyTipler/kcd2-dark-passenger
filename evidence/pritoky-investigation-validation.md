@@ -17,7 +17,18 @@
 
 ## TriggerArea / AssetLinker proof
 
-Pending Task 2.
+- Existing Pritoky area: `kpri_publicEnemiesRepulsionZoneVillageArea_1`
+- Existing `TriggerArea` target: entity id `17080`, guid `d0fa0ece-6af5-19f6`
+- Area position: `2298.979,1694.99,101.3639`; scale `6.673498`
+- Quest alias: `DP_PritokySearchArea`
+- Mod-owned holder: `dark_within_k`, guid `9da1237b-bbc0-49f5`
+- Mod-owned layer: `darkpassengertest_pritoky_area_797243b2-16ed-4fcd-afe4-4987b6c55416`
+- Binding uses both a direct entity link and a streaming-safe waiting link.
+- Authored identifiers above were generated for this mod; they were not exported by Sandbox Editor.
+- Structural validation: `RESULT: PASS (694 checks)`.
+- Level pak SHA-256: `6C969E45374F64F0422A536FF50127F08CD81FA4163A878A625F5B50DE825F6E`
+- Structural validation proves the quest declaration, layer binding, package paths and archive integrity.
+- Runtime marker resolution remains pending live validation.
 
 ## Live integration
 

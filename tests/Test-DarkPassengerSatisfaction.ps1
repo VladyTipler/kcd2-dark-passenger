@@ -32,7 +32,9 @@ $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
+$kuttenbergLevelRoot = "$stageRoot\Data\Levels\kutnohorsko"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
+$kuttenbergLayersRoot = "$stageRoot\Data\Levels\kutnohorsko\layers"
 $candidateCatalogPath = "$testRoot\config\victim-candidates.json"
 $generatorPath = "$testRoot\tools\Generate-VictimArtifacts.ps1"
 $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template"
@@ -242,6 +244,24 @@ $questItemCatalogLuaText =
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
+$kuttenbergLayerFiles = @()
+if (Test-Path -LiteralPath $kuttenbergLayersRoot) {
+    $kuttenbergLayerFiles = @(
+        Get-ChildItem -LiteralPath $kuttenbergLayersRoot -File -Filter '*.xml'
+    )
+}
+$pritokyAreaLayerFile = $kuttenbergLayerFiles |
+    Where-Object {
+        (Read-OptionalText -LiteralPath $_.FullName).Contains(
+            "asset[&apos;DP_PritokySearchArea&apos;]"
+        )
+    } |
+    Select-Object -First 1
+$pritokyAreaLayerText = ''
+if ($null -ne $pritokyAreaLayerFile) {
+    $pritokyAreaLayerText =
+        Read-OptionalText -LiteralPath $pritokyAreaLayerFile.FullName
+}
 
 Add-Result (
     (Test-Path -LiteralPath $manifestPath) -and
@@ -480,8 +500,43 @@ if ($enabledPritokyCandidates.Count -eq 37) {
 }
 
 Add-Result (
-    -not (Test-Path -LiteralPath $kuttenbergWaitingLinksPath)
-) 'quest marker generation has no Asset Linker waitinglinks dependency'
+    $questTemplateText.Contains(
+        '<TriggerAreaAsset Name="DP_PritokySearchArea" />'
+    ) -and
+    $questText.Contains(
+        '<TriggerAreaAsset Name="DP_PritokySearchArea" />'
+    )
+) 'Kuttenberg quest declares the Pritoky TriggerArea asset'
+Add-Result (
+    $questTemplateText -match (
+        '(?s)<Objective TypeT="Progress".*?' +
+        '<EnumLog Type="Started" Name="Active" ' +
+        'IsTracked="true" Marker="DP_PritokySearchArea">'
+    ) -and
+    $questText -match (
+        '(?s)<Objective TypeT="Progress".*?' +
+        '<EnumLog Type="Started" Name="Active" ' +
+        'IsTracked="true" Marker="DP_PritokySearchArea">'
+    )
+) 'active search objective uses the Pritoky area marker'
+Add-Result (
+    (Test-Path -LiteralPath $kuttenbergWaitingLinksPath) -and
+    $kuttenbergWaitingLinksText.Contains(
+        "<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>"
+    ) -and
+    $kuttenbergWaitingLinksText.Contains(
+        'TargetId="d0fa0ece-6af5-19f6"'
+    )
+) 'Asset Linker maps the quest area alias to the existing Pritoky TriggerArea'
+Add-Result (
+    $null -ne $pritokyAreaLayerFile -and
+    $pritokyAreaLayerText.Contains('EntityClass="SmartObjectHolder"') -and
+    $pritokyAreaLayerText.Contains('Name="dark_within_k"') -and
+    $pritokyAreaLayerText.Contains(
+        "asset[&apos;DP_PritokySearchArea&apos;]"
+    ) -and
+    $pritokyAreaLayerText.Contains('TargetGuid="d0fa0ece-6af5-19f6"')
+) 'mod level layer hosts the dark_within_k area asset binding'
 
 $questXml = $null
 try {
@@ -513,7 +568,8 @@ if ($null -ne $questXml) {
     )
     $markerAliases = @(
         $questXml.SelectNodes('//EnumLog[@Marker]') |
-            ForEach-Object { $_.Marker }
+            ForEach-Object { $_.Marker } |
+            Where-Object { $_ -ne 'DP_PritokySearchArea' }
     )
     $enabledKuttenbergCandidateCount = @(
         $candidateCatalog.candidates |
@@ -2326,8 +2382,25 @@ if ($sevenZip -and (Test-Path -LiteralPath $pakPath)) {
 }
 
 Add-Result (
-    -not (Test-Path -LiteralPath $kuttenbergLevelPakPath)
-) 'quest marker packaging has no Asset Linker level pak dependency'
+    Test-Path -LiteralPath $kuttenbergLevelPakPath
+) 'Pritoky area binding is packaged in a Kuttenberg level pak'
+
+$kuttenbergLevelPakMetadata = ''
+$kuttenbergLevelPakIntegrity = $false
+if ($sevenZip -and (Test-Path -LiteralPath $kuttenbergLevelPakPath)) {
+    $kuttenbergLevelPakMetadata =
+        (& $sevenZip l -slt $kuttenbergLevelPakPath) -join "`n"
+    & $sevenZip t $kuttenbergLevelPakPath *> $null
+    $kuttenbergLevelPakIntegrity = $LASTEXITCODE -eq 0
+}
+Add-Result (
+    $kuttenbergLevelPakIntegrity
+) 'Kuttenberg level pak passes the 7-Zip integrity check'
+Add-Result (
+    $kuttenbergLevelPakMetadata.Contains('Path = waitinglinks.xml') -and
+    $kuttenbergLevelPakMetadata.Contains('Path = layers\') -and
+    -not $kuttenbergLevelPakMetadata.Contains('Characteristics = NTFS')
+) 'Kuttenberg level pak contains link and layer data without NTFS metadata'
 
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_name</Cell><Cell>The Silence Within</Cell>')) 'English buff name is localized'
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_desc</Cell>')) 'English buff description is localized'
