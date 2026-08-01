@@ -22,11 +22,13 @@ $scriptContextPath = "$stageRoot\Data\Libs\Tables\ai\ScriptContext__darkpassenge
 $smartEntityPath =
     "$stageRoot\Data\Libs\Tables\ai\smartEntity\SmartEntity__darkpassengertest.xml"
 $questPath = "$stageRoot\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml"
-$troskyQuestPath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml"
+$troskyQuestPath = "$stageRoot\Data\Quests\Final\Barbora\trosecko\dark_within_t.xml"
 $levelPath = "$stageRoot\Data\Quests\Final\Barbora\kutnohorsko.xml"
+$troskyLevelPath = "$stageRoot\Data\Quests\Final\Barbora\trosecko.xml"
 $standaloneKuttenbergLevelPath =
     "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko.xml"
-$troskyLevelPath = "$stageRoot\Data\Quests\darkpassengertest\trosecko.xml"
+$standaloneTroskyLevelPath =
+    "$stageRoot\Data\Quests\darkpassengertest\trosecko.xml"
 $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
 $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
@@ -41,16 +43,28 @@ $kuttenbergLevelRoot = "$stageRoot\Data\Levels\kutnohorsko"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
 $kuttenbergObjectsMissionPath =
     "$stageRoot\Data\Levels\kutnohorsko\objects_mission0.xml"
+$troskyLevelRoot = "$stageRoot\Data\Levels\trosecko"
+$troskyLevelPakPath = "$troskyLevelRoot\darkpassengertest.pak"
+$troskyObjectsMissionPath = "$troskyLevelRoot\objects_mission0.xml"
+$troskyWaitingLinksPath = "$troskyLevelRoot\waitinglinks.xml"
 $sourceWaitingLinksPath =
     "$testRoot\src\Data\Levels\kutnohorsko\waitinglinks.xml"
 $sourceMissionObjectsPatchPath =
     "$testRoot\src\Data\Levels\kutnohorsko\objects_mission0.patch.xml"
+$sourceTroskyWaitingLinksPath =
+    "$testRoot\src\Data\Levels\trosecko\waitinglinks.xml"
+$sourceTroskyMissionObjectsPatchPath =
+    "$testRoot\src\Data\Levels\trosecko\objects_mission0.patch.xml"
 $barboraKuttenbergPatchPath =
     "$testRoot\src\Data\Quests\Final\Barbora\kutnohorsko.patch.xml"
+$barboraTroskyPatchPath =
+    "$testRoot\src\Data\Quests\Final\Barbora\trosecko.patch.xml"
 $candidateCatalogPath = "$testRoot\config\victim-candidates.json"
 $settlementAreaManifestPath =
     "$testRoot\config\settlement-investigation-areas.json"
 $generatorPath = "$testRoot\tools\Generate-VictimArtifacts.ps1"
+$areaBindingGeneratorPath =
+    "$testRoot\tools\Generate-SettlementAreaBindings.ps1"
 $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template"
 $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml.template"
 $questBridgeModulePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dp_lua_call.xml"
@@ -65,6 +79,8 @@ $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
 $kuttenbergWaitingLinksPath = "$stageRoot\Data\Levels\kutnohorsko\waitinglinks.xml"
 $kuttenbergBaseLevelPakPath =
     Join-Path $DevGameRoot 'Data\Levels\kutnohorsko\level.pak'
+$troskyBaseLevelPakPath =
+    Join-Path $DevGameRoot 'Data\Levels\trosecko\level.pak'
 $assetLinkerRoot = $ReferenceDataRoot
 $kuttenbergBaseWaitingLinksPath = "$assetLinkerRoot\kutnohorsko\kut_waitinglinks.xml"
 $kuttenbergObjectsPath = "$assetLinkerRoot\kutnohorsko\kut_objects_mission0.xml"
@@ -241,6 +257,7 @@ $tagText = Read-OptionalText -LiteralPath $tagPath
 $buffClassText = Read-OptionalText -LiteralPath $buffClassPath
 $buffText = Read-OptionalText -LiteralPath $buffPath
 $scriptContextText = Read-OptionalText -LiteralPath $scriptContextPath
+$smartEntityText = Read-OptionalText -LiteralPath $smartEntityPath
 $questText = Read-OptionalText -LiteralPath $questPath
 $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
@@ -249,6 +266,9 @@ $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPa
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
 $kuttenbergObjectsMissionText =
     Read-OptionalText -LiteralPath $kuttenbergObjectsMissionPath
+$troskyWaitingLinksText = Read-OptionalText -LiteralPath $troskyWaitingLinksPath
+$troskyObjectsMissionText =
+    Read-OptionalText -LiteralPath $troskyObjectsMissionPath
 $levelText = Read-OptionalText -LiteralPath $levelPath
 $troskyLevelText = Read-OptionalText -LiteralPath $troskyLevelPath
 $projectText = Read-OptionalText -LiteralPath $projectPath
@@ -602,139 +622,277 @@ Add-Result (
     -not $questText.Contains('DP_PritokySearchProfile') -and
     -not $questText.Contains('pritokySearchAreaProfile')
 ) 'search marker does not depend on a quest-activated custom holder profile'
+$areaBindingGeneratorDeterministic = $false
+if (Test-Path -LiteralPath $areaBindingGeneratorPath) {
+    $temporaryBindingRoot = Join-Path (
+        [System.IO.Path]::GetTempPath()
+    ) ('dp-area-bindings-' + [guid]::NewGuid().ToString('N'))
+    try {
+        & pwsh -NoProfile -File $areaBindingGeneratorPath `
+            -ManifestPath $settlementAreaManifestPath `
+            -OutputRoot $temporaryBindingRoot *> $null
+        if ($LASTEXITCODE -eq 0) {
+            $firstBindingHashes = @{}
+            foreach ($relativePath in @(
+                'kutnohorsko\objects_mission0.patch.xml',
+                'kutnohorsko\waitinglinks.xml',
+                'trosecko\objects_mission0.patch.xml',
+                'trosecko\waitinglinks.xml'
+            )) {
+                $generatedPath = Join-Path $temporaryBindingRoot $relativePath
+                if (Test-Path -LiteralPath $generatedPath) {
+                    $firstBindingHashes[$relativePath] = (
+                        Get-FileHash -LiteralPath $generatedPath -Algorithm SHA256
+                    ).Hash
+                }
+            }
+            & pwsh -NoProfile -File $areaBindingGeneratorPath `
+                -ManifestPath $settlementAreaManifestPath `
+                -OutputRoot $temporaryBindingRoot *> $null
+            if ($LASTEXITCODE -eq 0 -and $firstBindingHashes.Count -eq 4) {
+                $areaBindingGeneratorDeterministic = $true
+                foreach ($relativePath in $firstBindingHashes.Keys) {
+                    $generatedPath = Join-Path $temporaryBindingRoot $relativePath
+                    if (
+                        (Get-FileHash -LiteralPath $generatedPath -Algorithm SHA256).Hash -ne
+                            $firstBindingHashes[$relativePath]
+                    ) {
+                        $areaBindingGeneratorDeterministic = $false
+                    }
+                }
+            }
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporaryBindingRoot) {
+            Remove-Item -LiteralPath $temporaryBindingRoot -Recurse -Force
+        }
+    }
+}
 Add-Result (
-    (Test-Path -LiteralPath $sourceWaitingLinksPath) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<LinkDefinition>module</LinkDefinition>'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">'
-    ) -and
-    ([regex]::Matches(
-        (Read-OptionalText -LiteralPath $sourceWaitingLinksPath),
-        'asset\[&apos;DP_PritokySearchArea&apos;\]'
-    ).Count -eq 3) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
+    $areaBindingGeneratorDeterministic
+) 'settlement area binding generator emits four deterministic regional files'
+
+$areaBindingSpecs = @(
+    [pscustomobject]@{
+        region = 'kutnohorsko'
+        levelHolderGuid = '10702dff-9271-4a74'
+        questHolderName = 'dark_within_k'
+        questHolderGuid = 'f4a73e20-28c5-4bd2'
+        questHolderEntityId = '1831841'
+        smartEntityGuid = 'a125563a-5dfe-428f-9581-d218e82b849f'
+        sourceWaitingLinksPath = $sourceWaitingLinksPath
+        sourceMissionObjectsPath = $sourceMissionObjectsPatchPath
+        buildWaitingLinksPath = $kuttenbergWaitingLinksPath
+        buildObjectsMissionPath = $kuttenbergObjectsMissionPath
+        baseLevelPakPath = $kuttenbergBaseLevelPakPath
+        levelPakPath = $kuttenbergLevelPakPath
+    }
+    [pscustomobject]@{
+        region = 'trosecko'
+        levelHolderGuid = '30277b74-1c65-41e9'
+        questHolderName = 'dark_within_t'
+        questHolderGuid = 'a13d9e5c-7b42-4f61'
+        questHolderEntityId = '1831842'
+        smartEntityGuid = 'd4a6f10b-f8cd-4d4d-9a6c-fbc186429bca'
+        sourceWaitingLinksPath = $sourceTroskyWaitingLinksPath
+        sourceMissionObjectsPath = $sourceTroskyMissionObjectsPatchPath
+        buildWaitingLinksPath = $troskyWaitingLinksPath
+        buildObjectsMissionPath = $troskyObjectsMissionPath
+        baseLevelPakPath = $troskyBaseLevelPakPath
+        levelPakPath = $troskyLevelPakPath
+    }
+)
+$sourceAreaBindingsComplete = $supportedInvestigationAreas.Count -eq 36
+$builtAreaBindingsComplete = $supportedInvestigationAreas.Count -eq 36
+foreach ($bindingSpec in $areaBindingSpecs) {
+    $regionalAreas = @(
+        $supportedInvestigationAreas |
+            Where-Object gameRegion -eq $bindingSpec.region
     )
-) 'source links bind one quest marker alias to the village, inn, and deserter-camp areas'
+    $expectedLinks = [System.Collections.Generic.List[string]]::new()
+    $expectedLinks.Add(
+        "$($bindingSpec.levelHolderGuid)|$($bindingSpec.questHolderGuid)|module"
+    )
+    foreach ($searchArea in $regionalAreas) {
+        foreach ($areaGuid in @($searchArea.areaGuids)) {
+            $expectedLinks.Add(
+                "$($bindingSpec.questHolderGuid)|$areaGuid|asset['$($searchArea.alias)']"
+            )
+        }
+    }
+
+    $sourceWaitingLinksText =
+        Read-OptionalText -LiteralPath $bindingSpec.sourceWaitingLinksPath
+    $sourceMissionObjectsText =
+        Read-OptionalText -LiteralPath $bindingSpec.sourceMissionObjectsPath
+    try {
+        [xml]$sourceWaitingLinksXml = $sourceWaitingLinksText
+        [xml]$sourceMissionObjectsXml = $sourceMissionObjectsText
+        $actualSourceLinks = @(
+            $sourceWaitingLinksXml.StaticLinksInfo.WaitingLinks.WaitingLink |
+                ForEach-Object {
+                    "$([string]$_.SourceId)|$([string]$_.TargetId)|$([string]$_.LinkDefinition)"
+                }
+        )
+        $sourceHolder = @($sourceMissionObjectsXml.Objects.Entity)
+        if (
+            $sourceHolder.Count -ne 1 -or
+            [string]$sourceHolder[0].Name -ne $bindingSpec.questHolderName -or
+            [string]$sourceHolder[0].EntityClass -ne 'SmartObjectHolder' -or
+            [string]$sourceHolder[0].EntityGuid -ne $bindingSpec.questHolderGuid -or
+            [string]$sourceHolder[0].EntityId -ne $bindingSpec.questHolderEntityId -or
+            [string]$sourceHolder[0].Properties.guidSmartObjectType -ne
+                $bindingSpec.smartEntityGuid -or
+            $sourceMissionObjectsText.Contains('EntityClass="LevelHolder"') -or
+            $sourceMissionObjectsText.Contains('EntityClass="TriggerArea"') -or
+            @($actualSourceLinks).Count -ne $expectedLinks.Count -or
+            @(Compare-Object $expectedLinks $actualSourceLinks).Count -ne 0
+        ) {
+            $sourceAreaBindingsComplete = $false
+        }
+    }
+    catch {
+        $sourceAreaBindingsComplete = $false
+    }
+
+    $builtWaitingLinksText =
+        Read-OptionalText -LiteralPath $bindingSpec.buildWaitingLinksPath
+    $builtObjectsMissionText =
+        Read-OptionalText -LiteralPath $bindingSpec.buildObjectsMissionPath
+    if (
+        [string]::IsNullOrWhiteSpace($builtWaitingLinksText) -or
+        [string]::IsNullOrWhiteSpace($builtObjectsMissionText) -or
+        -not $sevenZip -or
+        -not (Test-Path -LiteralPath $bindingSpec.baseLevelPakPath)
+    ) {
+        $builtAreaBindingsComplete = $false
+        continue
+    }
+
+    $baseWaitingLinksLines = @(
+        & $sevenZip x -so $bindingSpec.baseLevelPakPath 'waitinglinks.xml'
+    )
+    if ($LASTEXITCODE -ne 0) {
+        $builtAreaBindingsComplete = $false
+        continue
+    }
+    $baseWaitingLinksCount = @(
+        $baseWaitingLinksLines |
+            Select-String -SimpleMatch '<WaitingLink '
+    ).Count
+    $baseStreamableTargetsCount = @(
+        $baseWaitingLinksLines |
+            Select-String -SimpleMatch '<StreamableTarget '
+    ).Count
+    try {
+        [xml]$builtWaitingLinksXml = $builtWaitingLinksText
+        $actualBuiltLinks = @(
+            $builtWaitingLinksXml.StaticLinksInfo.WaitingLinks.WaitingLink |
+                ForEach-Object {
+                    "$([string]$_.SourceId)|$([string]$_.TargetId)|$([string]$_.LinkDefinition)"
+                }
+        )
+        if (
+            $actualBuiltLinks.Count -ne ($baseWaitingLinksCount + $expectedLinks.Count) -or
+            ([regex]::Matches(
+                $builtWaitingLinksText,
+                '<StreamableTarget '
+            )).Count -ne $baseStreamableTargetsCount -or
+            @($expectedLinks | Where-Object { $_ -notin $actualBuiltLinks }).Count -ne 0
+        ) {
+            $builtAreaBindingsComplete = $false
+            continue
+        }
+    }
+    catch {
+        $builtAreaBindingsComplete = $false
+        continue
+    }
+
+    $entityIdsByGuid = @{}
+    foreach ($entityTag in [regex]::Matches(
+        $builtObjectsMissionText,
+        '<Entity\b[^>]*>'
+    )) {
+        $guidMatch = [regex]::Match($entityTag.Value, 'EntityGuid="([^"]+)"')
+        $idMatch = [regex]::Match($entityTag.Value, 'EntityId="([0-9]+)"')
+        if ($guidMatch.Success -and $idMatch.Success) {
+            $entityIdsByGuid[$guidMatch.Groups[1].Value] =
+                $idMatch.Groups[1].Value
+        }
+    }
+    $levelHolderBlock = [regex]::Match(
+        $builtObjectsMissionText,
+        "(?s)<Entity\b(?=[^>]*EntityGuid=`"$([regex]::Escape($bindingSpec.levelHolderGuid))`")[^>]*>.*?</Entity>"
+    ).Value
+    $questHolderBlock = [regex]::Match(
+        $builtObjectsMissionText,
+        "(?s)<Entity\b(?=[^>]*EntityGuid=`"$([regex]::Escape($bindingSpec.questHolderGuid))`")[^>]*>.*?</Entity>"
+    ).Value
+    if (
+        [string]::IsNullOrWhiteSpace($levelHolderBlock) -or
+        [string]::IsNullOrWhiteSpace($questHolderBlock) -or
+        -not $levelHolderBlock.Contains(
+            "TargetId=`"$($bindingSpec.questHolderEntityId)`" TargetGuid=`"00000000-0000-0000`" Name=`"module`""
+        )
+    ) {
+        $builtAreaBindingsComplete = $false
+        continue
+    }
+    $expectedAssetLinkCount = $expectedLinks.Count - 1
+    if (([regex]::Matches(
+        $questHolderBlock,
+        'Name="asset\['
+    )).Count -ne $expectedAssetLinkCount) {
+        $builtAreaBindingsComplete = $false
+        continue
+    }
+    foreach ($searchArea in $regionalAreas) {
+        foreach ($areaGuid in @($searchArea.areaGuids)) {
+            $targetEntityId = [string]$entityIdsByGuid[$areaGuid]
+            if (
+                [string]::IsNullOrWhiteSpace($targetEntityId) -or
+                -not $questHolderBlock.Contains(
+                    "TargetId=`"$targetEntityId`" TargetGuid=`"00000000-0000-0000`" Name=`"asset['$($searchArea.alias)']`""
+                )
+            ) {
+                $builtAreaBindingsComplete = $false
+            }
+        }
+    }
+}
 Add-Result (
-    (Test-Path -LiteralPath $sourceMissionObjectsPatchPath) -and
-    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'Name="dark_within_k"'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'EntityClass="SmartObjectHolder"'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'EntityGuid="f4a73e20-28c5-4bd2"'
-    ) -and
-    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'Name="darkpassengertest"'
-    ) -and
-    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'EntityClass="LevelHolder"'
+    $sourceAreaBindingsComplete
+) 'both regional source bindings contain the exact module and settlement-area links'
+Add-Result (
+    $builtAreaBindingsComplete
+) 'both merged regional registries resolve every waiting link to the same mission-object link'
+Add-Result (
+    $sourceTroskyWaitingLinksPath -and
+    (Read-OptionalText -LiteralPath $sourceTroskyWaitingLinksPath).Contains(
+        'SourceId="30277b74-1c65-41e9"'
     )
-) 'source mission-object patch declares only the Barbora-owned Quest holder'
+) 'Trosky binding uses the real regional LevelHolder GUID'
 Add-Result (
     (Test-Path -LiteralPath $barboraKuttenbergPatchPath) -and
     (Read-OptionalText -LiteralPath $barboraKuttenbergPatchPath).Contains(
         '<Definition File="kutnohorsko/dark_within_k.xml" />'
     ) -and
-    (Read-OptionalText -LiteralPath $barboraKuttenbergPatchPath).Contains(
-        '<dark_within_k Name="dark_within_k" RequiredForOutput="kutnohorsko">'
+    (Test-Path -LiteralPath $barboraTroskyPatchPath) -and
+    (Read-OptionalText -LiteralPath $barboraTroskyPatchPath).Contains(
+        '<Definition File="trosecko/dark_within_t.xml" />'
     )
-) 'Barbora Kuttenberg patch registers the Dark Passenger quest module'
+) 'both Dark Passenger quests patch their live Barbora regional parents'
 Add-Result (
     (Test-Path -LiteralPath $smartEntityPath) -and
-    (Read-OptionalText -LiteralPath $smartEntityPath).Contains(
+    $smartEntityText.Contains(
         '<SmartEntityTemplate DatabaseId="a125563a-5dfe-428f-9581-d218e82b849f" Name="dark_within_k" UpdatePriority="false" />'
     ) -and
-    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'guidSmartObjectType="a125563a-5dfe-428f-9581-d218e82b849f"'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'bSaved_by_game="0"'
-    ) -and
-    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
-        'guidSmartObjectType="4b788bc8-65da-444f-9dee-017bdcb43970"'
+    $smartEntityText.Contains(
+        '<SmartEntityTemplate DatabaseId="d4a6f10b-f8cd-4d4d-9a6c-fbc186429bca" Name="dark_within_t" UpdatePriority="false" />'
     )
-) 'quest holder uses its own registered SmartEntity type instead of a foreign quest type'
-Add-Result (
-    (Test-Path -LiteralPath $kuttenbergWaitingLinksPath) -and
-    $baseWaitingLinkCount -ge 0 -and
-    ([regex]::Matches(
-        $kuttenbergWaitingLinksText,
-        '<WaitingLink '
-    ).Count -eq ($baseWaitingLinkCount + 4)) -and
-    ([regex]::Matches(
-        $kuttenbergWaitingLinksText,
-        '<StreamableTarget '
-    ).Count -eq $baseStreamableTargetCount) -and
-    $kuttenbergWaitingLinksText.Contains(
-        '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
-    ) -and
-    $kuttenbergWaitingLinksText.Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
-    ) -and
-    $kuttenbergWaitingLinksText.Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">'
-    ) -and
-    $kuttenbergWaitingLinksText.Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">'
-    ) -and
-    ([regex]::Matches(
-        $kuttenbergWaitingLinksText,
-        'asset\[&apos;DP_PritokySearchArea&apos;\]'
-    ).Count -eq 3) -and
-    $kuttenbergWaitingLinksText.Contains(
-        '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
-    )
-) 'generated waitinglinks preserve vanilla registry and append the three-area quest chain'
-Add-Result (
-    (Test-Path -LiteralPath $kuttenbergObjectsMissionPath) -and
-    $kuttenbergObjectsMissionText -match (
-        '(?s)<Entity\b(?=[^>]*Name="kutnohorsko")' +
-        '(?=[^>]*EntityClass="LevelHolder")' +
-        '(?=[^>]*EntityGuid="10702dff-9271-4a74")[^>]*>.*?' +
-        '<Link TargetId="1831841" TargetGuid="00000000-0000-0000" ' +
-        'Name="module" />.*?</Entity>'
-    ) -and
-    $kuttenbergObjectsMissionText -match (
-        '(?s)<Entity\b[^>]*Name="dark_within_k"[^>]*' +
-        'EntityGuid="f4a73e20-28c5-4bd2".*?' +
-        '<Link TargetId="17080" TargetGuid="00000000-0000-0000" ' +
-        'Name="asset\[''DP_PritokySearchArea''\]" />'
-    ) -and
-    $kuttenbergObjectsMissionText.Contains(
-        '<Link TargetId="14696" TargetGuid="00000000-0000-0000" Name="asset[''DP_PritokySearchArea'']" />'
-    ) -and
-    $kuttenbergObjectsMissionText.Contains(
-        '<Link TargetId="4803" TargetGuid="00000000-0000-0000" Name="asset[''DP_PritokySearchArea'']" />'
-    ) -and
-    ([regex]::Matches(
-        $kuttenbergObjectsMissionText,
-        "asset\['DP_PritokySearchArea'\]"
-    ).Count -eq 3) -and
-    -not $kuttenbergObjectsMissionText.Contains(
-        'TargetGuid="d0fa0ece-6af5-19f6" Name="asset[''DP_PritokySearchArea'']"'
-    ) -and
-    -not $kuttenbergObjectsMissionText.Contains(
-        'EntityGuid="b8bf53a6-8c3a-41c9"'
-    ) -and
-    -not $kuttenbergObjectsMissionText.Contains(
-        'EntityGuid="c1d9358b-7f4e-4a26"'
-    )
-) 'generated mission objects attach the quest and all three vanilla areas to Barbora'
+) 'both regional quest holders own registered SmartEntity types'
 
 $questXml = $null
 try {
@@ -1067,15 +1225,25 @@ Add-Result (
     ([regex]::Matches($levelText, '<Definition File=').Count -gt 100) -and
     ([regex]::Matches($levelText, '<dark_within_k\b').Count -eq 1) -and
     -not (Test-Path -LiteralPath $standaloneKuttenbergLevelPath) -and
+    $troskyLevelText.Contains(
+        '<Definition File="trosecko/dark_within_t.xml" />'
+    ) -and
+    $troskyLevelText -match (
+        '(?s)<dark_within_t Name="dark_within_t" ' +
+        'RequiredForOutput="trosecko">.*?' +
+        '<Edge From="OnWake" To="arm" />.*?</dark_within_t>'
+    ) -and
+    ([regex]::Matches($troskyLevelText, '<Definition File=').Count -gt 100) -and
+    ([regex]::Matches($troskyLevelText, '<dark_within_t\b').Count -eq 1) -and
+    -not (Test-Path -LiteralPath $standaloneTroskyLevelPath) -and
     -not $projectText.Contains(
         '<Definition File="darkpassengertest/kutnohorsko.xml" />'
     ) -and
     -not $projectText.Contains('<kutnohorsko Name="kutnohorsko"') -and
-    $projectText.Contains(
+    -not $projectText.Contains(
         '<Definition File="darkpassengertest/trosecko.xml" />'
     )
-) 'Kuttenberg quest is registered once inside the full Barbora level graph'
-Add-Result ($troskyLevelText.Contains('<Edge From="OnWake" To="arm"')) 'Trosky level arms quest watcher'
+) 'both regional quests are registered once inside the full Barbora level graphs'
 Add-Result (
     -not $levelText.Contains('dp_lua_call.xml') -and
     -not $troskyLevelText.Contains('dp_lua_call.xml')
@@ -2986,36 +3154,40 @@ if ($sevenZip -and (Test-Path -LiteralPath $pakPath)) {
         -not $pakMetadata.Contains('Characteristics = NTFS')
     ) 'pak entries contain no KCD2-incompatible NTFS timestamp metadata'
     Add-Result (
-        -not $pakMetadata.Contains('Levels\kutnohorsko\waitinglinks.xml')
+        -not $pakMetadata.Contains('Levels\kutnohorsko\waitinglinks.xml') -and
+        -not $pakMetadata.Contains('Levels\trosecko\waitinglinks.xml')
     ) 'main data pak does not hide waitinglinks inside the wrong archive scope'
 } else {
     Add-Result $false 'pak entries contain no KCD2-incompatible NTFS timestamp metadata'
     Add-Result $false 'main data pak does not hide waitinglinks inside the wrong archive scope'
 }
 
-Add-Result (
-    Test-Path -LiteralPath $kuttenbergLevelPakPath
-) 'Pritoky area binding is packaged in a Kuttenberg level pak'
-
-$kuttenbergLevelPakMetadata = ''
-$kuttenbergLevelPakIntegrity = $false
-if ($sevenZip -and (Test-Path -LiteralPath $kuttenbergLevelPakPath)) {
-    $kuttenbergLevelPakMetadata =
-        (& $sevenZip l -slt $kuttenbergLevelPakPath) -join "`n"
-    & $sevenZip t $kuttenbergLevelPakPath *> $null
-    $kuttenbergLevelPakIntegrity = $LASTEXITCODE -eq 0
+$regionalLevelPaksValid = $true
+foreach ($bindingSpec in $areaBindingSpecs) {
+    if (-not $sevenZip -or -not (Test-Path -LiteralPath $bindingSpec.levelPakPath)) {
+        $regionalLevelPaksValid = $false
+        continue
+    }
+    $levelPakMetadata =
+        (& $sevenZip l -slt $bindingSpec.levelPakPath) -join "`n"
+    & $sevenZip t $bindingSpec.levelPakPath *> $null
+    if (
+        $LASTEXITCODE -ne 0 -or
+        -not $levelPakMetadata.Contains('Path = objects_mission0.xml') -or
+        -not $levelPakMetadata.Contains('Path = waitinglinks.xml') -or
+        $levelPakMetadata.Contains('Path = layers\') -or
+        $levelPakMetadata.Contains('Path = whdata_1') -or
+        $levelPakMetadata.Contains('Path = leveldata.xml') -or
+        $levelPakMetadata.Contains('Path = terrain') -or
+        $levelPakMetadata.Contains('Path = bai_') -or
+        $levelPakMetadata.Contains('Characteristics = NTFS')
+    ) {
+        $regionalLevelPaksValid = $false
+    }
 }
 Add-Result (
-    $kuttenbergLevelPakIntegrity
-) 'Kuttenberg level pak passes the 7-Zip integrity check'
-Add-Result (
-    $kuttenbergLevelPakMetadata.Contains('Path = objects_mission0.xml') -and
-    $kuttenbergLevelPakMetadata.Contains('Path = waitinglinks.xml') -and
-    -not $kuttenbergLevelPakMetadata.Contains('Path = layers\') -and
-    -not $kuttenbergLevelPakMetadata.Contains('Path = whdata_1') -and
-    -not $kuttenbergLevelPakMetadata.Contains('Path = leveldata.xml') -and
-    -not $kuttenbergLevelPakMetadata.Contains('Characteristics = NTFS')
-) 'Kuttenberg level pak contains both full resolver registries without NTFS metadata'
+    $regionalLevelPaksValid
+) 'both regional level paks contain only the two full resolver registries'
 
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_name</Cell><Cell>The Silence Within</Cell>')) 'English buff name is localized'
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_desc</Cell>')) 'English buff description is localized'

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LevelPatch>
+  <Definition File="trosecko/dark_within_t.xml" />
+  <Node>
+    <dark_within_t Name="dark_within_t" RequiredForOutput="trosecko">
+      <Edge From="OnWake" To="arm" />
+    </dark_within_t>
+  </Node>
+</LevelPatch>

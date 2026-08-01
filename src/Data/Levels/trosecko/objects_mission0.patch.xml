@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Objects>
+  <Entity Name="dark_within_t"
+          Pos="1740.031,1957.591,127.1535"
+          EntityClass="SmartObjectHolder"
+          EntityId="1831842"
+          EntityGuid="a13d9e5c-7b42-4f61"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <EntityLinks />
+    <Properties bSaved_by_game="0"
+                guidSmartObjectType="d4a6f10b-f8cd-4d4d-9a6c-fbc186429bca" />
+    <BBoxProxy BBoxMin="1e+15,1e+15,1e+15"
+               BBoxMax="-1e+15,-1e+15,-1e+15" />
+  </Entity>
+</Objects>

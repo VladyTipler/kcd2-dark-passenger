@@ -10,6 +10,8 @@ $sourceRoot = Join-Path $repoRoot 'src'
 $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
+$areaBindingGeneratorPath =
+    Join-Path $PSScriptRoot 'Generate-SettlementAreaBindings.ps1'
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
 $localizationRoot = Join-Path $repoRoot 'localization'
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
@@ -54,6 +56,8 @@ if (-not $resolvedBuildRoot.StartsWith(
     throw "Refusing to replace build path outside repository build root: $resolvedBuildRoot"
 }
 
+& $areaBindingGeneratorPath
+
 if (Test-Path -LiteralPath $resolvedBuildRoot) {
     Remove-Item -LiteralPath $resolvedBuildRoot -Recurse -Force
 }
@@ -70,33 +74,41 @@ if (-not (Test-Path -LiteralPath $rawEvidencePath)) {
 & $generatorPath
 
 $sevenZip = (Get-Command 7z.exe -ErrorAction Stop).Source
-$barboraKuttenbergRoot =
-    Join-Path $resolvedBuildRoot 'Data\Quests\Final\Barbora'
-$barboraKuttenbergPatchPath =
-    Join-Path $barboraKuttenbergRoot 'kutnohorsko.patch.xml'
-if (Test-Path -LiteralPath $barboraKuttenbergPatchPath) {
+function Merge-BarboraRegionalGraph {
+    param(
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$QuestName
+    )
+
+    $barboraRoot =
+        Join-Path $resolvedBuildRoot 'Data\Quests\Final\Barbora'
+    $patchPath = Join-Path $barboraRoot "$Region.patch.xml"
+    if (-not (Test-Path -LiteralPath $patchPath)) {
+        return
+    }
     if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
-        throw 'KCD2_DEV_ROOT or -DevGameRoot is required to merge the Barbora Kuttenberg graph.'
+        throw "KCD2_DEV_ROOT or -DevGameRoot is required to merge the Barbora $Region graph."
     }
 
-    $barboraPatchText =
-        [System.IO.File]::ReadAllText($barboraKuttenbergPatchPath)
+    $patchText = [System.IO.File]::ReadAllText($patchPath)
     try {
-        $barboraPatch = [xml]$barboraPatchText
+        $null = [xml]$patchText
     }
     catch {
-        throw "Dark Passenger Barbora Kuttenberg patch is invalid XML: $($_.Exception.Message)"
+        throw "Dark Passenger Barbora $Region patch is invalid XML: $($_.Exception.Message)"
     }
+    $escapedRegion = [regex]::Escape($Region)
+    $escapedQuestName = [regex]::Escape($QuestName)
     $definitionMatch = [regex]::Match(
-        $barboraPatchText,
-        '<Definition\s+File="kutnohorsko/dark_within_k\.xml"\s*/>'
+        $patchText,
+        "<Definition\s+File=`"$escapedRegion/$escapedQuestName\.xml`"\s*/>"
     )
     $nodeMatch = [regex]::Match(
-        $barboraPatchText,
-        '(?s)<dark_within_k\b.*?</dark_within_k>'
+        $patchText,
+        "(?s)<$escapedQuestName\b.*?</$escapedQuestName>"
     )
     if (-not $definitionMatch.Success -or -not $nodeMatch.Success) {
-        throw 'Dark Passenger Barbora Kuttenberg patch must contain one definition and quest node.'
+        throw "Dark Passenger Barbora $Region patch must contain one definition and quest node."
     }
 
     $baseScriptsPak = Join-Path $DevGameRoot 'Data\Scripts.pak'
@@ -107,73 +119,80 @@ if (Test-Path -LiteralPath $barboraKuttenbergPatchPath) {
     if ($baseScriptsPakItem.LinkType -and $baseScriptsPakItem.Target) {
         $baseScriptsPak = [string]@($baseScriptsPakItem.Target)[0]
     }
-    New-Item -ItemType Directory -Force -Path $barboraKuttenbergRoot |
-        Out-Null
-    $barboraKuttenbergPath =
-        Join-Path $barboraKuttenbergRoot 'kutnohorsko.xml'
-    & $sevenZip e -y "-o$barboraKuttenbergRoot" $baseScriptsPak `
-        'Quests\Final\Barbora\kutnohorsko.xml' |
+    New-Item -ItemType Directory -Force -Path $barboraRoot | Out-Null
+    $regionalGraphPath = Join-Path $barboraRoot "$Region.xml"
+    & $sevenZip e -y "-o$barboraRoot" $baseScriptsPak `
+        "Quests\Final\Barbora\$Region.xml" |
         Out-Null
     if (
         $LASTEXITCODE -ne 0 -or
-        -not (Test-Path -LiteralPath $barboraKuttenbergPath)
+        -not (Test-Path -LiteralPath $regionalGraphPath)
     ) {
-        throw "Unable to extract Barbora Kuttenberg graph from $baseScriptsPak"
+        throw "Unable to extract Barbora $Region graph from $baseScriptsPak"
     }
 
-    $barboraKuttenbergText =
-        [System.IO.File]::ReadAllText($barboraKuttenbergPath)
+    $regionalGraphText = [System.IO.File]::ReadAllText($regionalGraphPath)
     if (
-        $barboraKuttenbergText.Contains(
-            '<Definition File="kutnohorsko/dark_within_k.xml" />'
+        $regionalGraphText.Contains(
+            "<Definition File=`"$Region/$QuestName.xml`" />"
         ) -or
-        $barboraKuttenbergText -match '<dark_within_k\b'
+        $regionalGraphText -match "<$escapedQuestName\b"
     ) {
-        throw 'Base Barbora Kuttenberg graph already contains dark_within_k.'
+        throw "Base Barbora $Region graph already contains $QuestName."
     }
-    $definitionsEnd = $barboraKuttenbergText.IndexOf('</Definitions>')
-    $nodesEnd = $barboraKuttenbergText.IndexOf('</Nodes>')
+    $definitionsEnd = $regionalGraphText.IndexOf('</Definitions>')
+    $nodesEnd = $regionalGraphText.IndexOf('</Nodes>')
     if ($definitionsEnd -lt 0 -or $nodesEnd -lt 0) {
-        throw 'Base Barbora Kuttenberg graph lacks Definitions or Nodes terminator.'
+        throw "Base Barbora $Region graph lacks Definitions or Nodes terminator."
     }
-    $definitionBlock =
-        "`t`t`t$($definitionMatch.Value)`r`n`t`t"
-    $barboraKuttenbergText = $barboraKuttenbergText.Insert(
+    $regionalGraphText = $regionalGraphText.Insert(
         $definitionsEnd,
-        $definitionBlock
+        "`t`t`t$($definitionMatch.Value)`r`n`t`t"
     )
-    $nodesEnd = $barboraKuttenbergText.IndexOf('</Nodes>')
+    $nodesEnd = $regionalGraphText.IndexOf('</Nodes>')
     $nodeBlock = (
         $nodeMatch.Value.Trim() -split "`r?`n" |
             ForEach-Object { "`t`t`t$($_.TrimStart())" }
     ) -join "`r`n"
-    $barboraKuttenbergText = $barboraKuttenbergText.Insert(
+    $regionalGraphText = $regionalGraphText.Insert(
         $nodesEnd,
         "$nodeBlock`r`n`t`t"
     )
     try {
-        $null = [xml]$barboraKuttenbergText
+        $null = [xml]$regionalGraphText
     }
     catch {
-        throw "Generated Barbora Kuttenberg graph is invalid XML: $($_.Exception.Message)"
+        throw "Generated Barbora $Region graph is invalid XML: $($_.Exception.Message)"
     }
     [System.IO.File]::WriteAllText(
-        $barboraKuttenbergPath,
-        $barboraKuttenbergText,
+        $regionalGraphPath,
+        $regionalGraphText,
         [System.Text.UTF8Encoding]::new($false)
     )
-    Remove-Item -LiteralPath $barboraKuttenbergPatchPath -Force
+    Remove-Item -LiteralPath $patchPath -Force
 }
 
-$kuttenbergLevelRoot = Join-Path $resolvedBuildRoot 'Data\Levels\kutnohorsko'
-if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
+Merge-BarboraRegionalGraph -Region 'kutnohorsko' -QuestName 'dark_within_k'
+Merge-BarboraRegionalGraph -Region 'trosecko' -QuestName 'dark_within_t'
+
+$levelHolderGuids = @{
+    kutnohorsko = '10702dff-9271-4a74'
+    trosecko = '30277b74-1c65-41e9'
+}
+$regionalLevelRoots = [System.Collections.Generic.List[string]]::new()
+foreach ($region in @('kutnohorsko', 'trosecko')) {
+    $regionalLevelRoot = Join-Path $resolvedBuildRoot "Data\Levels\$region"
+    if (-not (Test-Path -LiteralPath $regionalLevelRoot)) {
+        continue
+    }
+    $regionalLevelRoots.Add($regionalLevelRoot)
     if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
-        throw 'KCD2_DEV_ROOT or -DevGameRoot is required to build the Kuttenberg asset link.'
+        throw "KCD2_DEV_ROOT or -DevGameRoot is required to build the $region asset links."
     }
 
-    $baseLevelPak = Join-Path $DevGameRoot 'Data\Levels\kutnohorsko\level.pak'
+    $baseLevelPak = Join-Path $DevGameRoot "Data\Levels\$region\level.pak"
     if (-not (Test-Path -LiteralPath $baseLevelPak)) {
-        throw "Base Kuttenberg level pak not found: $baseLevelPak"
+        throw "Base $region level pak not found: $baseLevelPak"
     }
 
     $baseLevelPakItem = Get-Item -LiteralPath $baseLevelPak
@@ -181,7 +200,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $baseLevelPak = [string]@($baseLevelPakItem.Target)[0]
     }
 
-    $waitingLinksPath = Join-Path $kuttenbergLevelRoot 'waitinglinks.xml'
+    $waitingLinksPath = Join-Path $regionalLevelRoot 'waitinglinks.xml'
     $waitingLinksPatchText =
         [System.IO.File]::ReadAllText($waitingLinksPath)
     try {
@@ -193,29 +212,43 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
     $waitingLinkEntries = @(
         $waitingLinksPatch.StaticLinksInfo.WaitingLinks.WaitingLink
     )
-    if ($waitingLinkEntries.Count -ne 4) {
-        throw 'Dark Passenger waitinglinks patch must contain the Barbora Level, Quest, and three-area chain.'
+    if ($waitingLinkEntries.Count -lt 2) {
+        throw "Dark Passenger $region waitinglinks patch must contain a module link and settlement area links."
     }
     $linkSignatures = @(
         $waitingLinkEntries | ForEach-Object {
             "$([string]$_.SourceId)|$([string]$_.TargetId)|$([string]$_.LinkDefinition)"
         }
     )
+    $duplicateLinkSignature = $linkSignatures |
+        Group-Object |
+        Where-Object Count -gt 1 |
+        Select-Object -First 1
+    $moduleLinks = @(
+        $waitingLinkEntries |
+            Where-Object { [string]$_.LinkDefinition -eq 'module' }
+    )
     if (
-        '10702dff-9271-4a74|f4a73e20-28c5-4bd2|module' -notin
-            $linkSignatures -or
-        "f4a73e20-28c5-4bd2|d0fa0ece-6af5-19f6|asset['DP_PritokySearchArea']" -notin
-            $linkSignatures -or
-        "f4a73e20-28c5-4bd2|d2fc29a3-6787-141c|asset['DP_PritokySearchArea']" -notin
-            $linkSignatures -or
-        "f4a73e20-28c5-4bd2|1b6b6d4e-905c-4f9e|asset['DP_PritokySearchArea']" -notin
-            $linkSignatures
+        $null -ne $duplicateLinkSignature -or
+        $moduleLinks.Count -ne 1 -or
+        [string]$moduleLinks[0].SourceId -ne $levelHolderGuids[$region]
     ) {
-        throw 'Dark Passenger waitinglinks patch has an unexpected Barbora multi-area binding.'
+        throw "Dark Passenger $region waitinglinks patch has an invalid module link."
+    }
+    $questHolderGuid = [string]$moduleLinks[0].TargetId
+    $assetLinks = @(
+        $waitingLinkEntries |
+            Where-Object { [string]$_.LinkDefinition -ne 'module' }
+    )
+    if (@($assetLinks | Where-Object {
+        [string]$_.SourceId -ne $questHolderGuid -or
+        [string]$_.LinkDefinition -notmatch "^asset\['DP_SearchArea_[A-Za-z0-9_]+'\]$"
+    }).Count -gt 0) {
+        throw "Dark Passenger $region waitinglinks patch has an invalid settlement area link."
     }
 
     $missionObjectsPatchPath =
-        Join-Path $kuttenbergLevelRoot 'objects_mission0.patch.xml'
+        Join-Path $regionalLevelRoot 'objects_mission0.patch.xml'
     $missionObjectsPatchText =
         [System.IO.File]::ReadAllText($missionObjectsPatchPath)
     $missionObjectEntries = @(
@@ -227,29 +260,45 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
     if ($missionObjectEntries.Count -ne 1) {
         throw 'Dark Passenger mission-object patch must contain only the Quest holder.'
     }
+    try {
+        $missionObjectsPatch = [xml]$missionObjectsPatchText
+    }
+    catch {
+        throw "Dark Passenger $region mission-object patch is invalid XML: $($_.Exception.Message)"
+    }
+    $questHolder = @($missionObjectsPatch.Objects.Entity)
+    if (
+        $questHolder.Count -ne 1 -or
+        [string]$questHolder[0].EntityClass -ne 'SmartObjectHolder' -or
+        [string]$questHolder[0].EntityGuid -ne $questHolderGuid
+    ) {
+        throw "Dark Passenger $region mission-object patch does not match its waitinglinks quest holder."
+    }
+    $questHolderEntityId = [string]$questHolder[0].EntityId
+    $questHolderName = [string]$questHolder[0].Name
 
     $objectsMissionPath =
-        Join-Path $kuttenbergLevelRoot 'objects_mission0.xml'
-    & $sevenZip e -y "-o$kuttenbergLevelRoot" $baseLevelPak `
+        Join-Path $regionalLevelRoot 'objects_mission0.xml'
+    & $sevenZip e -y "-o$regionalLevelRoot" $baseLevelPak `
         'objects_mission0.xml' |
         Out-Null
     if (
         $LASTEXITCODE -ne 0 -or
         -not (Test-Path -LiteralPath $objectsMissionPath)
     ) {
-        throw "Unable to extract Kuttenberg mission objects from $baseLevelPak"
+        throw "Unable to extract $region mission objects from $baseLevelPak"
     }
 
     $objectsMissionText =
         [System.IO.File]::ReadAllText($objectsMissionPath)
-    if ($objectsMissionText.Contains('EntityGuid="f4a73e20-28c5-4bd2"') -or
-        $objectsMissionText.Contains('EntityId="1831841"') -or
-        $objectsMissionText.Contains('Name="dark_within_k"')) {
-        throw 'Base Kuttenberg mission objects already contain a Dark Passenger concept-graph identity.'
+    if ($objectsMissionText.Contains("EntityGuid=`"$questHolderGuid`"") -or
+        $objectsMissionText.Contains("EntityId=`"$questHolderEntityId`"") -or
+        $objectsMissionText.Contains("Name=`"$questHolderName`"")) {
+        throw "Base $region mission objects already contain a Dark Passenger concept-graph identity."
     }
     $objectsEnd = $objectsMissionText.LastIndexOf('</Objects>')
     if ($objectsEnd -lt 0) {
-        throw 'Base Kuttenberg mission objects have no Objects root terminator.'
+        throw "Base $region mission objects have no Objects root terminator."
     }
     $missionObjectBlock = @(
         $missionObjectEntries | ForEach-Object { $_.Value.Trim() }
@@ -279,7 +328,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         )
         if ($sourceMatches.Count -ne 1 -or $targetMatches.Count -ne 1) {
             throw (
-                'Unable to resolve unique Kuttenberg link entities: ' +
+                "Unable to resolve unique $region link entities: " +
                 "sourceGuid=$sourceGuid source=$($sourceMatches.Count) " +
                 "targetGuid=$targetGuid target=$($targetMatches.Count)"
             )
@@ -290,7 +339,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
             'EntityId="([0-9]+)"'
         )
         if (-not $targetIdMatch.Success) {
-            throw "Kuttenberg link target '$targetGuid' has no numeric EntityId."
+            throw "$region link target '$targetGuid' has no numeric EntityId."
         }
         $targetEntityId = $targetIdMatch.Groups[1].Value
         $targetEntityIdPattern = [regex]::Escape($targetEntityId)
@@ -298,7 +347,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $duplicateLinkPattern =
             "<Link\b(?=[^>]*TargetId=`"$targetEntityIdPattern`")(?=[^>]*Name=`"$([regex]::Escape($linkDefinition))`")[^>]*/>"
         if ([regex]::IsMatch($sourceEntityText, $duplicateLinkPattern)) {
-            throw "Kuttenberg source '$sourceGuid' already contains '$linkDefinition'."
+            throw "$region source '$sourceGuid' already contains '$linkDefinition'."
         }
         $entityLink =
             "`t`t`t<Link TargetId=`"$targetEntityId`" TargetGuid=`"00000000-0000-0000`" Name=`"$linkDefinition`" />`r`n`t`t"
@@ -313,7 +362,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         else {
             $entityLinksEnd = $sourceEntityText.IndexOf('</EntityLinks>')
             if ($entityLinksEnd -lt 0) {
-                throw "Kuttenberg source '$sourceGuid' has no EntityLinks section."
+                throw "$region source '$sourceGuid' has no EntityLinks section."
             }
             $sourceEntityText =
                 $sourceEntityText.Insert($entityLinksEnd, $entityLink)
@@ -328,7 +377,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $null = [xml]$objectsMissionText
     }
     catch {
-        throw "Generated Kuttenberg mission objects are invalid XML: $($_.Exception.Message)"
+        throw "Generated $region mission objects are invalid XML: $($_.Exception.Message)"
     }
     [System.IO.File]::WriteAllText(
         $objectsMissionPath,
@@ -336,12 +385,12 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         [System.Text.Encoding]::ASCII
     )
 
-    $baseExtractRoot = Join-Path $kuttenbergLevelRoot '_base_level'
+    $baseExtractRoot = Join-Path $regionalLevelRoot '_base_level'
     $resolvedBaseExtractRoot = [System.IO.Path]::GetFullPath(
         $baseExtractRoot
     )
     $resolvedLevelPrefix =
-        [System.IO.Path]::GetFullPath($kuttenbergLevelRoot) +
+        [System.IO.Path]::GetFullPath($regionalLevelRoot) +
         [System.IO.Path]::DirectorySeparatorChar
     if (-not $resolvedBaseExtractRoot.StartsWith(
         $resolvedLevelPrefix,
@@ -364,7 +413,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
             $LASTEXITCODE -ne 0 -or
             -not (Test-Path -LiteralPath $baseWaitingLinksPath)
         ) {
-            throw "Unable to extract Kuttenberg waitinglinks from $baseLevelPak"
+            throw "Unable to extract $region waitinglinks from $baseLevelPak"
         }
         $baseWaitingLinksText =
             [System.IO.File]::ReadAllText($baseWaitingLinksPath)
@@ -384,7 +433,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
             )
         ) {
             throw (
-                'Base Kuttenberg waitinglinks already contain a Dark Passenger link: ' +
+                "Base $region waitinglinks already contain a Dark Passenger link: " +
                 "$sourceGuid -> $targetGuid"
             )
         }
@@ -392,7 +441,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
     $waitingLinksEnd =
         $baseWaitingLinksText.LastIndexOf('</WaitingLinks>')
     if ($waitingLinksEnd -lt 0) {
-        throw 'Base Kuttenberg waitinglinks have no WaitingLinks terminator.'
+        throw "Base $region waitinglinks have no WaitingLinks terminator."
     }
     $customWaitingLinks = @(
         $waitingLinkEntries | ForEach-Object {
@@ -418,7 +467,7 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $null = [xml]$mergedWaitingLinksText
     }
     catch {
-        throw "Generated Kuttenberg waitinglinks are invalid XML: $($_.Exception.Message)"
+        throw "Generated $region waitinglinks are invalid XML: $($_.Exception.Message)"
     }
     [System.IO.File]::WriteAllText(
         $waitingLinksPath,
@@ -449,33 +498,33 @@ if ($LASTEXITCODE -ne 0) {
     throw "7-Zip failed to build $dataPak"
 }
 
-if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
-    $kuttenbergLevelPak = Join-Path $kuttenbergLevelRoot 'darkpassengertest.pak'
-    $kuttenbergLevelInputs = @(
+foreach ($regionalLevelRoot in $regionalLevelRoots) {
+    $regionalLevelPak = Join-Path $regionalLevelRoot 'darkpassengertest.pak'
+    $regionalLevelInputs = @(
         'objects_mission0.xml',
         'waitinglinks.xml'
     ) |
         Where-Object {
-            Test-Path -LiteralPath (Join-Path $kuttenbergLevelRoot $_)
+            Test-Path -LiteralPath (Join-Path $regionalLevelRoot $_)
         }
 
-    if ($kuttenbergLevelInputs.Count -gt 0) {
-        Push-Location $kuttenbergLevelRoot
+    if ($regionalLevelInputs.Count -gt 0) {
+        Push-Location $regionalLevelRoot
         try {
             & $sevenZip a -tzip -mx=9 -mtc=off `
-                $kuttenbergLevelPak $kuttenbergLevelInputs |
+                $regionalLevelPak $regionalLevelInputs |
                 Out-Null
             if ($LASTEXITCODE -ne 0) {
-                throw "7-Zip failed to build $kuttenbergLevelPak"
+                throw "7-Zip failed to build $regionalLevelPak"
             }
         }
         finally {
             Pop-Location
         }
 
-        & $sevenZip t $kuttenbergLevelPak | Out-Null
+        & $sevenZip t $regionalLevelPak | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            throw "7-Zip integrity test failed for $kuttenbergLevelPak"
+            throw "7-Zip integrity test failed for $regionalLevelPak"
         }
     }
 }

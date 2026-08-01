@@ -5,7 +5,7 @@ param(
     [string]$EnglishLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\English\text__darkpassengertest.xml'),
     [string]$RussianLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\Russian\text__darkpassengertest.xml'),
     [string]$KuttenbergQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'),
-    [string]$TroskyQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml'),
+    [string]$TroskyQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\trosecko\dark_within_t.xml'),
     [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Scripts\mods\generated\dp_candidate_catalog.lua'),
     [int]$MaxCandidatesPerRegion = 1000,
     [int]$MaxQuestBytesPerRegion = 12582912
