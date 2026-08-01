@@ -19,6 +19,7 @@ Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
+Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
@@ -725,11 +726,19 @@ function DarkPassengerTarget.DumpActiveObjectives()
     return true
 end
 
+local areaCatalog = DarkPassengerInvestigationAreaCatalog
+local areaRegion = DarkPassengerInvestigationAreaCatalog and
+    DarkPassengerInvestigationAreaCatalog.kutnohorsko
+local area = areaRegion and areaRegion.pritoky
+
 DarkPassengerAreaBridge = DarkPassengerAreaBridge or {}
-DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"
-DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"
-DarkPassengerAreaBridge.TARGET_NAME = "kpri_publicEnemiesRepulsionZoneVillageArea_1"
-DarkPassengerAreaBridge.LINK_NAME = "asset['DP_PritokySearchArea']"
+DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = areaRegion and
+    areaRegion.levelHolderName or nil
+DarkPassengerAreaBridge.HOLDER_NAME = areaRegion and
+    areaRegion.questHolderName or nil
+DarkPassengerAreaBridge.TARGET_NAME = area and area.entityName or nil
+DarkPassengerAreaBridge.LINK_NAME = area and
+    "asset['" .. tostring(area.alias) .. "']" or nil
 DarkPassengerAreaBridge.POLL_INTERVAL_MS = 500
 DarkPassengerAreaBridge.MAX_ATTEMPTS = 120
 DarkPassengerAreaBridge.pollGeneration =
@@ -786,6 +795,32 @@ function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
 end
 
 function DarkPassengerAreaBridge.EnsureLinked()
+    if areaCatalog == nil then
+        AreaLog("investigation area catalogue unavailable")
+        return false
+    end
+    if areaRegion == nil then
+        AreaLog("investigation area region unavailable: kutnohorsko")
+        return false
+    end
+    if area == nil then
+        AreaLog("investigation area entry unavailable: kutnohorsko/pritoky")
+        return false
+    end
+    if DarkPassengerAreaBridge.LEVEL_HOLDER_NAME == nil or
+       DarkPassengerAreaBridge.HOLDER_NAME == nil then
+        AreaLog("investigation area holder metadata unavailable: kutnohorsko")
+        return false
+    end
+    if DarkPassengerAreaBridge.TARGET_NAME == nil or
+       DarkPassengerAreaBridge.TARGET_NAME == "" then
+        AreaLog("investigation area entity name unavailable: kutnohorsko/pritoky")
+        return false
+    end
+    if area.alias == nil or area.alias == "" then
+        AreaLog("investigation area alias unavailable: kutnohorsko/pritoky")
+        return false
+    end
     if System == nil or System.GetEntityByName == nil then
         return false
     end

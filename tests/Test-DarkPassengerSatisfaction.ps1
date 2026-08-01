@@ -2805,8 +2805,23 @@ Add-Result (
     )
 ) 'a new quest cycle discards the previous fixed settlement before reselection'
 Add-Result (
+    $runtimeLuaText.IndexOf(
+        'Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")'
+    ) -ge 0 -and
+    $runtimeLuaText.IndexOf(
+        'Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")'
+    ) -lt $runtimeLuaText.IndexOf(
+        'DarkPassengerAreaBridge = DarkPassengerAreaBridge or {}'
+    ) -and
     $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"'
+        'local areaRegion = DarkPassengerInvestigationAreaCatalog and'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerInvestigationAreaCatalog.kutnohorsko'
+    ) -and
+    $runtimeLuaText.Contains('local area = areaRegion and areaRegion.pritoky') -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = areaRegion and'
     ) -and
     -not $runtimeLuaText.Contains(
         'DarkPassengerAreaBridge.PROJECT_HOLDER_NAME'
@@ -2815,15 +2830,38 @@ Add-Result (
         'DarkPassengerAreaBridge.LEVEL_HOLDER_ENTITY_ID'
     ) -and
     $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"'
+        'DarkPassengerAreaBridge.HOLDER_NAME = areaRegion and'
     ) -and
     $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.TARGET_NAME = "kpri_publicEnemiesRepulsionZoneVillageArea_1"'
+        'DarkPassengerAreaBridge.TARGET_NAME = area and area.entityName or nil'
     ) -and
     $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.LINK_NAME = "asset[''DP_PritokySearchArea'']"'
+        '"asset[''" .. tostring(area.alias) .. "'']" or nil'
+    ) -and
+    -not $runtimeLuaText.Contains(
+        'kpri_publicEnemiesRepulsionZoneVillageArea_1'
     )
-) 'area bridge identifies the Barbora Level and Quest holders plus vanilla area alias explicitly'
+) 'area bridge resolves its holder and generated Pritoky area from one runtime catalogue'
+Add-Result (
+    $runtimeLuaText.Contains(
+        'investigation area catalogue unavailable'
+    ) -and
+    $runtimeLuaText.Contains(
+        'investigation area region unavailable: kutnohorsko'
+    ) -and
+    $runtimeLuaText.Contains(
+        'investigation area entry unavailable: kutnohorsko/pritoky'
+    ) -and
+    $runtimeLuaText.Contains(
+        'investigation area holder metadata unavailable: kutnohorsko'
+    ) -and
+    $runtimeLuaText.Contains(
+        'investigation area entity name unavailable: kutnohorsko/pritoky'
+    ) -and
+    $runtimeLuaText.Contains(
+        'investigation area alias unavailable: kutnohorsko/pritoky'
+    )
+) 'area bridge fails closed with diagnostics for every missing generated metadata layer'
 Add-Result (
     $runtimeLuaText.Contains(
         'function DarkPassengerAreaBridge.EnsureLinked()'
