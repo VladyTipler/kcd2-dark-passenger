@@ -49,6 +49,12 @@ $barboraKuttenbergPatchPath =
     "$testRoot\src\Data\Quests\Final\Barbora\kutnohorsko.patch.xml"
 $candidateCatalogPath = "$testRoot\config\victim-candidates.json"
 $generatorPath = "$testRoot\tools\Generate-VictimArtifacts.ps1"
+$areaPolicyPath = "$testRoot\config\investigation-areas.json"
+$areaGeneratorPath = "$testRoot\tools\Generate-InvestigationAreas.ps1"
+$areaGeneratedRoot = "$testRoot\build\generated\investigation-areas"
+$areaManifestPath = "$areaGeneratedRoot\manifest.json"
+$areaCatalogLuaPath =
+    "$stageRoot\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua"
 $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template"
 $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml.template"
 $questBridgeModulePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dp_lua_call.xml"
@@ -244,6 +250,8 @@ $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
+$areaManifestText = Read-OptionalText -LiteralPath $areaManifestPath
+$areaCatalogLuaText = Read-OptionalText -LiteralPath $areaCatalogLuaPath
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
 $kuttenbergObjectsMissionText =
     Read-OptionalText -LiteralPath $kuttenbergObjectsMissionPath
@@ -266,6 +274,18 @@ $buildScriptText = Read-OptionalText -LiteralPath $buildScriptPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
+$areaManifest = $null
+$generatedArea = $null
+if (-not [string]::IsNullOrWhiteSpace($areaManifestText)) {
+    try {
+        $areaManifest = $areaManifestText | ConvertFrom-Json -Depth 100
+        $generatedArea = @($areaManifest.areas)[0]
+    }
+    catch {
+        $areaManifest = $null
+        $generatedArea = $null
+    }
+}
 $baseWaitingLinkCount = -1
 $baseRegionModuleLinkCount = -1
 $baseStreamableTargetCount = -1
@@ -581,20 +601,13 @@ Add-Result (
     -not $questText.Contains('pritokySearchAreaProfile')
 ) 'search marker does not depend on a quest-activated custom holder profile'
 Add-Result (
-    (Test-Path -LiteralPath $sourceWaitingLinksPath) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<LinkDefinition>module</LinkDefinition>'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
-    ) -and
-    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
-        '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
-    )
-) 'source links bind the Barbora Kuttenberg LevelHolder through the Quest holder to the TriggerArea'
+    (Test-Path -LiteralPath $areaGeneratorPath -PathType Leaf) -and
+    (Test-Path -LiteralPath $areaPolicyPath -PathType Leaf) -and
+    -not (Test-Path -LiteralPath $sourceWaitingLinksPath) -and
+    $buildScriptText.IndexOf('& $generatorPath') -ge 0 -and
+    $buildScriptText.IndexOf('& $areaGeneratorPath') -gt
+        $buildScriptText.IndexOf('& $generatorPath')
+) 'build generates investigation links after victim artifacts without a hand-authored duplicate'
 Add-Result (
     (Test-Path -LiteralPath $sourceMissionObjectsPatchPath) -and
     (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
@@ -638,6 +651,15 @@ Add-Result (
     )
 ) 'quest holder uses its own registered SmartEntity type instead of a foreign quest type'
 Add-Result (
+    $null -ne $generatedArea -and
+    $generatedArea.gameRegion -eq 'kutnohorsko' -and
+    $generatedArea.alias -eq 'DP_PritokySearchArea' -and
+    $generatedArea.entityName -eq 'dp_pritoky_investigation_area' -and
+    $generatedArea.entityGuid -match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$' -and
+    [int]$generatedArea.entityId -gt 0 -and
+    $areaCatalogLuaText.Contains([string]$generatedArea.entityGuid)
+) 'real build emits one manifest-backed Pritoky area and runtime catalogue'
+Add-Result (
     (Test-Path -LiteralPath $kuttenbergWaitingLinksPath) -and
     $baseWaitingLinkCount -ge 0 -and
     ([regex]::Matches(
@@ -652,12 +674,16 @@ Add-Result (
         '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
     ) -and
     $kuttenbergWaitingLinksText.Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
+        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="' +
+            [string]$generatedArea.entityGuid + '">'
     ) -and
     $kuttenbergWaitingLinksText.Contains(
         '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
+    ) -and
+    -not $kuttenbergWaitingLinksText.Contains(
+        'TargetId="d0fa0ece-6af5-19f6"'
     )
-) 'generated waitinglinks preserve the full vanilla registry and append the Barbora quest chain'
+) 'generated waitinglinks preserve vanilla data and target the generated Pritoky area'
 Add-Result (
     (Test-Path -LiteralPath $kuttenbergObjectsMissionPath) -and
     $kuttenbergObjectsMissionText -match (
@@ -670,8 +696,18 @@ Add-Result (
     $kuttenbergObjectsMissionText -match (
         '(?s)<Entity\b[^>]*Name="dark_within_k"[^>]*' +
         'EntityGuid="f4a73e20-28c5-4bd2".*?' +
-        '<Link TargetId="\d+" TargetGuid="00000000-0000-0000" ' +
+        '<Link TargetId="' + [regex]::Escape(
+            [string]$generatedArea.entityId
+        ) + '" TargetGuid="00000000-0000-0000" ' +
         'Name="asset\[''DP_PritokySearchArea''\]" />'
+    ) -and
+    $kuttenbergObjectsMissionText -match (
+        '<Entity\b(?=[^>]*Name="' + [regex]::Escape(
+            [string]$generatedArea.entityName
+        ) + '")(?=[^>]*EntityClass="SmartAreaShape")(?=[^>]*EntityId="' +
+            [regex]::Escape([string]$generatedArea.entityId) + '")' +
+            '(?=[^>]*EntityGuid="' +
+            [regex]::Escape([string]$generatedArea.entityGuid) + '")[^>]*>'
     ) -and
     ([regex]::Matches(
         $kuttenbergObjectsMissionText,
@@ -686,7 +722,29 @@ Add-Result (
     -not $kuttenbergObjectsMissionText.Contains(
         'EntityGuid="c1d9358b-7f4e-4a26"'
     )
-) 'generated mission objects attach the quest and area to the vanilla Barbora LevelHolder'
+) 'generated mission objects merge the quest and generated area into vanilla Barbora data'
+
+$missionObjectsXml = $null
+try {
+    $missionObjectsXml = [xml]$kuttenbergObjectsMissionText
+}
+catch {
+    $missionObjectsXml = $null
+}
+$missionEntityIds = @()
+$missionEntityGuids = @()
+if ($null -ne $missionObjectsXml) {
+    $missionEntities = @($missionObjectsXml.Objects.Entity)
+    $missionEntityIds = @($missionEntities | ForEach-Object { [string]$_.EntityId })
+    $missionEntityGuids = @($missionEntities | ForEach-Object { [string]$_.EntityGuid })
+}
+Add-Result (
+    $null -ne $missionObjectsXml -and
+    @($missionEntityIds | Group-Object | Where-Object Count -gt 1).Count -eq 0 -and
+    @($missionEntityGuids | Group-Object | Where-Object Count -gt 1).Count -eq 0 -and
+    $buildScriptText.Contains('Generated investigation EntityId collision') -and
+    $buildScriptText.Contains('Generated investigation EntityGuid collision')
+) 'build rejects area identity collisions and emits unique real-level identities'
 
 $questXml = $null
 try {
@@ -2827,11 +2885,13 @@ if ($sevenZip -and (Test-Path -LiteralPath $pakPath)) {
         -not $pakMetadata.Contains('Characteristics = NTFS')
     ) 'pak entries contain no KCD2-incompatible NTFS timestamp metadata'
     Add-Result (
-        -not $pakMetadata.Contains('Levels\kutnohorsko\waitinglinks.xml')
-    ) 'main data pak does not hide waitinglinks inside the wrong archive scope'
+        -not $pakMetadata.Contains('Levels\kutnohorsko\waitinglinks.xml') -and
+        -not $pakMetadata.Contains('Levels\kutnohorsko\objects_mission0.xml') -and
+        $pakMetadata.Contains('dp_investigation_area_catalog.lua')
+    ) 'main data pak keeps level registries out and includes generated runtime metadata'
 } else {
     Add-Result $false 'pak entries contain no KCD2-incompatible NTFS timestamp metadata'
-    Add-Result $false 'main data pak does not hide waitinglinks inside the wrong archive scope'
+    Add-Result $false 'main data pak keeps level registries out and includes generated runtime metadata'
 }
 
 Add-Result (
@@ -2852,11 +2912,15 @@ Add-Result (
 Add-Result (
     $kuttenbergLevelPakMetadata.Contains('Path = objects_mission0.xml') -and
     $kuttenbergLevelPakMetadata.Contains('Path = waitinglinks.xml') -and
+    ([regex]::Matches(
+        $kuttenbergLevelPakMetadata,
+        '(?m)^Path = (objects_mission0|waitinglinks)\.xml$'
+    ).Count -eq 2) -and
     -not $kuttenbergLevelPakMetadata.Contains('Path = layers\') -and
     -not $kuttenbergLevelPakMetadata.Contains('Path = whdata_1') -and
     -not $kuttenbergLevelPakMetadata.Contains('Path = leveldata.xml') -and
     -not $kuttenbergLevelPakMetadata.Contains('Characteristics = NTFS')
-) 'Kuttenberg level pak contains both full resolver registries without NTFS metadata'
+) 'Kuttenberg level pak contains exactly both full resolver registries without NTFS metadata'
 
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_name</Cell><Cell>The Silence Within</Cell>')) 'English buff name is localized'
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_desc</Cell>')) 'English buff description is localized'
