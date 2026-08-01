@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "defaults": {
+    "paddingMeters": 100,
+    "minVertices": 10,
+    "maxVertices": 20,
+    "irregularityMeters": 24
+  },
+  "areas": [
+    {
+      "id": "pritoky",
+      "gameRegion": "kutnohorsko",
+      "settlement": "pritoky",
+      "alias": "DP_PritokySearchArea",
+      "entityName": "dp_pritoky_investigation_area",
+      "identitySeed": "darkpassenger:kutnohorsko:pritoky:investigation-area:v1",
+      "smartAreaTemplateGuid": "d9064870-2806-4032-8698-c09886772cf6",
+      "poiAnchors": [
+        {
+          "id": "village-core",
+          "x": 2268.442,
+          "y": 1803.583,
+          "z": 126.769
+        },
+        {
+          "id": "pritoky-inn",
+          "x": 2168.6,
+          "y": 1533.4,
+          "z": 107.08
+        },
+        {
+          "id": "deserter-camp",
+          "x": 2293.569,
+          "y": 2086.651,
+          "z": 141.6657
+        }
+      ]
+    }
+  ]
+}
