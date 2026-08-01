@@ -6,6 +6,15 @@
     "maxVertices": 20,
     "irregularityMeters": 24
   },
+  "regions": [
+    {
+      "id": "kutnohorsko",
+      "levelHolderName": "kutnohorsko",
+      "levelHolderGuid": "10702dff-9271-4a74",
+      "questHolderName": "dark_within_k",
+      "questHolderGuid": "f4a73e20-28c5-4bd2"
+    }
+  ],
   "areas": [
     {
       "id": "pritoky",

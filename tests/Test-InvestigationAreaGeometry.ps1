@@ -185,6 +185,14 @@ if (-not (Test-Path -LiteralPath $generatorPath -PathType Leaf)) {
 $policy = Get-Content -LiteralPath $policyPath -Raw |
     ConvertFrom-Json -Depth 100
 Assert-True ($policy.schemaVersion -eq 1) 'area policy uses schema version 1'
+Assert-True `
+    (
+        $policy.regions.Count -eq 1 -and
+        $policy.regions[0].id -eq 'kutnohorsko' -and
+        $policy.regions[0].levelHolderGuid -eq '10702dff-9271-4a74' -and
+        $policy.regions[0].questHolderGuid -eq 'f4a73e20-28c5-4bd2'
+    ) `
+    'area policy owns the regional resolver contract'
 Assert-True ($policy.areas.Count -eq 1) 'area policy contains one Pritoky pilot'
 Assert-True `
     ($policy.defaults.paddingMeters -eq 100) `
@@ -298,10 +306,209 @@ Assert-True `
         $pritokyAnchors.maxVertices -eq 20
     ) `
     'generator applies effective default geometry settings'
+
+$entityFragmentPath =
+    Join-Path $generatedRoot 'kutnohorsko.entities.xml'
+$manifestPath = Join-Path $generatedRoot 'manifest.json'
+$waitingLinksPath =
+    Join-Path $stageRoot 'Data\Levels\kutnohorsko\waitinglinks.xml'
+$luaCatalogPath = Join-Path $stageRoot `
+    'Data\Scripts\mods\generated\dp_investigation_area_catalog.lua'
+Assert-True `
+    (Test-Path -LiteralPath $entityFragmentPath -PathType Leaf) `
+    'generator emits the Kuttenberg world-entity fragment'
+Assert-True `
+    (Test-Path -LiteralPath $manifestPath -PathType Leaf) `
+    'generator emits the investigation area manifest'
+Assert-True `
+    (Test-Path -LiteralPath $waitingLinksPath -PathType Leaf) `
+    'generator emits the area waiting-link patch'
+Assert-True `
+    (Test-Path -LiteralPath $luaCatalogPath -PathType Leaf) `
+    'generator emits the runtime area catalogue'
+
+$entityFragmentText = [IO.File]::ReadAllText($entityFragmentPath)
+$entityFragment = [xml]$entityFragmentText
+$entity = $entityFragment.Objects.Entity
 Assert-True `
     (
-        @(Get-ChildItem -LiteralPath $fixtureRoot -Recurse -Filter '*.xml').Count -eq 0
+        $null -ne $entity -and
+        $entity.Name -eq 'dp_pritoky_investigation_area' -and
+        $entity.EntityClass -eq 'SmartAreaShape'
     ) `
-    'policy stage does not emit world XML before the output task'
+    'generated world fragment contains the mod-owned SmartAreaShape'
+Assert-True `
+    (
+        $entity.Properties.guidSmartAreaTemplate -eq
+            'd9064870-2806-4032-8698-c09886772cf6'
+    ) `
+    'generated SmartAreaShape uses the approved vanilla template'
+
+$relativePoints = @($entity.Area.Points.Point)
+Assert-True `
+    ($relativePoints.Count -ge 10 -and $relativePoints.Count -le 20) `
+    'generated SmartAreaShape respects the 10-20 vertex range'
+
+$invariant = [Globalization.CultureInfo]::InvariantCulture
+$originParts = @([string]$entity.Pos -split ',')
+$originX = [double]::Parse($originParts[0], $invariant)
+$originY = [double]::Parse($originParts[1], $invariant)
+$worldPolygon = @(
+    $relativePoints | ForEach-Object {
+        $parts = @([string]$_.Pos -split ',')
+        [pscustomobject]@{
+            x = $originX + [double]::Parse($parts[0], $invariant)
+            y = $originY + [double]::Parse($parts[1], $invariant)
+        }
+    }
+)
+Assert-True `
+    (-not (Test-PolygonSelfIntersection -Polygon $worldPolygon)) `
+    'generated SmartAreaShape polygon remains simple'
+Assert-True `
+    ((Get-PolygonSignedArea -Polygon $worldPolygon) -gt 0) `
+    'generated SmartAreaShape polygon keeps counter-clockwise winding'
+
+$outsideAnchors = @(
+    $pritokyAnchors.anchors | Where-Object {
+        -not (Test-PointInPolygon `
+            -Point ([pscustomobject]@{
+                x = [double]$_.x
+                y = [double]$_.y
+            }) `
+            -Polygon $worldPolygon)
+    }
+)
+Assert-True `
+    ($outsideAnchors.Count -eq 0) `
+    'generated SmartAreaShape contains all residents and required POIs'
+
+$manifest = Get-Content -LiteralPath $manifestPath -Raw |
+    ConvertFrom-Json -Depth 100
+$manifestArea = $manifest.areas[0]
+Assert-True `
+    (
+        $manifest.schemaVersion -eq 1 -and
+        $manifest.areas.Count -eq 1
+    ) `
+    'generated manifest describes the one-area pilot'
+Assert-True `
+    (
+        $manifestArea.entityGuid -match '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$' -and
+        $manifestArea.entityId -ge 1800000 -and
+        $manifestArea.entityId -lt 1900000
+    ) `
+    'generated area identity is stable and KCD-shaped'
+Assert-True `
+    (
+        $manifestArea.vertexCount -eq $worldPolygon.Count -and
+        $manifestArea.anchorCount -eq 40 -and
+        $manifestArea.residentAnchorCount -eq 37 -and
+        $manifestArea.poiAnchorCount -eq 3
+    ) `
+    'generated manifest records polygon and anchor counts'
+
+$waitingLinksText = [IO.File]::ReadAllText($waitingLinksPath)
+$waitingLinks = [xml]$waitingLinksText
+$waitingEntries = @(
+    $waitingLinks.StaticLinksInfo.WaitingLinks.WaitingLink
+)
+Assert-True `
+    ($waitingEntries.Count -eq 2) `
+    'generated waiting-link patch contains the two-link resolver chain'
+$areaWaitingLink = @(
+    $waitingEntries | Where-Object {
+        [string]$_.LinkDefinition -eq "asset['DP_PritokySearchArea']"
+    }
+)
+Assert-True `
+    (
+        $areaWaitingLink.Count -eq 1 -and
+        $areaWaitingLink[0].SourceId -eq 'f4a73e20-28c5-4bd2' -and
+        $areaWaitingLink[0].TargetId -eq $manifestArea.entityGuid
+    ) `
+    'generated waiting link targets the generated Pritoky area GUID'
+
+$luaCatalogText = [IO.File]::ReadAllText($luaCatalogPath)
+Assert-True `
+    (
+        $luaCatalogText.Contains('DarkPassengerInvestigationAreaCatalog') -and
+        $luaCatalogText.Contains('kutnohorsko') -and
+        $luaCatalogText.Contains('pritoky') -and
+        $luaCatalogText.Contains('DP_PritokySearchArea') -and
+        $luaCatalogText.Contains('dp_pritoky_investigation_area') -and
+        $luaCatalogText.Contains([string]$manifestArea.entityGuid)
+    ) `
+    'generated Lua catalogue mirrors the area manifest'
+
+foreach (
+    $path in @(
+        $entityFragmentPath,
+        $manifestPath,
+        $waitingLinksPath,
+        $luaCatalogPath
+    )
+) {
+    $bytes = [IO.File]::ReadAllBytes($path)
+    Assert-True `
+        (-not (
+            $bytes.Length -ge 3 -and
+            $bytes[0] -eq 0xEF -and
+            $bytes[1] -eq 0xBB -and
+            $bytes[2] -eq 0xBF
+        )) `
+        "generated output has no UTF-8 BOM: $([IO.Path]::GetFileName($path))"
+}
+
+$repeatFixtureRoot =
+    Join-Path $repoRoot 'build\test-investigation-area-policy-repeat'
+$resolvedRepeatFixture = [IO.Path]::GetFullPath($repeatFixtureRoot)
+if (-not $resolvedRepeatFixture.StartsWith(
+    $buildPrefix,
+    [StringComparison]::OrdinalIgnoreCase
+)) {
+    throw "Refusing to replace fixture outside build root: $resolvedRepeatFixture"
+}
+if (Test-Path -LiteralPath $repeatFixtureRoot) {
+    Remove-Item -LiteralPath $repeatFixtureRoot -Recurse -Force
+}
+$repeatGeneratedRoot = Join-Path $repeatFixtureRoot 'generated'
+$repeatStageRoot = Join-Path $repeatFixtureRoot 'stage'
+New-Item -ItemType Directory -Force `
+    -Path $repeatGeneratedRoot, $repeatStageRoot |
+    Out-Null
+& $generatorPath `
+    -PolicyPath $policyPath `
+    -VictimCatalogPath $victimCatalogPath `
+    -GeneratedRoot $repeatGeneratedRoot `
+    -StageRoot $repeatStageRoot
+
+$outputPairs = @(
+    @(
+        $entityFragmentPath,
+        (Join-Path $repeatGeneratedRoot 'kutnohorsko.entities.xml')
+    ),
+    @(
+        $manifestPath,
+        (Join-Path $repeatGeneratedRoot 'manifest.json')
+    ),
+    @(
+        $waitingLinksPath,
+        (Join-Path $repeatStageRoot 'Data\Levels\kutnohorsko\waitinglinks.xml')
+    ),
+    @(
+        $luaCatalogPath,
+        (Join-Path $repeatStageRoot `
+            'Data\Scripts\mods\generated\dp_investigation_area_catalog.lua')
+    )
+)
+foreach ($pair in $outputPairs) {
+    Assert-True `
+        (
+            (Get-FileHash -Algorithm SHA256 -LiteralPath $pair[0]).Hash -eq
+            (Get-FileHash -Algorithm SHA256 -LiteralPath $pair[1]).Hash
+        ) `
+        "generated output is deterministic: $([IO.Path]::GetFileName($pair[0]))"
+}
 
 Write-Host "RESULT: PASS ($script:checks investigation area geometry checks)"

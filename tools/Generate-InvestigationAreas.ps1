@@ -61,6 +61,58 @@ function Assert-FiniteCoordinate {
     }
 }
 
+function Format-InvariantNumber {
+    param([double]$Value)
+
+    return $Value.ToString(
+        '0.######',
+        [Globalization.CultureInfo]::InvariantCulture
+    )
+}
+
+function Get-StableAreaIdentity {
+    param([Parameter(Mandatory)][string]$Seed)
+
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Seed))
+    }
+    finally {
+        $sha.Dispose()
+    }
+    $hex = [Convert]::ToHexString($hash).ToLowerInvariant()
+    return [pscustomobject]@{
+        entityGuid = '{0}-{1}-{2}' -f `
+            $hex.Substring(0, 8), `
+            $hex.Substring(8, 4), `
+            $hex.Substring(12, 4)
+        entityId = 1800000 + (
+            [Convert]::ToInt32($hex.Substring(16, 6), 16) % 100000
+        )
+    }
+}
+
+function Escape-LuaString {
+    param([string]$Value)
+
+    return $Value.Replace('\', '\\').Replace('"', '\"')
+}
+
+function Write-Utf8NoBom {
+    param(
+        [Parameter(Mandatory)][string]$LiteralPath,
+        [Parameter(Mandatory)][string]$Text
+    )
+
+    $parent = Split-Path -Parent $LiteralPath
+    New-Item -ItemType Directory -Force -Path $parent | Out-Null
+    [IO.File]::WriteAllText(
+        $LiteralPath,
+        $Text,
+        [Text.UTF8Encoding]::new($false)
+    )
+}
+
 $policy = Read-JsonDocument -LiteralPath $PolicyPath -Label 'Area policy'
 $victimCatalog = Read-JsonDocument `
     -LiteralPath $VictimCatalogPath `
@@ -74,6 +126,34 @@ if ([int]$victimCatalog.schemaVersion -ne 2) {
 }
 if (@($policy.areas).Count -eq 0) {
     throw 'Investigation area policy must contain at least one area.'
+}
+
+$regionContracts = @{}
+foreach ($region in @($policy.regions)) {
+    foreach (
+        $requiredName in @(
+            'id',
+            'levelHolderName',
+            'levelHolderGuid',
+            'questHolderName',
+            'questHolderGuid'
+        )
+    ) {
+        $required = $region.PSObject.Properties[$requiredName]
+        if (
+            $null -eq $required -or
+            [string]::IsNullOrWhiteSpace([string]$required.Value)
+        ) {
+            throw "Investigation area region is missing '$requiredName'."
+        }
+    }
+    if ($regionContracts.ContainsKey([string]$region.id)) {
+        throw "Duplicate investigation area region: $($region.id)"
+    }
+    $regionContracts[[string]$region.id] = $region
+}
+if ($regionContracts.Count -eq 0) {
+    throw 'Investigation area policy must contain a regional resolver contract.'
 }
 
 $seenAreaKeys = @{}
@@ -103,6 +183,9 @@ $generatedAreas = foreach ($area in @($policy.areas)) {
         throw "Duplicate investigation area policy key: $areaKey"
     }
     $seenAreaKeys[$areaKey] = $true
+    if (-not $regionContracts.ContainsKey([string]$area.gameRegion)) {
+        throw "Investigation area '$areaKey' has no regional resolver contract."
+    }
 
     $paddingMeters = [double](
         Get-OptionalValue `
@@ -225,9 +308,274 @@ $summaryPath = Join-Path $GeneratedRoot 'anchors.json'
     [Text.UTF8Encoding]::new($false)
 )
 
+$seenEntityIds = @{}
+$seenEntityGuids = @{}
+$seenEntityNames = @{}
+$seenAliases = @{}
+$areaOutputs = foreach ($area in @($generatedAreas)) {
+    $geometryPoints = @(
+        $area.anchors | ForEach-Object {
+            [pscustomobject]@{
+                x = [double]$_.x
+                y = [double]$_.y
+            }
+        }
+    )
+    $hull = @(Get-ConvexHull -Points $geometryPoints)
+    $expanded = @(
+        Expand-Polygon `
+            -Polygon $hull `
+            -PaddingMeters ([double]$area.paddingMeters)
+    )
+    $polygon = @(
+        Add-DeterministicIrregularity `
+            -Polygon $expanded `
+            -Seed ([string]$area.identitySeed) `
+            -MinVertices ([int]$area.minVertices) `
+            -MaxVertices ([int]$area.maxVertices) `
+            -Amplitude ([double]$area.irregularityMeters)
+    )
+    $polygon = @(
+        Assert-InvestigationPolygon `
+            -Polygon $polygon `
+            -MinVertices ([int]$area.minVertices) `
+            -MaxVertices ([int]$area.maxVertices)
+    )
+
+    $outsideAnchors = @(
+        $area.anchors | Where-Object {
+            -not (Test-PointInPolygon `
+                -Point ([pscustomobject]@{
+                    x = [double]$_.x
+                    y = [double]$_.y
+                }) `
+                -Polygon $polygon)
+        }
+    )
+    if ($outsideAnchors.Count -gt 0) {
+        throw (
+            "Investigation area '$($area.id)' excludes anchors: " +
+            (($outsideAnchors | ForEach-Object { $_.id }) -join ', ')
+        )
+    }
+
+    $identity = Get-StableAreaIdentity -Seed ([string]$area.identitySeed)
+    foreach (
+        $identityCheck in @(
+            @($seenEntityIds, [string]$identity.entityId, 'EntityId'),
+            @($seenEntityGuids, [string]$identity.entityGuid, 'EntityGuid'),
+            @($seenEntityNames, [string]$area.entityName, 'entity name'),
+            @($seenAliases, [string]$area.alias, 'area alias')
+        )
+    ) {
+        if ($identityCheck[0].ContainsKey($identityCheck[1])) {
+            throw "Duplicate investigation area $($identityCheck[2]): $($identityCheck[1])"
+        }
+        $identityCheck[0][$identityCheck[1]] = $true
+    }
+
+    $originX = [double](
+        $polygon | ForEach-Object { [double]$_.x } |
+            Measure-Object -Average
+    ).Average
+    $originY = [double](
+        $polygon | ForEach-Object { [double]$_.y } |
+            Measure-Object -Average
+    ).Average
+    $originZ = [double](
+        $area.anchors | ForEach-Object { [double]$_.z } |
+            Measure-Object -Average
+    ).Average
+    $localPointLines = @(
+        $polygon | ForEach-Object {
+            $localX = [double]$_.x - $originX
+            $localY = [double]$_.y - $originY
+            '        <Point Pos="{0},{1},-0.1" ObstructSound="0" />' -f `
+                (Format-InvariantNumber $localX), `
+                (Format-InvariantNumber $localY)
+        }
+    )
+    $entityXml = @(
+        '  <Entity Name="{0}" Pos="{1},{2},{3}" EntityClass="SmartAreaShape" EntityId="{4}" EntityGuid="{5}" CastShadowMinSpec="1" EditorLayer="Main/_quest/activity/darkpassengertest/static">' -f `
+            [Security.SecurityElement]::Escape([string]$area.entityName), `
+            (Format-InvariantNumber $originX), `
+            (Format-InvariantNumber $originY), `
+            (Format-InvariantNumber $originZ), `
+            $identity.entityId, `
+            $identity.entityGuid
+        '    <Properties guidSmartAreaTemplate="{0}" bSaved_by_game="0" />' -f `
+            [Security.SecurityElement]::Escape(
+                [string]$area.smartAreaTemplateGuid
+            )
+        '    <Area Id="0" Group="0" Proximity="0" Priority="0" Height="500">'
+        '      <Points>'
+        $localPointLines
+        '      </Points>'
+        '      <Roof ObstructSound="0" />'
+        '      <Floor ObstructSound="0" />'
+        '    </Area>'
+        '  </Entity>'
+    ) -join "`r`n"
+
+    $xs = @($polygon | ForEach-Object { [double]$_.x })
+    $ys = @($polygon | ForEach-Object { [double]$_.y })
+    [pscustomobject]@{
+        id = [string]$area.id
+        gameRegion = [string]$area.gameRegion
+        settlement = [string]$area.settlement
+        alias = [string]$area.alias
+        entityName = [string]$area.entityName
+        entityId = [int]$identity.entityId
+        entityGuid = [string]$identity.entityGuid
+        vertexCount = $polygon.Count
+        anchorCount = $area.anchors.Count
+        residentAnchorCount = @(
+            $area.anchors | Where-Object { $_.kind -eq 'resident' }
+        ).Count
+        poiAnchorCount = @(
+            $area.anchors | Where-Object { $_.kind -eq 'poi' }
+        ).Count
+        polygonArea = [math]::Abs((Get-PolygonSignedArea -Polygon $polygon))
+        bounds = [ordered]@{
+            minX = ($xs | Measure-Object -Minimum).Minimum
+            maxX = ($xs | Measure-Object -Maximum).Maximum
+            minY = ($ys | Measure-Object -Minimum).Minimum
+            maxY = ($ys | Measure-Object -Maximum).Maximum
+        }
+        origin = [ordered]@{ x = $originX; y = $originY; z = $originZ }
+        polygon = $polygon
+        entityXml = $entityXml
+    }
+}
+
+foreach (
+    $regionGroup in @(
+        $areaOutputs | Group-Object gameRegion | Sort-Object Name
+    )
+) {
+    $regionId = [string]$regionGroup.Name
+    $region = $regionContracts[$regionId]
+    $orderedAreas = @($regionGroup.Group | Sort-Object id)
+    $entityFragmentText = @(
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<Objects>'
+        ($orderedAreas | ForEach-Object { $_.entityXml })
+        '</Objects>'
+        ''
+    ) -join "`r`n"
+    Write-Utf8NoBom `
+        -LiteralPath (Join-Path $GeneratedRoot "$regionId.entities.xml") `
+        -Text $entityFragmentText
+
+    $areaWaitingLinks = @(
+        $orderedAreas | ForEach-Object {
+            @(
+                '    <WaitingLink SourceId="{0}" TargetId="{1}">' -f `
+                    $region.questHolderGuid, $_.entityGuid
+                '      <LinkDefinition>asset[&apos;{0}&apos;]</LinkDefinition>' -f `
+                    [Security.SecurityElement]::Escape([string]$_.alias)
+                '    </WaitingLink>'
+            ) -join "`r`n"
+        }
+    )
+    $waitingLinksText = @(
+        '<?xml version="1.0" encoding="us-ascii"?>'
+        '<StaticLinksInfo version="1">'
+        '  <WaitingLinks>'
+        ('    <WaitingLink SourceId="{0}" TargetId="{1}">' -f `
+            $region.levelHolderGuid, $region.questHolderGuid)
+        '      <LinkDefinition>module</LinkDefinition>'
+        '    </WaitingLink>'
+        $areaWaitingLinks
+        '  </WaitingLinks>'
+        '  <StreamableTargets />'
+        '</StaticLinksInfo>'
+        ''
+    ) -join "`r`n"
+    $waitingLinksPath = Join-Path $StageRoot `
+        "Data\Levels\$regionId\waitinglinks.xml"
+    Write-Utf8NoBom -LiteralPath $waitingLinksPath -Text $waitingLinksText
+}
+
+$manifestAreas = @(
+    $areaOutputs | Sort-Object gameRegion, id | ForEach-Object {
+        [ordered]@{
+            id = $_.id
+            gameRegion = $_.gameRegion
+            settlement = $_.settlement
+            alias = $_.alias
+            entityName = $_.entityName
+            entityId = $_.entityId
+            entityGuid = $_.entityGuid
+            vertexCount = $_.vertexCount
+            anchorCount = $_.anchorCount
+            residentAnchorCount = $_.residentAnchorCount
+            poiAnchorCount = $_.poiAnchorCount
+            polygonArea = $_.polygonArea
+            bounds = $_.bounds
+            origin = $_.origin
+        }
+    }
+)
+$manifest = [ordered]@{
+    schemaVersion = 1
+    areas = $manifestAreas
+}
+Write-Utf8NoBom `
+    -LiteralPath (Join-Path $GeneratedRoot 'manifest.json') `
+    -Text (($manifest | ConvertTo-Json -Depth 100) + "`n")
+
+$luaLines = [Collections.Generic.List[string]]::new()
+$luaLines.Add('DarkPassengerInvestigationAreaCatalog = {')
+$luaLines.Add('    schemaVersion = 1,')
+foreach (
+    $regionGroup in @(
+        $areaOutputs | Group-Object gameRegion | Sort-Object Name
+    )
+) {
+    $regionId = [string]$regionGroup.Name
+    $region = $regionContracts[$regionId]
+    $luaLines.Add(
+        '    ["{0}"] = {{' -f (Escape-LuaString $regionId)
+    )
+    $luaLines.Add(
+        '        levelHolderName = "{0}",' -f
+            (Escape-LuaString ([string]$region.levelHolderName))
+    )
+    $luaLines.Add(
+        '        questHolderName = "{0}",' -f
+            (Escape-LuaString ([string]$region.questHolderName))
+    )
+    foreach ($area in @($regionGroup.Group | Sort-Object id)) {
+        $luaLines.Add(
+            '        ["{0}"] = {{' -f (Escape-LuaString $area.id)
+        )
+        $luaLines.Add(
+            '            alias = "{0}",' -f (Escape-LuaString $area.alias)
+        )
+        $luaLines.Add(
+            '            entityName = "{0}",' -f
+                (Escape-LuaString $area.entityName)
+        )
+        $luaLines.Add(
+            '            entityGuid = "{0}",' -f
+                (Escape-LuaString $area.entityGuid)
+        )
+        $luaLines.Add('        },')
+    }
+    $luaLines.Add('    },')
+}
+$luaLines.Add('}')
+$luaLines.Add('')
+$luaCatalogPath = Join-Path $StageRoot `
+    'Data\Scripts\mods\generated\dp_investigation_area_catalog.lua'
+Write-Utf8NoBom `
+    -LiteralPath $luaCatalogPath `
+    -Text ($luaLines -join "`r`n")
+
 Write-Host (
-    'Prepared investigation area anchors: ' +
+    'Generated investigation areas: ' +
     (($generatedAreas | ForEach-Object {
-        "$($_.gameRegion)/$($_.settlement)=$($_.anchors.Count)"
+        "$($_.gameRegion)/$($_.settlement) anchors=$($_.anchors.Count)"
     }) -join ', ')
 )
