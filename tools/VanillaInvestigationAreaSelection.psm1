@@ -33,26 +33,26 @@ function ConvertFrom-InvariantVector {
 function ConvertTo-VanillaAreaPolygon {
     param([Parameter(Mandatory)]$AreaObject)
 
-    $pointsNode = $AreaObject.Points
+    $pointsNode = $AreaObject.SelectSingleNode('Points')
     if ($null -eq $pointsNode) {
         return @()
     }
 
     $position = @(
         ConvertFrom-InvariantVector `
-            -Value ([string]$AreaObject.Pos) `
+            -Value ([string]$AreaObject.GetAttribute('Pos')) `
             -Default @(0.0, 0.0, 0.0) `
             -Length 3
     )
     $scale = @(
         ConvertFrom-InvariantVector `
-            -Value ([string]$AreaObject.Scale) `
+            -Value ([string]$AreaObject.GetAttribute('Scale')) `
             -Default @(1.0, 1.0, 1.0) `
             -Length 3
     )
     $rotation = @(
         ConvertFrom-InvariantVector `
-            -Value ([string]$AreaObject.Rotate) `
+            -Value ([string]$AreaObject.GetAttribute('Rotate')) `
             -Default @(1.0, 0.0, 0.0, 0.0) `
             -Length 4
     )
@@ -72,7 +72,7 @@ function ConvertTo-VanillaAreaPolygon {
         foreach ($point in @($pointsNode.Point)) {
             $local = @(
                 ConvertFrom-InvariantVector `
-                    -Value ([string]$point.Pos) `
+                    -Value ([string]$point.GetAttribute('Pos')) `
                     -Default @(0.0, 0.0, 0.0) `
                     -Length 3
             )
@@ -117,7 +117,12 @@ function Get-PolygonSurfaceArea {
 }
 
 function Test-VanillaAreaGeometry {
-    param([Parameter(Mandatory)][object[]]$Polygon)
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Polygon,
+        [switch]$SkipSelfIntersection
+    )
 
     if ($Polygon.Count -lt 3) {
         return [pscustomobject]@{ valid = $false; reason = 'too_few_points' }
@@ -132,7 +137,10 @@ function Test-VanillaAreaGeometry {
             return [pscustomobject]@{ valid = $false; reason = 'non_finite' }
         }
     }
-    if (Test-PolygonSelfIntersection -Polygon $Polygon) {
+    if (
+        -not $SkipSelfIntersection -and
+        (Test-PolygonSelfIntersection -Polygon $Polygon)
+    ) {
         return [pscustomobject]@{
             valid = $false
             reason = 'self_intersection'
