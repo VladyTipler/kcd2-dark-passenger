@@ -42,10 +42,10 @@ SkipTime presentation.
 
 ### Phase 3 — Investigation
 
-- [ ] Reveal a search area before revealing the target
+- [x] Reveal a search area before revealing the target
 - [ ] Generate coherent clues, rumors, letters, and witness accounts
-- [ ] Track hidden confidence while the player investigates
-- [ ] Reveal the personal marker only after sufficient evidence
+- [x] Track hidden confidence while the player investigates
+- [x] Reveal the personal marker only after sufficient evidence
 - [ ] Add multiple investigation archetypes and complications
 
 ### Phase 4 — A world that notices
@@ -62,6 +62,15 @@ SkipTime presentation.
 - [ ] Complete English and Russian localization
 - [ ] Package public test builds and collect feedback
 - [ ] Prepare Nexus Mods and Steam Workshop releases
+
+### Future developer tooling — KCD2 Quest SDK
+
+- [ ] Extract the proven Lua↔quest bridges into a developer-first QuestKit
+- [ ] Compile a declarative `.quest.lua` spec into native XML, localization and signals
+- [ ] Provide save-safe events, objectives, markers, diagnostics and packaging
+- [ ] Prove the framework on Dark Passenger and a second independent quest
+
+See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 
 ## Repository layout
 
