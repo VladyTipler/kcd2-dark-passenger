@@ -725,6 +725,183 @@ function DarkPassengerTarget.DumpActiveObjectives()
     return true
 end
 
+DarkPassengerAreaBridge = DarkPassengerAreaBridge or {}
+DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"
+DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"
+DarkPassengerAreaBridge.TARGET_NAME = "kpri_publicEnemiesRepulsionZoneVillageArea_1"
+DarkPassengerAreaBridge.LINK_NAME = "asset['DP_PritokySearchArea']"
+DarkPassengerAreaBridge.POLL_INTERVAL_MS = 500
+DarkPassengerAreaBridge.MAX_ATTEMPTS = 120
+DarkPassengerAreaBridge.pollGeneration =
+    DarkPassengerAreaBridge.pollGeneration or 0
+
+local function AreaLog(message)
+    if System ~= nil and System.LogAlways ~= nil then
+        System.LogAlways("[DarkPassengerArea] " .. tostring(message))
+    end
+end
+
+local function HasModuleLink(source, target)
+    local okCount, linkCount = pcall(function()
+        return source:CountLinks()
+    end)
+    if not okCount or type(linkCount) ~= "number" then
+        return false
+    end
+    for index = 0, linkCount - 1 do
+        local okLink, linkTarget, linkName = pcall(function()
+            return source:GetLink(index)
+        end)
+        if okLink and linkTarget ~= nil and linkName == "module" and
+           linkTarget.id == target.id then
+            return true
+        end
+    end
+    return false
+end
+
+function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
+    if source == nil or source.id == nil or target == nil or
+       target.id == nil or source.CountLinks == nil or
+       source.GetLink == nil or source.CreateLink == nil then
+        AreaLog(tostring(label) .. " link API unavailable")
+        return false
+    end
+    if HasModuleLink(source, target) then
+        return true
+    end
+    local okCreate, createError = pcall(function()
+        source:CreateLink("module", target.id)
+    end)
+    if not okCreate then
+        AreaLog(tostring(label) .. " CreateLink failed error=" .. tostring(createError))
+        return false
+    end
+    if HasModuleLink(source, target) then
+        AreaLog("linked " .. tostring(label))
+        return true
+    end
+    AreaLog(tostring(label) .. " CreateLink returned without verification")
+    return false
+end
+
+function DarkPassengerAreaBridge.EnsureLinked()
+    if System == nil or System.GetEntityByName == nil then
+        return false
+    end
+
+    local levelHolder =
+        System.GetEntityByName(DarkPassengerAreaBridge.LEVEL_HOLDER_NAME)
+    local holder = System.GetEntityByName(DarkPassengerAreaBridge.HOLDER_NAME)
+    local target = System.GetEntityByName(DarkPassengerAreaBridge.TARGET_NAME)
+    if levelHolder == nil or levelHolder.id == nil or
+       holder == nil or holder.id == nil or
+       target == nil or target.id == nil then
+        return false
+    end
+    if holder.GetLinkTarget == nil or
+       holder.CreateLink == nil then
+        AreaLog("holder link API unavailable")
+        return false
+    end
+
+    if not DarkPassengerAreaBridge.EnsureModuleLink(levelHolder, holder, "LevelHolder to Quest holder") then
+        return false
+    end
+
+    local okExisting, existing = pcall(function()
+        return holder:GetLinkTarget(DarkPassengerAreaBridge.LINK_NAME, 0)
+    end)
+    if okExisting and existing ~= nil and existing.id == target.id then
+        return true
+    end
+    if okExisting and existing ~= nil then
+        AreaLog(
+            "alias already points to another entity id=" ..
+            tostring(existing.id)
+        )
+        return false
+    end
+
+    local okCreate, createError = pcall(function()
+        holder:CreateLink(DarkPassengerAreaBridge.LINK_NAME, target.id)
+    end)
+    if not okCreate then
+        AreaLog("CreateLink failed error=" .. tostring(createError))
+        return false
+    end
+
+    local okVerify, linkedTarget = pcall(function()
+        return holder:GetLinkTarget(DarkPassengerAreaBridge.LINK_NAME, 0)
+    end)
+    if okVerify and linkedTarget ~= nil and linkedTarget.id == target.id then
+        AreaLog(
+            "linked holder=" .. DarkPassengerAreaBridge.HOLDER_NAME ..
+            " alias=" .. DarkPassengerAreaBridge.LINK_NAME ..
+            " target=" .. DarkPassengerAreaBridge.TARGET_NAME ..
+            " id=" .. tostring(target.id)
+        )
+        return true
+    end
+
+    AreaLog("CreateLink returned without a verifiable target")
+    return false
+end
+
+local function ScheduleAreaLinkPoll(generation, attempt)
+    if Script == nil or Script.SetTimerForFunction == nil then
+        AreaLog("poll unavailable: Script.SetTimerForFunction is nil")
+        return false
+    end
+    local ok, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            DarkPassengerAreaBridge.POLL_INTERVAL_MS,
+            "DarkPassengerAreaBridge.Poll",
+            { generation = generation, attempt = attempt }
+        )
+    end)
+    if not ok then
+        AreaLog("poll scheduling failed error=" .. tostring(timerOrError))
+        return false
+    end
+    return true
+end
+
+function DarkPassengerAreaBridge.Poll(userData, timerId)
+    local generation =
+        userData ~= nil and tonumber(userData.generation) or nil
+    local attempt = userData ~= nil and tonumber(userData.attempt) or 1
+    if generation ~= DarkPassengerAreaBridge.pollGeneration then
+        return
+    end
+    if DarkPassengerAreaBridge.EnsureLinked() then
+        AreaLog("ready attempt=" .. tostring(attempt))
+        return
+    end
+    if attempt >= DarkPassengerAreaBridge.MAX_ATTEMPTS then
+        AreaLog("poll exhausted attempts=" .. tostring(attempt))
+        return
+    end
+    ScheduleAreaLinkPoll(generation, attempt + 1)
+end
+
+function DarkPassengerAreaBridge.StartPolling(reason)
+    DarkPassengerAreaBridge.pollGeneration =
+        DarkPassengerAreaBridge.pollGeneration + 1
+    local generation = DarkPassengerAreaBridge.pollGeneration
+    AreaLog(
+        "poll started reason=" .. tostring(reason) ..
+        " generation=" .. tostring(generation)
+    )
+    if DarkPassengerAreaBridge.EnsureLinked() then
+        AreaLog("ready attempt=0")
+        return true
+    end
+    return ScheduleAreaLinkPoll(generation, 1)
+end
+
+DarkPassengerAreaBridge.StartPolling("script_load")
+
 DarkPassengerQuestBridge = DarkPassengerQuestBridge or {}
 DarkPassengerQuestBridge.REQUESTS = {
     {
@@ -2112,6 +2289,7 @@ if PlayerEventDispatcher ~= nil then
         PlayerEventDispatcher:Register("BasicAIActionsOnGrabCorpse",  function(...) return DarkPassengerTest.OnGrabCorpse(...) end)
         PlayerEventDispatcher:Register("OnReloadEvent", function(...)
             EnsureVictimAwareActionHooks()
+            DarkPassengerAreaBridge.StartPolling("player_reload")
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_reload")
@@ -2124,6 +2302,7 @@ if PlayerEventDispatcher ~= nil then
         end)
         PlayerEventDispatcher:Register("OnInitEvent", function(...)
             EnsureVictimAwareActionHooks()
+            DarkPassengerAreaBridge.StartPolling("player_init")
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_init")

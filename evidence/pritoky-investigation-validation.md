@@ -57,3 +57,74 @@
 - Deployment comparison: 29 source files, 29 target files, no extras, all SHA-256 hashes equal.
 - Post-deployment structural/build suite: `RESULT: PASS (843 checks)`.
 - Runtime validation remains pending.
+
+## Waiting-links live correction - 2026-07-31
+
+- The first deployed two-link `waitinglinks.xml` failed live validation.
+- `dark_within_k` loaded as `SmartObjectHolder`, but `CountLinks()` returned `0`.
+- The Kuttenberg `LevelHolder` had `342` links and no `module` link to the custom holder.
+- The base `level.pak` also contains exactly `342` links sourced from the Kuttenberg holder and no reference to the custom holder.
+- The quest restore added one `unable to resolve marker:'DP_PritokySearchArea'` error.
+- Root cause evidence: the engine resolved the vanilla `waitinglinks.xml`; the small mod-owned file did not merge with the same virtual path in the base level pak.
+- The build now extracts the current game's full Kuttenberg `waitinglinks.xml`, appends exactly the two Dark Passenger links, preserves all vanilla links and streamable targets, and packages the merged result.
+- Generated merge: `142411` waiting links, `343` Kuttenberg holder sources, `2` custom-holder references, `62160` streamable targets.
+- Dev-only `user.cfg` uses `sys_PakPriority = 3` (`not-in pak mod file first`) so loose mod level data remains compatible with Lua hot reload. This setting is not shipped in the mod or retail deployment.
+- Structural/build suite: `RESULT: PASS (847 checks)`.
+- Repeated builds produced identical hashes for the main pak, level pak, merged waiting links and `whdata_1`.
+- New main pak SHA-256: `8D0AD17B2EB6F2AE2F4627009E09EF1DB20227752E929404754EDEC7A93640A6`.
+- New level pak SHA-256: `E9C77C22F36085C81DE7C98DD1718466F212AC34801A08E0AA1E497BB839D84A`.
+- New merged waiting-links SHA-256: `FEAC7BE5C9B302B8F42F67B4D16972732CFCF5D61EAD391BBB610553C17EFD2F`.
+- Transactional dev deployment completed at `2026-07-31 17:50:47`.
+- Recoverable deployment backup: `H:\KCD2Mod\_deployment-backups\deploy-20260731-175047`.
+- Deployment contains `30` Dark Passenger files and `5` Skip Time Extreme files; the previous Dark Passenger and Skip Time Fast folders are preserved in the backup.
+- All four Dark Passenger source/deployment archive hashes are equal; all four Dark Passenger and both Skip Time Extreme pak files open successfully as ZIP archives.
+- Deployed level pak contains the expected `24600140`-byte merged waiting-links entry with `142411` waiting links, `343` Kuttenberg holder sources, `2` custom-holder references and `62160` streamable targets.
+- Post-deployment structural/build suite: `RESULT: PASS (847 checks)`; `dpinvestigation.lua` and `darkpassengertest.lua` pass the KCD2 Lua compiler parse check.
+- Corrected runtime marker validation remains pending one dev launch.
+
+## Native search-area marker live proof - 2026-08-01
+
+- The Pritoky search area was visibly rendered in a cold dev-build quest cycle.
+- The active objective uses `Marker="DP_PritokySearchArea"`; the fresh log slice
+  contains `PlayAudio: quest_started` and no
+  `unable to resolve marker:'DP_PritokySearchArea'` error.
+- A complete runtime link chain under the standalone
+  `darkpassengertest.kutnohorsko` project was not sufficient. The marker
+  resolver still rejected the alias even when live diagnostics proved the
+  Project, Level, Quest holder and TriggerArea links existed.
+- The working quest path is `Barbora.kutnohorsko.dark_within_k`. The build
+  extracts the current vanilla `Quests/Final/Barbora/kutnohorsko.xml` from the
+  installed `Scripts.pak`, injects one definition and one quest node, validates
+  the result as XML, and never ships the small patch descriptor itself.
+- The world-side contract is:
+  `kutnohorsko` LevelHolder `10702dff-9271-4a74` ->
+  `dark_within_k` SmartObjectHolder `f4a73e20-28c5-4bd2` via `module` ->
+  Pritoky TriggerArea `d0fa0ece-6af5-19f6` via
+  `asset['DP_PritokySearchArea']`.
+- `DarkPassengerAreaBridge` only repairs or verifies those live links after
+  streaming; it does not create the quest namespace. A fresh load logged
+  `[DarkPassengerArea] ready attempt=0`.
+- Compatibility caveat: the generated regional Barbora parent is a full
+  current-base merge. Another mod replacing the same virtual
+  `Quests/Final/Barbora/kutnohorsko.xml` path can conflict and will eventually
+  need a deterministic shared merger or Quest SDK integration layer.
+- Fresh post-proof verification: `RESULT: PASS (853 checks)` and
+  `RESULT: PASS (dev loose level overlay)`.
+
+## Investigation threshold end-to-end proof - 2026-08-01
+
+- A live Pritoky case persisted its investigation state across save/load:
+  `generation=5`, `target slot=905`, `confidence=69`, `revealed=false`, and
+  `revealDispatched=false` remained unchanged after loading.
+- Adding one evidence point through
+  `DarkPassengerInvestigation.AddEvidence(1, "live_70")` crossed the configured
+  threshold exactly once.
+- The runtime logged `target revealed generation=5 confidence=70` and persisted
+  `revealed=true` plus `revealDispatched=true`.
+- The quest completed the search-area objective, advanced to the selected-target
+  objective, played the native objective sound, and visibly rendered the marker
+  on the selected NPC.
+- No fresh marker-resolution error appeared in the test log.
+- This proves the complete investigation spine in the dev build:
+  search area -> persistent hidden confidence -> threshold 70 -> quest progress
+  -> native target marker.

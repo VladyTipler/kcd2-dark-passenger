@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database name="barbora" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../database.xsd">
+  <SmartEntitys version="1">
+    <SmartEntityTemplate DatabaseId="a125563a-5dfe-428f-9581-d218e82b849f" Name="dark_within_k" UpdatePriority="false" />
+  </SmartEntitys>
+</database>

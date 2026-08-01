@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LevelPatch>
+  <Definition File="kutnohorsko/dark_within_k.xml" />
+  <Node>
+    <dark_within_k Name="dark_within_k" RequiredForOutput="kutnohorsko">
+      <Edge From="OnWake" To="arm" />
+    </dark_within_k>
+  </Node>
+</LevelPatch>

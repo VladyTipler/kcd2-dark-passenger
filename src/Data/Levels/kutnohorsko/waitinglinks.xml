@@ -1,6 +1,12 @@
-<?xml version="1.0" encoding="utf-8"?>
-<WaitingLinks>
-  <WaitingLink SourceId="9da1237b-bbc0-49f5" TargetId="d0fa0ece-6af5-19f6">
-    <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
-  </WaitingLink>
-</WaitingLinks>
+<?xml version="1.0" encoding="us-ascii"?>
+<StaticLinksInfo version="1">
+  <WaitingLinks>
+    <WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">
+      <LinkDefinition>module</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
+    </WaitingLink>
+  </WaitingLinks>
+  <StreamableTargets />
+</StaticLinksInfo>

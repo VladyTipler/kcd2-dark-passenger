@@ -3,11 +3,9 @@
   <Skald>
     <Project Name="darkpassengertest">
       <Definitions>
-        <Definition File="darkpassengertest/kutnohorsko.xml" />
         <Definition File="darkpassengertest/trosecko.xml" />
       </Definitions>
       <Nodes>
-        <kutnohorsko Name="kutnohorsko" PositionY="-370" PositionX="720" />
         <trosecko Name="trosecko" PositionY="-370" PositionX="1200" />
       </Nodes>
       <Text Text="darkpassengertest" />

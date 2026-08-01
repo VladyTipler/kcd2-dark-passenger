@@ -19,9 +19,13 @@ $tagPath = "$stageRoot\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml"
 $buffClassPath = "$stageRoot\Data\Libs\Tables\rpg\buff_class__darkpassengertest.xml"
 $buffPath = "$stageRoot\Data\Libs\Tables\rpg\buff__darkpassengertest.xml"
 $scriptContextPath = "$stageRoot\Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml"
-$questPath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml"
+$smartEntityPath =
+    "$stageRoot\Data\Libs\Tables\ai\smartEntity\SmartEntity__darkpassengertest.xml"
+$questPath = "$stageRoot\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml"
 $troskyQuestPath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml"
-$levelPath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko.xml"
+$levelPath = "$stageRoot\Data\Quests\Final\Barbora\kutnohorsko.xml"
+$standaloneKuttenbergLevelPath =
+    "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko.xml"
 $troskyLevelPath = "$stageRoot\Data\Quests\darkpassengertest\trosecko.xml"
 $projectPath = "$stageRoot\Data\Quests\darkpassengertest.xml"
 $luaPath = "$stageRoot\Data\Scripts\mods\dpsatisfaction.lua"
@@ -35,7 +39,14 @@ $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
 $kuttenbergLevelRoot = "$stageRoot\Data\Levels\kutnohorsko"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
-$kuttenbergLayersRoot = "$stageRoot\Data\Levels\kutnohorsko\layers"
+$kuttenbergObjectsMissionPath =
+    "$stageRoot\Data\Levels\kutnohorsko\objects_mission0.xml"
+$sourceWaitingLinksPath =
+    "$testRoot\src\Data\Levels\kutnohorsko\waitinglinks.xml"
+$sourceMissionObjectsPatchPath =
+    "$testRoot\src\Data\Levels\kutnohorsko\objects_mission0.patch.xml"
+$barboraKuttenbergPatchPath =
+    "$testRoot\src\Data\Quests\Final\Barbora\kutnohorsko.patch.xml"
 $candidateCatalogPath = "$testRoot\config\victim-candidates.json"
 $generatorPath = "$testRoot\tools\Generate-VictimArtifacts.ps1"
 $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template"
@@ -50,6 +61,8 @@ $generatedCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_candidate_
 $questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item_catalog.lua"
 $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
 $kuttenbergWaitingLinksPath = "$stageRoot\Data\Levels\kutnohorsko\waitinglinks.xml"
+$kuttenbergBaseLevelPakPath =
+    Join-Path $DevGameRoot 'Data\Levels\kutnohorsko\level.pak'
 $assetLinkerRoot = $ReferenceDataRoot
 $kuttenbergBaseWaitingLinksPath = "$assetLinkerRoot\kutnohorsko\kut_waitinglinks.xml"
 $kuttenbergObjectsPath = "$assetLinkerRoot\kutnohorsko\kut_objects_mission0.xml"
@@ -59,6 +72,7 @@ $worldExporterPath = "$testRoot\tools\Export-WorldVictimCandidates.ps1"
 $catalogBuilderPath = "$testRoot\tools\Build-VictimCatalog.ps1"
 $victimPolicyPath = "$testRoot\config\victim-policy.json"
 $rawWorldCandidatesPath = "$testRoot\evidence\world-candidates.raw.json"
+$buildScriptPath = "$testRoot\tools\Build-Mod.ps1"
 $englishPath = "$testRoot\localization\English\text__darkpassengertest.xml"
 $russianPath = "$testRoot\localization\Russian\text__darkpassengertest.xml"
 
@@ -231,6 +245,8 @@ $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
+$kuttenbergObjectsMissionText =
+    Read-OptionalText -LiteralPath $kuttenbergObjectsMissionPath
 $levelText = Read-OptionalText -LiteralPath $levelPath
 $troskyLevelText = Read-OptionalText -LiteralPath $troskyLevelPath
 $projectText = Read-OptionalText -LiteralPath $projectPath
@@ -246,26 +262,37 @@ $witnessDetectorLuaText =
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
 $questItemCatalogLuaText =
     Read-OptionalText -LiteralPath $questItemCatalogLuaPath
+$buildScriptText = Read-OptionalText -LiteralPath $buildScriptPath
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
-$kuttenbergLayerFiles = @()
-if (Test-Path -LiteralPath $kuttenbergLayersRoot) {
-    $kuttenbergLayerFiles = @(
-        Get-ChildItem -LiteralPath $kuttenbergLayersRoot -File -Filter '*.xml'
+$baseWaitingLinkCount = -1
+$baseRegionModuleLinkCount = -1
+$baseStreamableTargetCount = -1
+$sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
+if (
+    $sevenZip -and
+    (Test-Path -LiteralPath $kuttenbergBaseLevelPakPath)
+) {
+    $baseWaitingLinksLines = @(
+        & $sevenZip x -so `
+            $kuttenbergBaseLevelPakPath 'waitinglinks.xml'
     )
-}
-$pritokyAreaLayerFile = $kuttenbergLayerFiles |
-    Where-Object {
-        (Read-OptionalText -LiteralPath $_.FullName).Contains(
-            "asset[&apos;DP_PritokySearchArea&apos;]"
-        )
-    } |
-    Select-Object -First 1
-$pritokyAreaLayerText = ''
-if ($null -ne $pritokyAreaLayerFile) {
-    $pritokyAreaLayerText =
-        Read-OptionalText -LiteralPath $pritokyAreaLayerFile.FullName
+    if ($LASTEXITCODE -eq 0) {
+        $baseWaitingLinkCount = @(
+            $baseWaitingLinksLines |
+                Select-String -SimpleMatch '<WaitingLink '
+        ).Count
+        $baseRegionModuleLinkCount = @(
+            $baseWaitingLinksLines |
+                Select-String -SimpleMatch `
+                    'SourceId="10702dff-9271-4a74"'
+        ).Count
+        $baseStreamableTargetCount = @(
+            $baseWaitingLinksLines |
+                Select-String -SimpleMatch '<StreamableTarget '
+        ).Count
+    }
 }
 
 Add-Result (
@@ -550,23 +577,116 @@ Add-Result (
     )
 ) 'active search objective uses the Pritoky area marker'
 Add-Result (
-    (Test-Path -LiteralPath $kuttenbergWaitingLinksPath) -and
-    $kuttenbergWaitingLinksText.Contains(
-        "<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>"
-    ) -and
-    $kuttenbergWaitingLinksText.Contains(
-        'TargetId="d0fa0ece-6af5-19f6"'
-    )
-) 'Asset Linker maps the quest area alias to the existing Pritoky TriggerArea'
+    -not $questText.Contains('DP_PritokySearchProfile') -and
+    -not $questText.Contains('pritokySearchAreaProfile')
+) 'search marker does not depend on a quest-activated custom holder profile'
 Add-Result (
-    $null -ne $pritokyAreaLayerFile -and
-    $pritokyAreaLayerText.Contains('EntityClass="SmartObjectHolder"') -and
-    $pritokyAreaLayerText.Contains('Name="dark_within_k"') -and
-    $pritokyAreaLayerText.Contains(
-        "asset[&apos;DP_PritokySearchArea&apos;]"
+    (Test-Path -LiteralPath $sourceWaitingLinksPath) -and
+    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
+        '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
     ) -and
-    $pritokyAreaLayerText.Contains('TargetGuid="d0fa0ece-6af5-19f6"')
-) 'mod level layer hosts the dark_within_k area asset binding'
+    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
+        '<LinkDefinition>module</LinkDefinition>'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
+        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceWaitingLinksPath).Contains(
+        '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
+    )
+) 'source links bind the Barbora Kuttenberg LevelHolder through the Quest holder to the TriggerArea'
+Add-Result (
+    (Test-Path -LiteralPath $sourceMissionObjectsPatchPath) -and
+    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'Name="dark_within_k"'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'EntityClass="SmartObjectHolder"'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'EntityGuid="f4a73e20-28c5-4bd2"'
+    ) -and
+    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'Name="darkpassengertest"'
+    ) -and
+    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'EntityClass="LevelHolder"'
+    )
+) 'source mission-object patch declares only the Barbora-owned Quest holder'
+Add-Result (
+    (Test-Path -LiteralPath $barboraKuttenbergPatchPath) -and
+    (Read-OptionalText -LiteralPath $barboraKuttenbergPatchPath).Contains(
+        '<Definition File="kutnohorsko/dark_within_k.xml" />'
+    ) -and
+    (Read-OptionalText -LiteralPath $barboraKuttenbergPatchPath).Contains(
+        '<dark_within_k Name="dark_within_k" RequiredForOutput="kutnohorsko">'
+    )
+) 'Barbora Kuttenberg patch registers the Dark Passenger quest module'
+Add-Result (
+    (Test-Path -LiteralPath $smartEntityPath) -and
+    (Read-OptionalText -LiteralPath $smartEntityPath).Contains(
+        '<SmartEntityTemplate DatabaseId="a125563a-5dfe-428f-9581-d218e82b849f" Name="dark_within_k" UpdatePriority="false" />'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'guidSmartObjectType="a125563a-5dfe-428f-9581-d218e82b849f"'
+    ) -and
+    (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'bSaved_by_game="0"'
+    ) -and
+    -not (Read-OptionalText -LiteralPath $sourceMissionObjectsPatchPath).Contains(
+        'guidSmartObjectType="4b788bc8-65da-444f-9dee-017bdcb43970"'
+    )
+) 'quest holder uses its own registered SmartEntity type instead of a foreign quest type'
+Add-Result (
+    (Test-Path -LiteralPath $kuttenbergWaitingLinksPath) -and
+    $baseWaitingLinkCount -ge 0 -and
+    ([regex]::Matches(
+        $kuttenbergWaitingLinksText,
+        '<WaitingLink '
+    ).Count -eq ($baseWaitingLinkCount + 2)) -and
+    ([regex]::Matches(
+        $kuttenbergWaitingLinksText,
+        '<StreamableTarget '
+    ).Count -eq $baseStreamableTargetCount) -and
+    $kuttenbergWaitingLinksText.Contains(
+        '<WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">'
+    ) -and
+    $kuttenbergWaitingLinksText.Contains(
+        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">'
+    ) -and
+    $kuttenbergWaitingLinksText.Contains(
+        '<LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>'
+    )
+) 'generated waitinglinks preserve the full vanilla registry and append the Barbora quest chain'
+Add-Result (
+    (Test-Path -LiteralPath $kuttenbergObjectsMissionPath) -and
+    $kuttenbergObjectsMissionText -match (
+        '(?s)<Entity\b(?=[^>]*Name="kutnohorsko")' +
+        '(?=[^>]*EntityClass="LevelHolder")' +
+        '(?=[^>]*EntityGuid="10702dff-9271-4a74")[^>]*>.*?' +
+        '<Link TargetId="1831841" TargetGuid="00000000-0000-0000" ' +
+        'Name="module" />.*?</Entity>'
+    ) -and
+    $kuttenbergObjectsMissionText -match (
+        '(?s)<Entity\b[^>]*Name="dark_within_k"[^>]*' +
+        'EntityGuid="f4a73e20-28c5-4bd2".*?' +
+        '<Link TargetId="\d+" TargetGuid="00000000-0000-0000" ' +
+        'Name="asset\[''DP_PritokySearchArea''\]" />'
+    ) -and
+    ([regex]::Matches(
+        $kuttenbergObjectsMissionText,
+        "asset\['DP_PritokySearchArea'\]"
+    ).Count -eq 1) -and
+    -not $kuttenbergObjectsMissionText.Contains(
+        'TargetGuid="d0fa0ece-6af5-19f6" Name="asset[''DP_PritokySearchArea'']"'
+    ) -and
+    -not $kuttenbergObjectsMissionText.Contains(
+        'EntityGuid="b8bf53a6-8c3a-41c9"'
+    ) -and
+    -not $kuttenbergObjectsMissionText.Contains(
+        'EntityGuid="c1d9358b-7f4e-4a26"'
+    )
+) 'generated mission objects attach the quest and area to the vanilla Barbora LevelHolder'
 
 $questXml = $null
 try {
@@ -870,7 +990,26 @@ Add-Result (
     )
 ) 'both regional victim-selection and death contexts are registered'
 
-Add-Result ($levelText.Contains('<Edge From="OnWake" To="arm"')) 'Kuttenberg level arms quest watcher'
+Add-Result (
+    $levelText.Contains(
+        '<Definition File="kutnohorsko/dark_within_k.xml" />'
+    ) -and
+    $levelText -match (
+        '(?s)<dark_within_k Name="dark_within_k" ' +
+        'RequiredForOutput="kutnohorsko">.*?' +
+        '<Edge From="OnWake" To="arm" />.*?</dark_within_k>'
+    ) -and
+    ([regex]::Matches($levelText, '<Definition File=').Count -gt 100) -and
+    ([regex]::Matches($levelText, '<dark_within_k\b').Count -eq 1) -and
+    -not (Test-Path -LiteralPath $standaloneKuttenbergLevelPath) -and
+    -not $projectText.Contains(
+        '<Definition File="darkpassengertest/kutnohorsko.xml" />'
+    ) -and
+    -not $projectText.Contains('<kutnohorsko Name="kutnohorsko"') -and
+    $projectText.Contains(
+        '<Definition File="darkpassengertest/trosecko.xml" />'
+    )
+) 'Kuttenberg quest is registered once inside the full Barbora level graph'
 Add-Result ($troskyLevelText.Contains('<Edge From="OnWake" To="arm"')) 'Trosky level arms quest watcher'
 Add-Result (
     -not $levelText.Contains('dp_lua_call.xml') -and
@@ -2607,8 +2746,81 @@ Add-Result (
         'DarkPassengerTarget\.SelectNearest\(request\.region\)'
     )
 ) 'a new quest cycle discards the previous fixed settlement before reselection'
+Add-Result (
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"'
+    ) -and
+    -not $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.PROJECT_HOLDER_NAME'
+    ) -and
+    -not $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.LEVEL_HOLDER_ENTITY_ID'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.TARGET_NAME = "kpri_publicEnemiesRepulsionZoneVillageArea_1"'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.LINK_NAME = "asset[''DP_PritokySearchArea'']"'
+    )
+) 'area bridge identifies the Barbora Level and Quest holders plus vanilla area alias explicitly'
+Add-Result (
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAreaBridge.EnsureLinked()'
+    ) -and
+    $runtimeLuaText.Contains(
+        'function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)'
+    ) -and
+    $runtimeLuaText.Contains(
+        'return source:CountLinks()'
+    ) -and
+    $runtimeLuaText.Contains(
+        'return source:GetLink(index)'
+    ) -and
+    $runtimeLuaText.Contains(
+        'linkName == "module"'
+    ) -and
+    $runtimeLuaText.Contains(
+        'System.GetEntityByName(DarkPassengerAreaBridge.LEVEL_HOLDER_NAME)'
+    ) -and
+    $runtimeLuaText.Contains(
+        'holder:CreateLink(DarkPassengerAreaBridge.LINK_NAME, target.id)'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.EnsureModuleLink(' +
+        'levelHolder, holder, "LevelHolder to Quest holder"'
+    ) -and
+    $runtimeLuaText.Contains(
+        'holder:GetLinkTarget(DarkPassengerAreaBridge.LINK_NAME, 0)'
+    )
+) 'area bridge enumerates and verifies the Barbora Level-to-Quest link idempotently'
+Add-Result (
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.StartPolling("script_load")'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.StartPolling("player_reload")'
+    ) -and
+    $runtimeLuaText.Contains(
+        'DarkPassengerAreaBridge.StartPolling("player_init")'
+    )
+) 'area bridge starts before quest restore and retries on player lifecycle events'
 
-$sevenZip = (Get-Command 7z.exe -ErrorAction SilentlyContinue).Source
+Add-Result (
+    $buildScriptText.Contains('function Set-ReproducibleTimestamps') -and
+    $buildScriptText.Contains(
+        'Set-ReproducibleTimestamps -LiteralPath $resolvedBuildRoot'
+    ) -and
+    (
+        [regex]::Matches(
+            $buildScriptText,
+            '& \$sevenZip a -tzip -mx=9 -mtc=off'
+        )
+    ).Count -eq 3
+) 'all mod archives omit mutable file timestamps for reproducible packaging'
+
 if ($sevenZip -and (Test-Path -LiteralPath $pakPath)) {
     $pakMetadata = (& $sevenZip l -slt $pakPath) -join "`n"
     Add-Result (
@@ -2638,10 +2850,13 @@ Add-Result (
     $kuttenbergLevelPakIntegrity
 ) 'Kuttenberg level pak passes the 7-Zip integrity check'
 Add-Result (
+    $kuttenbergLevelPakMetadata.Contains('Path = objects_mission0.xml') -and
     $kuttenbergLevelPakMetadata.Contains('Path = waitinglinks.xml') -and
-    $kuttenbergLevelPakMetadata.Contains('Path = layers\') -and
+    -not $kuttenbergLevelPakMetadata.Contains('Path = layers\') -and
+    -not $kuttenbergLevelPakMetadata.Contains('Path = whdata_1') -and
+    -not $kuttenbergLevelPakMetadata.Contains('Path = leveldata.xml') -and
     -not $kuttenbergLevelPakMetadata.Contains('Characteristics = NTFS')
-) 'Kuttenberg level pak contains link and layer data without NTFS metadata'
+) 'Kuttenberg level pak contains both full resolver registries without NTFS metadata'
 
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_name</Cell><Cell>The Silence Within</Cell>')) 'English buff name is localized'
 Add-Result ($englishText.Contains('<Cell>dp_satisfaction_desc</Cell>')) 'English buff description is localized'
