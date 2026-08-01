@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "settlements": [
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "pritoky",
+      "displayName": {
+        "english": "Pritoky and its surroundings",
+        "russian": "Пржитоки и окрестности"
+      },
+      "primaryGuid": "d0fa0ece-6af5-19f6",
+      "forceIncludeGuids": [
+        "d2fc29a3-6787-141c",
+        "1b6b6d4e-905c-4f9e"
+      ],
+      "denyGuids": [],
+      "rationale": "Golden fixture: village residents, inn residents, and the deserter camp require the proven three-area union."
+    }
+  ]
+}

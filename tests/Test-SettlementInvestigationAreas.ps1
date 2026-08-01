@@ -41,6 +41,70 @@ function Assert-Near {
         $Message
 }
 
+function Assert-SequenceEqual {
+    param(
+        [object[]]$Actual,
+        [object[]]$Expected,
+        [string]$Message
+    )
+
+    $same = $Actual.Count -eq $Expected.Count
+    if ($same) {
+        for ($index = 0; $index -lt $Expected.Count; $index++) {
+            if ([string]$Actual[$index] -ne [string]$Expected[$index]) {
+                $same = $false
+                break
+            }
+        }
+    }
+    Assert-True $same $Message
+}
+
+function Assert-Throws {
+    param(
+        [scriptblock]$Action,
+        [string]$ExpectedPattern,
+        [string]$Message
+    )
+
+    $thrown = $false
+    try {
+        & $Action
+    }
+    catch {
+        $thrown = $_.Exception.Message -match $ExpectedPattern
+    }
+    Assert-True $thrown $Message
+}
+
+function New-TestArea {
+    param(
+        [string]$Guid,
+        [string]$Name,
+        [string]$EditorLayer,
+        [string]$Label,
+        [double]$MinX,
+        [double]$MinY,
+        [double]$MaxX,
+        [double]$MaxY
+    )
+
+    return [pscustomobject]@{
+        region = 'test-region'
+        guid = $Guid
+        name = $Name
+        editorLayer = $EditorLayer
+        label = $Label
+        polygon = @(
+            [pscustomobject]@{ x = $MinX; y = $MinY }
+            [pscustomobject]@{ x = $MaxX; y = $MinY }
+            [pscustomobject]@{ x = $MaxX; y = $MaxY }
+            [pscustomobject]@{ x = $MinX; y = $MaxY }
+        )
+        surfaceArea = ($MaxX - $MinX) * ($MaxY - $MinY)
+    }
+}
+
 [xml]$transformedAreaXml = @'
 <Object EntityClass="TriggerArea"
         Name="rotated_area"
@@ -229,5 +293,197 @@ Assert-True (
     (Get-FileHash -LiteralPath $catalogPath -Algorithm SHA256).Hash -eq
         (Get-FileHash -LiteralPath $secondCatalogPath -Algorithm SHA256).Hash
 ) 'TriggerArea catalog output is byte-for-byte deterministic'
+
+$overridePath = Join-Path `
+    $repoRoot `
+    'config\investigation-area-overrides.json'
+if (-not (Test-Path -LiteralPath $overridePath -PathType Leaf)) {
+    throw "Investigation area override policy not found: $overridePath"
+}
+$overridePolicy = Get-Content -LiteralPath $overridePath -Raw |
+    ConvertFrom-Json
+Assert-True ($overridePolicy.schemaVersion -eq 1) `
+    'investigation area overrides expose schema version 1'
+
+$technical = New-TestArea `
+    -Guid '99999999-9999-9999' `
+    -Name 'audio_sound_trigger' `
+    -EditorLayer 'Main/alpha/audio' `
+    -Label 'audio_area' `
+    -MinX 10 -MinY 0 -MaxX 14 -MaxY 4
+$technicalClass = Get-AreaSemanticClassification -Area $technical
+Assert-True (-not $technicalClass.allowed) `
+    'semantic filter rejects known technical TriggerAreas'
+Assert-True ($technicalClass.category -eq 'technical') `
+    'technical TriggerArea rejection is classified explicitly'
+
+$primary = New-TestArea `
+    -Guid '10000000-0000-0000' `
+    -Name 'alpha_publicEnemiesRepulsionZoneVillageArea_1' `
+    -EditorLayer 'Main/alpha/village/_script/crime_publicEnemiesRepulsionZone' `
+    -Label 'crime_publicEnemiesRepulsionZone' `
+    -MinX 0 -MinY 0 -MaxX 10 -MaxY 10
+$smallSupplement = New-TestArea `
+    -Guid '20000000-0000-0000' `
+    -Name 'alpha_outer_house_area' `
+    -EditorLayer 'Main/alpha/outer_house' `
+    -Label '' `
+    -MinX 10 -MinY 0 -MaxX 14 -MaxY 4
+$largeSupplement = New-TestArea `
+    -Guid '30000000-0000-0000' `
+    -Name 'alpha_outer_district_area' `
+    -EditorLayer 'Main/alpha/outer_district' `
+    -Label '' `
+    -MinX 10 -MinY -10 -MaxX 30 -MaxY 20
+$settlement = [pscustomobject]@{
+    id = 'alpha'
+    gameRegion = 'test-region'
+    center = [pscustomobject]@{ x = 5.0; y = 5.0 }
+}
+$anchors = @(
+    [pscustomobject]@{
+        id = 'resident-core'
+        position = [pscustomobject]@{ x = 2.0; y = 2.0 }
+    }
+    [pscustomobject]@{
+        id = 'resident-outside'
+        position = [pscustomobject]@{ x = 12.0; y = 2.0 }
+    }
+)
+
+Assert-Throws `
+    { Select-SettlementInvestigationAreas `
+        -Settlement $settlement `
+        -Areas @($primary) `
+        -Anchors $anchors } `
+    'Uncovered investigation anchors.*resident-outside' `
+    'primary-only selection fails when a resident remains uncovered'
+
+$hybrid = Select-SettlementInvestigationAreas `
+    -Settlement $settlement `
+    -Areas @($technical, $largeSupplement, $smallSupplement, $primary) `
+    -Anchors $anchors
+Assert-SequenceEqual `
+    @($hybrid.areaGuids) `
+    @('10000000-0000-0000', '20000000-0000-0000') `
+    'hybrid selector chooses primary plus the smallest safe supplement'
+Assert-True ($hybrid.primaryGuid -eq '10000000-0000-0000') `
+    'same-settlement public-enemy zone becomes the primary area'
+Assert-True (-not (@($hybrid.areaGuids) -contains $technical.guid)) `
+    'hybrid selector never includes a technical all-hit area'
+
+$forcedPrimary = New-TestArea `
+    -Guid '05000000-0000-0000' `
+    -Name 'alpha_publicEnemiesRepulsionZoneForcedArea_1' `
+    -EditorLayer 'Main/other/_script/crime_publicEnemiesRepulsionZone' `
+    -Label 'crime_publicEnemiesRepulsionZone' `
+    -MinX 0 -MinY 0 -MaxX 10 -MaxY 10
+$forcedExtra = New-TestArea `
+    -Guid '40000000-0000-0000' `
+    -Name 'alpha_evidence_territory' `
+    -EditorLayer 'Main/alpha/evidence' `
+    -Label '' `
+    -MinX 40 -MinY 40 -MaxX 45 -MaxY 45
+$manualOverride = [pscustomobject]@{
+    primaryGuid = $forcedPrimary.guid
+    forceIncludeGuids = @($forcedExtra.guid)
+    denyGuids = @($smallSupplement.guid)
+}
+$manual = Select-SettlementInvestigationAreas `
+    -Settlement $settlement `
+    -Areas @(
+        $primary,
+        $forcedPrimary,
+        $smallSupplement,
+        $largeSupplement,
+        $forcedExtra
+    ) `
+    -Anchors $anchors `
+    -Override $manualOverride
+Assert-True ($manual.primaryGuid -eq $forcedPrimary.guid) `
+    'manual override can force the primary area'
+Assert-True (@($manual.areaGuids) -contains $forcedExtra.guid) `
+    'manual override can force an evidence territory'
+Assert-True (-not (@($manual.areaGuids) -contains $smallSupplement.guid)) `
+    'manual deny takes precedence over automatic scoring'
+Assert-True (@($manual.areaGuids) -contains $largeSupplement.guid) `
+    'selector replaces a denied supplement with the next safe area'
+
+$tieA = New-TestArea `
+    -Guid '21000000-0000-0000' `
+    -Name 'alpha_tie_a' `
+    -EditorLayer 'Main/alpha/tie' `
+    -Label '' `
+    -MinX 10 -MinY 0 -MaxX 14 -MaxY 4
+$tieB = New-TestArea `
+    -Guid '22000000-0000-0000' `
+    -Name 'alpha_tie_b' `
+    -EditorLayer 'Main/alpha/tie' `
+    -Label '' `
+    -MinX 10 -MinY 0 -MaxX 14 -MaxY 4
+$tie = Select-SettlementInvestigationAreas `
+    -Settlement $settlement `
+    -Areas @($primary, $tieB, $tieA) `
+    -Anchors $anchors
+Assert-True (@($tie.areaGuids)[1] -eq $tieA.guid) `
+    'equal-scoring supplemental areas use stable GUID tie-breaking'
+
+$conflictingOverride = [pscustomobject]@{
+    primaryGuid = $primary.guid
+    forceIncludeGuids = @($smallSupplement.guid)
+    denyGuids = @($smallSupplement.guid)
+}
+Assert-Throws `
+    { Select-SettlementInvestigationAreas `
+        -Settlement $settlement `
+        -Areas @($primary, $smallSupplement) `
+        -Anchors $anchors `
+        -Override $conflictingOverride } `
+    'both forced and denied' `
+    'conflicting manual override fails instead of weakening deny precedence'
+
+$pritokyFixture = Get-Content `
+    -LiteralPath (Join-Path $fixtureRoot 'pritoky-golden.json') `
+    -Raw |
+    ConvertFrom-Json
+$candidatePolicy = Get-Content `
+    -LiteralPath (Join-Path $repoRoot 'config\victim-candidates.json') `
+    -Raw |
+    ConvertFrom-Json
+$pritokySettlement = $candidatePolicy.settlements |
+    Where-Object {
+        $_.gameRegion -eq 'kutnohorsko' -and $_.id -eq 'pritoky'
+    }
+$pritokyAnchors = @(
+    $candidatePolicy.candidates |
+        Where-Object {
+            $_.enabled -and
+            $_.gameRegion -eq 'kutnohorsko' -and
+            $_.settlement -eq 'pritoky'
+        } |
+        ForEach-Object {
+            [pscustomobject]@{ id = $_.entityName; position = $_.position }
+        }
+)
+$pritokyOverride = $overridePolicy.settlements |
+    Where-Object {
+        $_.gameRegion -eq 'kutnohorsko' -and
+        $_.settlement -eq 'pritoky'
+    }
+$pritoky = Select-SettlementInvestigationAreas `
+    -Settlement $pritokySettlement `
+    -Areas @($pritokyFixture.areas) `
+    -Anchors $pritokyAnchors `
+    -Override $pritokyOverride
+Assert-True ($pritokyAnchors.Count -eq 37) `
+    'Pritoky golden uses all 37 enabled resident anchors'
+Assert-SequenceEqual `
+    @($pritoky.areaGuids) `
+    @(
+        'd0fa0ece-6af5-19f6',
+        'd2fc29a3-6787-141c',
+        '1b6b6d4e-905c-4f9e'
+    ) `
+    'Pritoky golden keeps the proven village, inn, and camp union'
 
 Write-Host "RESULT: PASS ($script:checks settlement area checks)"
