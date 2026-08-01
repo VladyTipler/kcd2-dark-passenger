@@ -15,6 +15,108 @@
       ],
       "denyGuids": [],
       "rationale": "Golden fixture: village residents, inn residents, and the deserter camp require the proven three-area union."
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "kuklicko",
+      "displayName": {
+        "english": "Kuklice and its surroundings",
+        "russian": "Куклице и окрестности"
+      },
+      "primaryGuid": "90673de6-80c6-4ff9",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The bandit-camp territory covers the nine-resident settlement core; the isolated allied resident is covered by the adjacent authored wolf territory."
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "mezholezsko",
+      "displayName": {
+        "english": "Mezholezy camp and its surroundings",
+        "russian": "Лагерь у Межголез и окрестности"
+      },
+      "primaryGuid": "f75a13df-772f-433a",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The authored bandit-camp-with-horse territory contains all four permanent camp residents."
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "naBylance",
+      "displayName": {
+        "english": "Na Bylance and its surroundings",
+        "russian": "На Биланце и окрестности"
+      },
+      "primaryGuid": "b16ea403-308a-4e84",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The compact authored duel territory covers all six living residents after deadBodies actors are excluded."
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "sedlcko",
+      "displayName": {
+        "english": "Sedlec and its surroundings",
+        "russian": "Седлец и окрестности"
+      },
+      "primaryGuid": "cda2e04f-3c27-4c02",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The compact Morticius search territory contains both local monks without exposing the multi-kilometre Sedlec quest area."
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlement": "bukovina",
+      "displayName": {
+        "english": "Bukovina and its surroundings",
+        "russian": "Буковина и окрестности"
+      },
+      "primaryGuid": "ebd4fe42-ec8b-41ad",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The authored bandit-camp territory contains all five permanent residents and avoids music and regional crime triggers."
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlement": "kopanina",
+      "displayName": {
+        "english": "Kopanina and its surroundings",
+        "russian": "Копанина и окрестности"
+      },
+      "primaryGuid": "ecedaa30-f828-4cd3",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The compact authored bandit trespass territory contains both permanent residents."
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlement": "krcak",
+      "displayName": {
+        "english": "Krcak and its surroundings",
+        "russian": "Крчак и окрестности"
+      },
+      "primaryGuid": "49c77477-dd6b-49d1",
+      "forceIncludeGuids": [],
+      "denyGuids": [],
+      "rationale": "The compact authored small-bandit-camp territory contains both permanent residents."
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlement": "rabstejnsko",
+      "displayName": {
+        "english": "Rabstejn and its surroundings",
+        "russian": "Рабштейн и окрестности"
+      },
+      "forceIncludeGuids": [
+        "fbaf6bd2-7c36-426d",
+        "7ab509bf-71cc-43da",
+        "2d073395-1397-410f"
+      ],
+      "denyGuids": [
+        "fe0963d5-55e9-42b8",
+        "f8856700-76c7-40f6"
+      ],
+      "rationale": "Deny oversized main-quest search areas; compact mill, logging-camp, ruin, and huntsman territories cover the same residents."
     }
   ]
 }

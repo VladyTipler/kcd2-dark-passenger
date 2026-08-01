@@ -27,6 +27,34 @@
     {
       "entityName": "kpri_man_14",
       "reason": "Named character archetype; narrative role not classified yet"
+    },
+    {
+      "entityName": "tvez_zizkaGuardPOI_1",
+      "reason": "Transient Zizka POI guard outside any stable settlement investigation territory"
+    },
+    {
+      "entityName": "tvez_zizkaGuardPOI_2",
+      "reason": "Transient Zizka POI guard outside any stable settlement investigation territory"
+    },
+    {
+      "entityName": "tvez_zizkaGuardPOI_3",
+      "reason": "Transient Zizka POI guard outside any stable settlement investigation territory"
+    },
+    {
+      "entityName": "kkut_extras_man_72",
+      "reason": "Additive outskirts NPC without permanent-resident evidence or stable authored territory"
+    },
+    {
+      "entityName": "kkut_extras_man_81",
+      "reason": "Additive outskirts NPC without permanent-resident evidence or stable authored territory"
+    },
+    {
+      "entityName": "kkut_extras_man_82",
+      "reason": "Additive outskirts NPC without permanent-resident evidence or stable authored territory"
+    },
+    {
+      "entityName": "kopa_man_39",
+      "reason": "Outlier without home/work evidence or stable authored investigation territory"
     }
   ]
 }

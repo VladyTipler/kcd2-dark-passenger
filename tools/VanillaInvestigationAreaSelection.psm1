@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 
+$script:AreaGeometryValidationCache = @{}
+
 $geometryModule = Join-Path $PSScriptRoot 'InvestigationAreaGeometry.psm1'
 if (-not (Test-Path -LiteralPath $geometryModule -PathType Leaf)) {
     throw "Investigation geometry module not found: $geometryModule"
@@ -181,6 +183,7 @@ function Get-AreaSemanticClassification {
     $technicalPatterns = @(
         '(?i)(^|[^a-z])(audio|sound|music|ambience|stealth|vision|weather|navigation|streaming)([^a-z]|$)',
         '(?i)birdsTakeoff',
+        '(?i)crime_punishment',
         '(?i)^WH_TriggerArea\d+\[',
         '(?i)^trigger\['
     )
@@ -250,6 +253,27 @@ function Get-AnchorId {
     return "anchor-$Index"
 }
 
+function Test-AreaContainsPoint {
+    param(
+        [Parameter(Mandatory)]$Area,
+        [Parameter(Mandatory)]$Point
+    )
+
+    $bounds = Get-OptionalPropertyValue $Area 'bounds' $null
+    if ($null -eq $bounds) {
+        $bounds = Get-PolygonBounds -Polygon @($Area.polygon)
+    }
+    if (
+        [double]$Point.x -lt [double]$bounds.minX -or
+        [double]$Point.x -gt [double]$bounds.maxX -or
+        [double]$Point.y -lt [double]$bounds.minY -or
+        [double]$Point.y -gt [double]$bounds.maxY
+    ) {
+        return $false
+    }
+    return Test-PointInPolygon -Point $Point -Polygon @($Area.polygon)
+}
+
 function Get-AreaCenterDistance {
     param(
         [Parameter(Mandatory)]$Area,
@@ -286,11 +310,9 @@ function Get-InvestigationAreaScore {
     $covered = [Collections.Generic.List[string]]::new()
     for ($index = 0; $index -lt $UncoveredAnchors.Count; $index++) {
         $anchor = $UncoveredAnchors[$index]
-        if (
-            Test-PointInPolygon `
-                -Point (Get-AnchorPoint $anchor) `
-                -Polygon @($Area.polygon)
-        ) {
+        if (Test-AreaContainsPoint `
+            -Area $Area `
+            -Point (Get-AnchorPoint $anchor)) {
             $covered.Add((Get-AnchorId $anchor $index))
         }
     }
@@ -311,6 +333,26 @@ function Get-InvestigationAreaScore {
     }
 }
 
+function Get-AreaGeometryValidation {
+    param([Parameter(Mandatory)]$Area)
+
+    $guid = [string](Get-OptionalPropertyValue $Area 'guid' '')
+    if (
+        -not [string]::IsNullOrWhiteSpace($guid) -and
+        $script:AreaGeometryValidationCache.ContainsKey(
+            $guid.ToLowerInvariant()
+        )
+    ) {
+        return $script:AreaGeometryValidationCache[$guid.ToLowerInvariant()]
+    }
+    $validation = Test-VanillaAreaGeometry -Polygon @($Area.polygon)
+    if (-not [string]::IsNullOrWhiteSpace($guid)) {
+        $script:AreaGeometryValidationCache[$guid.ToLowerInvariant()] =
+            $validation
+    }
+    return $validation
+}
+
 function Select-SettlementInvestigationAreas {
     param(
         [Parameter(Mandatory)]$Settlement,
@@ -318,7 +360,8 @@ function Select-SettlementInvestigationAreas {
         [Parameter(Mandatory)]
         [AllowEmptyCollection()]
         [object[]]$Anchors,
-        [AllowNull()]$Override = $null
+        [AllowNull()]$Override = $null,
+        [AllowNull()][hashtable]$CoverageByGuid = $null
     )
 
     $region = [string]$Settlement.gameRegion
@@ -348,14 +391,10 @@ function Select-SettlementInvestigationAreas {
         )
     }
 
-    $validAreas = [Collections.Generic.List[object]]::new()
-    $validByGuid = @{}
+    $eligibleAreas = [Collections.Generic.List[object]]::new()
+    $eligibleByGuid = @{}
     foreach ($area in @($Areas)) {
         if ([string]$area.region -ne $region) {
-            continue
-        }
-        $validation = Test-VanillaAreaGeometry -Polygon @($area.polygon)
-        if (-not $validation.valid) {
             continue
         }
         $classification = Get-AreaSemanticClassification -Area $area
@@ -367,23 +406,33 @@ function Select-SettlementInvestigationAreas {
             area = $area
             classification = $classification
         }
-        $validAreas.Add($entry)
-        $validByGuid[$guid.ToLowerInvariant()] = $entry
+        $eligibleAreas.Add($entry)
+        $eligibleByGuid[$guid.ToLowerInvariant()] = $entry
     }
 
     foreach ($guid in $forcedGuids) {
-        if (-not $validByGuid.ContainsKey(([string]$guid).ToLowerInvariant())) {
+        $normalizedGuid = ([string]$guid).ToLowerInvariant()
+        if (-not $eligibleByGuid.ContainsKey($normalizedGuid)) {
             throw "Forced investigation area is unavailable or unsafe: $guid"
+        }
+        $validation = Get-AreaGeometryValidation `
+            -Area $eligibleByGuid[$normalizedGuid].area
+        if (-not $validation.valid) {
+            throw (
+                'Forced investigation area has invalid geometry: {0} ({1})' -f
+                    $guid,
+                    $validation.reason
+            )
         }
     }
 
     $primaryEntry = $null
     if (-not [string]::IsNullOrWhiteSpace($forcedPrimaryGuid)) {
-        $primaryEntry = $validByGuid[$forcedPrimaryGuid.ToLowerInvariant()]
+        $primaryEntry = $eligibleByGuid[$forcedPrimaryGuid.ToLowerInvariant()]
     }
     else {
         $primaryOptions = @(
-            $validAreas |
+            $eligibleAreas |
                 Where-Object {
                     $_.classification.category -eq 'primary' -and
                     -not ($denyGuids -contains [string]$_.area.guid)
@@ -403,9 +452,9 @@ function Select-SettlementInvestigationAreas {
                     @{ Expression = {
                         if (
                             $null -ne $Settlement.center -and
-                            (Test-PointInPolygon `
-                                -Point $Settlement.center `
-                                -Polygon @($_.area.polygon))
+                            (Test-AreaContainsPoint `
+                                -Area $_.area `
+                                -Point $Settlement.center)
                         ) { 0 } else { 1 }
                     } },
                     @{ Expression = {
@@ -415,8 +464,13 @@ function Select-SettlementInvestigationAreas {
                     } },
                     @{ Expression = { [string]$_.area.guid } }
         )
-        if ($primaryOptions.Count -gt 0) {
-            $primaryEntry = $primaryOptions[0]
+        foreach ($primaryOption in $primaryOptions) {
+            $validation = Get-AreaGeometryValidation `
+                -Area $primaryOption.area
+            if ($validation.valid) {
+                $primaryEntry = $primaryOption
+                break
+            }
         }
     }
     if ($null -eq $primaryEntry) {
@@ -427,10 +481,13 @@ function Select-SettlementInvestigationAreas {
     $selectedGuids = [Collections.Generic.HashSet[string]]::new(
         [StringComparer]::OrdinalIgnoreCase
     )
+    $rejectedGeometryGuids = [Collections.Generic.HashSet[string]]::new(
+        [StringComparer]::OrdinalIgnoreCase
+    )
     $selected.Add($primaryEntry.area)
     $null = $selectedGuids.Add([string]$primaryEntry.area.guid)
     foreach ($guid in $forceIncludeGuids) {
-        $entry = $validByGuid[([string]$guid).ToLowerInvariant()]
+        $entry = $eligibleByGuid[([string]$guid).ToLowerInvariant()]
         if ($selectedGuids.Add([string]$entry.area.guid)) {
             $selected.Add($entry.area)
         }
@@ -442,11 +499,9 @@ function Select-SettlementInvestigationAreas {
             $anchor = $Anchors[$anchorIndex]
             $covered = $false
             foreach ($area in $selected) {
-                if (
-                    Test-PointInPolygon `
-                        -Point (Get-AnchorPoint $anchor) `
-                        -Polygon @($area.polygon)
-                ) {
+                if (Test-AreaContainsPoint `
+                    -Area $area `
+                    -Point (Get-AnchorPoint $anchor)) {
                     $covered = $true
                     break
                 }
@@ -460,18 +515,58 @@ function Select-SettlementInvestigationAreas {
         }
 
         $ranked = @(
-            foreach ($entry in $validAreas) {
+            $uncoveredIdSet = [Collections.Generic.HashSet[string]]::new(
+                [StringComparer]::OrdinalIgnoreCase
+            )
+            for ($index = 0; $index -lt $uncovered.Count; $index++) {
+                $null = $uncoveredIdSet.Add(
+                    (Get-AnchorId $uncovered[$index] $index)
+                )
+            }
+            foreach ($entry in $eligibleAreas) {
                 $guid = [string]$entry.area.guid
                 if (
                     $selectedGuids.Contains($guid) -or
+                    $rejectedGeometryGuids.Contains($guid) -or
                     $denyGuids -contains $guid
                 ) {
                     continue
                 }
-                $score = Get-InvestigationAreaScore `
-                    -Area $entry.area `
-                    -UncoveredAnchors @($uncovered) `
-                    -Settlement $Settlement
+                $normalizedGuid = $guid.ToLowerInvariant()
+                if (
+                    $null -ne $CoverageByGuid -and
+                    $CoverageByGuid.ContainsKey($normalizedGuid)
+                ) {
+                    $newCoverage = @(
+                        $CoverageByGuid[$normalizedGuid] |
+                            Where-Object { $uncoveredIdSet.Contains([string]$_) }
+                    )
+                    $surfaceArea = Get-OptionalPropertyValue `
+                        $entry.area `
+                        'surfaceArea' `
+                        $null
+                    if ($null -eq $surfaceArea) {
+                        $surfaceArea = Get-PolygonSurfaceArea `
+                            -Polygon @($entry.area.polygon)
+                    }
+                    $score = [pscustomobject]@{
+                        guid = $guid
+                        newCoverage = $newCoverage.Count
+                        coveredAnchorIds = $newCoverage
+                        semanticStability =
+                            [int]$entry.classification.stability
+                        excessSurface = [double]$surfaceArea
+                        centerDistance = Get-AreaCenterDistance `
+                            -Area $entry.area `
+                            -Settlement $Settlement
+                    }
+                }
+                else {
+                    $score = Get-InvestigationAreaScore `
+                        -Area $entry.area `
+                        -UncoveredAnchors @($uncovered) `
+                        -Settlement $Settlement
+                }
                 if ($score.newCoverage -gt 0) {
                     [pscustomobject]@{
                         area = $entry.area
@@ -491,7 +586,19 @@ function Select-SettlementInvestigationAreas {
                     @{ Expression = { [double]$_.score.centerDistance } },
                     @{ Expression = { [string]$_.score.guid } }
         )
-        if ($ranked.Count -eq 0) {
+        $winner = $null
+        foreach ($rankedEntry in $ranked) {
+            $validation = Get-AreaGeometryValidation `
+                -Area $rankedEntry.area
+            if ($validation.valid) {
+                $winner = $rankedEntry.area
+                break
+            }
+            $null = $rejectedGeometryGuids.Add(
+                [string]$rankedEntry.area.guid
+            )
+        }
+        if ($null -eq $winner) {
             $uncoveredIds = [Collections.Generic.List[string]]::new()
             for ($index = 0; $index -lt $uncovered.Count; $index++) {
                 $uncoveredIds.Add((Get-AnchorId $uncovered[$index] $index))
@@ -503,7 +610,6 @@ function Select-SettlementInvestigationAreas {
                     ($uncoveredIds -join ', ')
             )
         }
-        $winner = $ranked[0].area
         $selected.Add($winner)
         $null = $selectedGuids.Add([string]$winner.guid)
     }

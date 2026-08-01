@@ -1,3 +1,9 @@
+param(
+    [string]$ReferenceDataRoot =
+        'H:\KCD2Mod\_reference-mods\_extracted\AssetLinker\InternalData',
+    [string]$DevGameRoot = 'H:\SteamLibrary\steamapps\common\KCD2Mod'
+)
+
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
@@ -317,6 +323,16 @@ Assert-True (-not $technicalClass.allowed) `
 Assert-True ($technicalClass.category -eq 'technical') `
     'technical TriggerArea rejection is classified explicitly'
 
+$punishmentArea = New-TestArea `
+    -Guid '99999999-9999-9998' `
+    -Name 'crime_punishment_testRegion_TA' `
+    -EditorLayer 'Main/_script/_crime' `
+    -Label 'crime_punishmentArea' `
+    -MinX -1000 -MinY -1000 -MaxX 1000 -MaxY 1000
+$punishmentClass = Get-AreaSemanticClassification -Area $punishmentArea
+Assert-True (-not $punishmentClass.allowed) `
+    'regional crime punishment zones are rejected as technical coverage'
+
 $primary = New-TestArea `
     -Guid '10000000-0000-0000' `
     -Name 'alpha_publicEnemiesRepulsionZoneVillageArea_1' `
@@ -450,6 +466,38 @@ $candidatePolicy = Get-Content `
     -LiteralPath (Join-Path $repoRoot 'config\victim-candidates.json') `
     -Raw |
     ConvertFrom-Json
+$transientZizkaGuards = @(
+    'tvez_zizkaGuardPOI_1',
+    'tvez_zizkaGuardPOI_2',
+    'tvez_zizkaGuardPOI_3'
+)
+Assert-True (
+    @(
+        $candidatePolicy.candidates |
+            Where-Object enabled |
+            Where-Object entityName -in $transientZizkaGuards
+    ).Count -eq 0
+) 'temporary Zizka POI guards are excluded from the permanent victim pool'
+$unboundedTransientResidents = @(
+    'kkut_extras_man_72',
+    'kkut_extras_man_81',
+    'kkut_extras_man_82',
+    'kopa_man_39'
+)
+Assert-True (
+    @(
+        $candidatePolicy.candidates |
+            Where-Object enabled |
+            Where-Object entityName -in $unboundedTransientResidents
+    ).Count -eq 0
+) 'unproven outliers without stable authored territories are excluded'
+Assert-True (
+    @(
+        $candidatePolicy.candidates |
+            Where-Object enabled |
+            Where-Object factionName -eq 'deadBodies'
+    ).Count -eq 0
+) 'deadBodies faction actors are excluded from the living victim pool'
 $pritokySettlement = $candidatePolicy.settlements |
     Where-Object {
         $_.gameRegion -eq 'kutnohorsko' -and $_.id -eq 'pritoky'
@@ -485,5 +533,168 @@ Assert-SequenceEqual `
         '1b6b6d4e-905c-4f9e'
     ) `
     'Pritoky golden keeps the proven village, inn, and camp union'
+
+$settlementGenerator = Join-Path `
+    $repoRoot `
+    'tools\Generate-SettlementInvestigationAreas.ps1'
+if (-not (Test-Path -LiteralPath $settlementGenerator -PathType Leaf)) {
+    throw "Settlement investigation area generator not found: $settlementGenerator"
+}
+
+$realCatalogPath = Join-Path `
+    $repoRoot `
+    'build\generated\vanilla-trigger-areas.json'
+if (-not (Test-Path -LiteralPath $realCatalogPath -PathType Leaf)) {
+    & $catalogExporter `
+        -ReferenceDataRoot $ReferenceDataRoot `
+        -DevGameRoot $DevGameRoot `
+        -OutputPath $realCatalogPath
+}
+$generatedManifestPath = Join-Path `
+    $testRoot `
+    'settlement-investigation-areas.json'
+$secondManifestPath = Join-Path `
+    $testRoot `
+    'settlement-investigation-areas-second.json'
+$diagnosticPath = Join-Path `
+    $testRoot `
+    'settlement-investigation-areas-diagnostics.json'
+$committedManifestPath = Join-Path `
+    $repoRoot `
+    'config\settlement-investigation-areas.json'
+
+& $settlementGenerator `
+    -TriggerAreaCatalogPath $realCatalogPath `
+    -VictimCandidatesPath (Join-Path $repoRoot 'config\victim-candidates.json') `
+    -OverridePath $overridePath `
+    -OutputPath $generatedManifestPath `
+    -DiagnosticsPath $diagnosticPath
+& $settlementGenerator `
+    -TriggerAreaCatalogPath $realCatalogPath `
+    -VictimCandidatesPath (Join-Path $repoRoot 'config\victim-candidates.json') `
+    -OverridePath $overridePath `
+    -OutputPath $secondManifestPath `
+    -DiagnosticsPath $diagnosticPath
+
+$settlementManifest = Get-Content `
+    -LiteralPath $generatedManifestPath `
+    -Raw |
+    ConvertFrom-Json
+$realCatalog = Get-Content -LiteralPath $realCatalogPath -Raw |
+    ConvertFrom-Json
+$manifestSettlements = @(
+    $settlementManifest.regions |
+        ForEach-Object { $_.settlements }
+)
+$expectedSettlementGroups = @(
+    $candidatePolicy.candidates |
+        Where-Object enabled |
+        Group-Object gameRegion, settlement
+)
+Assert-True ($settlementManifest.schemaVersion -eq 1) `
+    'settlement investigation manifest exposes schema version 1'
+Assert-True (
+    $manifestSettlements.Count -eq $expectedSettlementGroups.Count
+) 'every settlement with enabled candidates has generated coverage'
+Assert-True (
+    @($manifestSettlements.primaryGuid | Where-Object {
+        [string]::IsNullOrWhiteSpace([string]$_)
+    }).Count -eq 0
+) 'every generated settlement has one primary area'
+
+$aliases = @($manifestSettlements.alias)
+Assert-True (
+    @($aliases | Sort-Object -Unique).Count -eq $aliases.Count
+) 'generated settlement area aliases are globally unique'
+
+$catalogByGuid = @{}
+foreach ($area in $realCatalog.areas) {
+    $catalogByGuid[[string]$area.guid] = $area
+}
+foreach ($manifestSettlement in $manifestSettlements) {
+    $missingAreaGuids = @(
+        $manifestSettlement.areaGuids |
+            Where-Object { -not $catalogByGuid.ContainsKey([string]$_) }
+    )
+    Assert-True ($missingAreaGuids.Count -eq 0) `
+        "selected areas exist in inventory: $($manifestSettlement.gameRegion)/$($manifestSettlement.id)"
+    $selectedAreas = @(
+        $manifestSettlement.areaGuids |
+            Where-Object { $catalogByGuid.ContainsKey([string]$_) } |
+            ForEach-Object { $catalogByGuid[[string]$_] }
+    )
+    $enabledCandidates = @(
+        $candidatePolicy.candidates |
+            Where-Object {
+                $_.enabled -and
+                $_.gameRegion -eq $manifestSettlement.gameRegion -and
+                $_.settlement -eq $manifestSettlement.id
+            }
+    )
+    Assert-True (
+        $enabledCandidates.Count -eq $manifestSettlement.candidateCount
+    ) "manifest candidate count matches $($manifestSettlement.gameRegion)/$($manifestSettlement.id)"
+    $uncoveredCandidates = @(
+        foreach ($candidate in $enabledCandidates) {
+        $covered = @(
+            $selectedAreas |
+                Where-Object {
+                    Test-PointInPolygon `
+                        -Point $candidate.position `
+                        -Polygon @($_.polygon)
+                }
+        ).Count -gt 0
+            if (-not $covered) {
+                $candidate.entityName
+            }
+        }
+    )
+    Assert-True ($uncoveredCandidates.Count -eq 0) `
+        "all enabled candidates are covered: $($manifestSettlement.gameRegion)/$($manifestSettlement.id)"
+}
+
+$generatedPritoky = $manifestSettlements |
+    Where-Object {
+        $_.gameRegion -eq 'kutnohorsko' -and $_.id -eq 'pritoky'
+    }
+Assert-SequenceEqual `
+    @($generatedPritoky.areaGuids) `
+    @(
+        'd0fa0ece-6af5-19f6',
+        'd2fc29a3-6787-141c',
+        '1b6b6d4e-905c-4f9e'
+    ) `
+    'generated two-region manifest preserves the Pritoky golden union'
+$prohibitedOversizedAreaGuids = @(
+    '491aeb93-2150-49c8',
+    'f71b1dae-91cd-47d1',
+    '0f3c35a8-f720-4d85',
+    'fe0963d5-55e9-42b8',
+    'f8856700-76c7-40f6',
+    'ab0e52c1-e5c1-4f14'
+)
+Assert-True (
+    @(
+        $manifestSettlements.areaGuids |
+            Where-Object { $_ -in $prohibitedOversizedAreaGuids }
+    ).Count -eq 0
+) 'generated coverage excludes audited regional and oversized quest areas'
+Assert-True (
+    (Get-FileHash -LiteralPath $generatedManifestPath -Algorithm SHA256).Hash -eq
+        (Get-FileHash -LiteralPath $secondManifestPath -Algorithm SHA256).Hash
+) 'settlement investigation manifest is byte-for-byte deterministic'
+Assert-True (Test-Path -LiteralPath $committedManifestPath -PathType Leaf) `
+    'generated settlement investigation manifest is committed as config'
+Assert-True (
+    (Get-FileHash -LiteralPath $generatedManifestPath -Algorithm SHA256).Hash -eq
+        (Get-FileHash -LiteralPath $committedManifestPath -Algorithm SHA256).Hash
+) 'committed settlement investigation config matches fresh generation'
+
+$coverageDiagnostics = Get-Content -LiteralPath $diagnosticPath -Raw |
+    ConvertFrom-Json
+Assert-True ($coverageDiagnostics.status -eq 'complete') `
+    'coverage diagnostics report a complete two-region build'
+Assert-True (@($coverageDiagnostics.failures).Count -eq 0) `
+    'coverage diagnostics contain no unresolved settlement failures'
 
 Write-Host "RESULT: PASS ($script:checks settlement area checks)"

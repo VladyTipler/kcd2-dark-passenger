@@ -2711,10 +2711,10 @@ Add-Result (
     $null -ne $candidateCatalog -and
     @($candidateCatalog.candidates | Where-Object {
         $_.enabled -eq $true -and $_.gameRegion -eq 'kutnohorsko'
-    }).Count -eq 819 -and
+    }).Count -eq 814 -and
     @($candidateCatalog.candidates | Where-Object {
         $_.enabled -eq $true -and $_.gameRegion -eq 'trosecko'
-    }).Count -eq 140
+    }).Count -eq 137
 ) 'catalogue includes the broad generic settlement population'
 Add-Result (
     $questTemplateText.Contains('{{DP_REGION_ID}}') -and
