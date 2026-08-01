@@ -48,6 +48,8 @@ $sourceMissionObjectsPatchPath =
 $barboraKuttenbergPatchPath =
     "$testRoot\src\Data\Quests\Final\Barbora\kutnohorsko.patch.xml"
 $candidateCatalogPath = "$testRoot\config\victim-candidates.json"
+$settlementAreaManifestPath =
+    "$testRoot\config\settlement-investigation-areas.json"
 $generatorPath = "$testRoot\tools\Generate-VictimArtifacts.ps1"
 $questTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template"
 $troskyQuestTemplatePath = "$stageRoot\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml.template"
@@ -328,6 +330,30 @@ Add-Result (
     @($candidateCatalog.settlements | Where-Object { $_.id -eq 'pritoky' }).Count -eq 1
 ) 'schema v2 declares Pritoky settlement metadata'
 
+$settlementAreaManifest = $null
+if (Test-Path -LiteralPath $settlementAreaManifestPath) {
+    try {
+        $settlementAreaManifest =
+            Get-Content -Raw -LiteralPath $settlementAreaManifestPath |
+            ConvertFrom-Json
+    }
+    catch {
+        $settlementAreaManifest = $null
+    }
+}
+$supportedInvestigationAreas = @()
+if ($null -ne $settlementAreaManifest) {
+    $supportedInvestigationAreas = @(
+        $settlementAreaManifest.regions |
+            ForEach-Object { $_.settlements }
+    )
+}
+Add-Result (
+    $null -ne $settlementAreaManifest -and
+    $settlementAreaManifest.schemaVersion -eq 1 -and
+    $supportedInvestigationAreas.Count -eq 36
+) 'settlement investigation manifest declares all supported search areas'
+
 $enabledPritokyCandidates = @()
 if ($null -ne $candidateCatalog) {
     $enabledPritokyCandidates = @(
@@ -455,6 +481,10 @@ Add-Result (Test-Path -LiteralPath $questTemplatePath) 'quest generator template
 foreach (
     $token in
         '{{DP_TARGET_TYPE_ENUMS}}',
+        '{{DP_SEARCH_TYPE_ENUMS}}',
+        '{{DP_SEARCH_STATE_EDGES}}',
+        '{{DP_SEARCH_AREA_ASSETS}}',
+        '{{DP_SEARCH_LOGS}}',
         '{{DP_SELECTED_TYPE_ENUMS}}',
         '{{DP_SELECTED_STATE_EDGES}}',
         '{{DP_TARGET_STATE_EDGES}}',
@@ -531,7 +561,7 @@ if ($enabledPritokyCandidates.Count -eq 37) {
                 "</State>"
             ) -and
             $questText -match (
-                "(?s)<State Name=`"objectiveProgress`" TypeT=`"Progress`">.*?" +
+                "(?s)<State Name=`"objectiveProgress`" TypeT=`"DP_SearchProgress`">.*?" +
                 "<Edge From=`"$($slotNode)Revealed.True`" To=`"SetDone`" />.*?" +
                 "</State>"
             )
@@ -563,19 +593,11 @@ if ($enabledPritokyCandidates.Count -eq 37) {
 }
 
 Add-Result (
-    $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSET}}') -and
-    $questTemplateText.Contains('{{DP_SEARCH_MARKER_ATTRIBUTE}}') -and
-    $questText.Contains(
-        '<TriggerAreaAsset Name="DP_PritokySearchArea" />'
-    )
-) 'Kuttenberg quest declares the Pritoky TriggerArea asset'
-Add-Result (
-    $questText -match (
-        '(?s)<Objective TypeT="Progress".*?' +
-        '<EnumLog Type="Started" Name="Active" ' +
-        'IsTracked="true" Marker="DP_PritokySearchArea">'
-    )
-) 'active search objective uses the Pritoky area marker'
+    $questTemplateText.Contains('{{DP_SEARCH_TYPE_ENUMS}}') -and
+    $questTemplateText.Contains('{{DP_SEARCH_STATE_EDGES}}') -and
+    $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSETS}}') -and
+    $questTemplateText.Contains('{{DP_SEARCH_LOGS}}')
+) 'quest template exposes generated settlement search-state tokens'
 Add-Result (
     -not $questText.Contains('DP_PritokySearchProfile') -and
     -not $questText.Contains('pritokySearchAreaProfile')
@@ -738,14 +760,17 @@ Add-Result (
 
 $allMarkerAliasesExist = $false
 if ($null -ne $questXml) {
-    $assetAliases = @(
+    $soulAssetAliases = @(
         $questXml.SelectNodes('//SoulAsset') |
+            ForEach-Object { $_.Name }
+    )
+    $triggerAreaAliases = @(
+        $questXml.SelectNodes('//TriggerAreaAsset') |
             ForEach-Object { $_.Name }
     )
     $markerAliases = @(
         $questXml.SelectNodes('//EnumLog[@Marker]') |
-            ForEach-Object { $_.Marker } |
-            Where-Object { $_ -ne 'DP_PritokySearchArea' }
+            ForEach-Object { $_.Marker }
     )
     $enabledKuttenbergCandidateCount = @(
         $candidateCatalog.candidates |
@@ -754,12 +779,26 @@ if ($null -ne $questXml) {
                 $_.gameRegion -eq 'kutnohorsko'
             }
     ).Count
+    $kuttenbergSearchAreaCount = @(
+        $supportedInvestigationAreas |
+            Where-Object gameRegion -eq 'kutnohorsko'
+    ).Count
     $allMarkerAliasesExist = (
-        $markerAliases.Count -eq $enabledKuttenbergCandidateCount -and
-        @($markerAliases | Where-Object { $_ -notin $assetAliases }).Count -eq 0
+        $markerAliases.Count -eq (
+            $enabledKuttenbergCandidateCount + $kuttenbergSearchAreaCount
+        ) -and
+        @(
+            $markerAliases |
+                Where-Object {
+                    $_ -notin $soulAssetAliases -and
+                    $_ -notin $triggerAreaAliases
+                }
+        ).Count -eq 0
     )
 }
-Add-Result ($allMarkerAliasesExist) 'every generated marker references an existing Soul alias'
+Add-Result (
+    $allMarkerAliasesExist
+) 'every generated marker references an existing Soul or TriggerArea alias'
 
 Add-Result (Test-Path -LiteralPath $tagPath) 'custom buff AI tag table exists'
 Add-Result ($tagText.Contains('buff_ai_tag_id="23"')) 'custom AI tag uses id 23'
@@ -2678,9 +2717,14 @@ Add-Result (
     )
 ) 'runtime can diagnose the active objective ids of both regional quests'
 Add-Result (
-    $questText.Contains('<Edge From="questProgress.OnActive" To="SetNone" />') -and
-    $questText.Contains('<Edge From="questProgress.OnActive" To="SetActive" />')
-) 'empty candidate pool leaves search active and target objective inactive'
+    ([regex]::Matches(
+        $questText,
+        '<Edge From="questProgress\.OnActive" To="SetNone" />'
+    )).Count -ge 2 -and
+    -not $questText.Contains(
+        '<Edge From="questProgress.OnActive" To="SetActive" />'
+    )
+) 'empty candidate pool leaves search and target objectives inactive'
 
 $troskyQuestText = Read-OptionalText -LiteralPath $troskyQuestPath
 $troskyTemplateText = Read-OptionalText -LiteralPath $troskyQuestTemplatePath
@@ -2726,16 +2770,96 @@ Add-Result (
     $troskyQuestText -notmatch '\{\{DP_[A-Z_]+\}\}' -and
     $troskyQuestText.Contains('SharedSoulGuids=')
 ) 'Trosky quest graph is generated with static Soul aliases'
+
+$regionalQuestTexts = @{
+    kutnohorsko = $questText
+    trosecko = $troskyQuestText
+}
+$dynamicSearchGraphComplete = $supportedInvestigationAreas.Count -eq 36
+$candidateSettlementMappingsComplete = $true
+$searchRevealCompletionExact = $true
+$searchLocalizationKeys = [System.Collections.Generic.List[string]]::new()
+foreach ($searchArea in $supportedInvestigationAreas) {
+    $regionalQuestText = [string]$regionalQuestTexts[$searchArea.gameRegion]
+    $stateName = [string]$searchArea.alias
+    $localizationSuffix = (
+        ([string]$searchArea.gameRegion + '_' + [string]$searchArea.id) -replace
+            '[^A-Za-z0-9]+', '_'
+    ).ToLowerInvariant()
+    $localizationKey = "dark_within_search_$localizationSuffix"
+    $searchLocalizationKeys.Add($localizationKey)
+
+    if (
+        -not $regionalQuestText.Contains(
+            "<StateTypeEnumeration Name=`"$stateName`" ObjectiveValueType=`"Started`" />"
+        ) -or
+        -not $regionalQuestText.Contains(
+            "<TriggerAreaAsset Name=`"$stateName`" />"
+        ) -or
+        $regionalQuestText -notmatch (
+            "(?s)<EnumLog Type=`"Started`" Name=`"$([regex]::Escape($stateName))`" " +
+            "IsTracked=`"true`" Marker=`"$([regex]::Escape($stateName))`">.*?" +
+            "StringName=`"$localizationKey`""
+        )
+    ) {
+        $dynamicSearchGraphComplete = $false
+    }
+
+    foreach ($slot in @($searchArea.candidateSlots)) {
+        $slotNode = 'targetSlot{0:D3}' -f [int]$slot
+        if (-not $regionalQuestText.Contains(
+            "<Edge From=`"$($slotNode)Tagged.True`" To=`"Set$stateName`" />"
+        )) {
+            $candidateSettlementMappingsComplete = $false
+        }
+        if (([regex]::Matches(
+            $regionalQuestText,
+            "From=`"$($slotNode)Revealed\.True`" To=`"SetDone`""
+        )).Count -ne 1) {
+            $searchRevealCompletionExact = $false
+        }
+    }
+}
+
 Add-Result (
+    $dynamicSearchGraphComplete -and
+    $questText.Contains('<State Name="objectiveProgress" TypeT="DP_SearchProgress">') -and
+    $troskyQuestText.Contains('<State Name="objectiveProgress" TypeT="DP_SearchProgress">')
+) 'both regional quests declare every supported settlement search state, asset, and log'
+Add-Result (
+    $candidateSettlementMappingsComplete
+) 'every candidate slot activates its settlement search state'
+Add-Result (
+    $searchRevealCompletionExact
+) 'target reveal completes the active settlement search objective exactly once'
+Add-Result (
+    -not $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSET}}') -and
+    -not $questTemplateText.Contains('{{DP_SEARCH_MARKER_ATTRIBUTE}}') -and
+    -not $questText.Contains('DP_PritokySearchArea') -and
     -not $troskyQuestText.Contains('DP_PritokySearchArea') -and
-    $questText.Contains('DP_PritokySearchArea')
-) 'Pritoky search area is scoped to Kuttenberg only'
+    -not $questText.Contains(
+        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker='
+    ) -and
+    -not $troskyQuestText.Contains(
+        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker='
+    )
+) 'regional quests have no fixed Pritoky search marker default'
 Add-Result (
+    @($searchLocalizationKeys | Where-Object {
+        -not $englishText.Contains("<Cell>$_</Cell>") -or
+        -not $russianText.Contains("<Cell>$_</Cell>")
+    }).Count -eq 0
+) 'every generated settlement search log has English and Russian localization'
+Add-Result (
+    $questText -match (
+        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">.*?' +
+        '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
+    ) -and
     $troskyQuestText -match (
         '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">.*?' +
-        '<Edge From="targetSlot\d+Tagged\.True" To="SetTarget\d+" />'
+        '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
     )
-) 'Trosky keeps its immediate target presentation in this slice'
+) 'both regions reveal the victim only after investigation confidence is met'
 Add-Result (
     $runtimeLuaText.Contains(
         'function DarkPassengerTarget.SelectNearest(gameRegion)'
@@ -2953,12 +3077,12 @@ Add-Result (
 ) 'Russian quest description uses approved lore'
 Add-Result (
     $russianText.Contains(
-        '<Cell>dark_within_obj_name</Cell><Cell>Узнать, кто в Пржитоках заслуживает приговора</Cell>'
+        '<Cell>dark_within_obj_name</Cell><Cell>Найти того, кто заслуживает приговора</Cell>'
     )
-) 'Russian search-area objective uses approved Pritoky lore'
+) 'Russian search-area objective uses settlement-neutral lore'
 Add-Result (
     $russianText.Contains(
-        '<Cell>dark_within_obj</Cell><Cell>Пассажир не даёт мне покоя. Но прежде чем вершить приговор, я должен понять, кто в Пржитоках действительно заслуживает смерти.</Cell>'
+        '<Cell>dark_within_obj</Cell><Cell>Пассажир не даёт мне покоя. Прежде чем вершить приговор, нужно найти того, чья вина не оставляет сомнений.</Cell>'
     )
 ) 'Russian search-area log keeps confidence hidden'
 Add-Result (
@@ -3059,17 +3183,17 @@ Add-Result (
 ) 'English quest description matches approved tone'
 Add-Result (
     $englishText.Contains(
-        '<Cell>dark_within_obj_name</Cell><Cell>Uncover the rot in Pritoky</Cell>'
+        '<Cell>dark_within_obj_name</Cell><Cell>Find someone who deserves the sentence</Cell>'
     ) -and
     $englishText.Contains(
-        '<Cell>dark_within_obj</Cell><Cell>The Passenger senses rot in Pritoky. Before I pass sentence, I must learn who here truly deserves to die.</Cell>'
+        '<Cell>dark_within_obj</Cell><Cell>The Passenger is restless. Before I pass sentence, I must find someone whose guilt leaves no room for doubt.</Cell>'
     )
 ) 'English search-area copy matches approved tone'
 Add-Result (
     $questText.Contains('I have learned to keep this darkness on a leash.')
 ) 'quest fallback description matches approved lore'
 Add-Result (
-    $questText.Contains('Uncover the rot in Pritoky') -and
+    $questText.Contains('Find someone who deserves the sentence') -and
     $questText.Contains(
         'Every whisper and trace now points to one person.'
     )

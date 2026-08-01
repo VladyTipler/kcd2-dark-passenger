@@ -1,6 +1,9 @@
 param(
     [string]$CatalogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\victim-candidates.json'),
+    [string]$AreaManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
     [string]$TemplatePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'),
+    [string]$EnglishLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\English\text__darkpassengertest.xml'),
+    [string]$RussianLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\Russian\text__darkpassengertest.xml'),
     [string]$KuttenbergQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'),
     [string]$TroskyQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t.xml'),
     [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Scripts\mods\generated\dp_candidate_catalog.lua'),
@@ -37,6 +40,37 @@ function ConvertTo-LuaBoolean {
     return 'false'
 }
 
+function ConvertTo-XmlText {
+    param([string]$Value)
+
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+function Get-SearchLocalizationKey {
+    param([string]$RegionId, [string]$SettlementId)
+
+    $suffix = (($RegionId + '_' + $SettlementId) -replace '[^A-Za-z0-9]+', '_').ToLowerInvariant()
+    return "dark_within_search_$suffix"
+}
+
+function Get-LocalizationKeys {
+    param([string]$LiteralPath)
+
+    if (-not (Test-Path -LiteralPath $LiteralPath)) {
+        throw "Localization table not found: $LiteralPath"
+    }
+    [xml]$localization = Get-Content -Raw -LiteralPath $LiteralPath
+    $keys = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($row in @($localization.Table.Row)) {
+        if (@($row.Cell).Count -gt 0) {
+            [void]$keys.Add([string]$row.Cell[0])
+        }
+    }
+    return ,$keys
+}
+
 function Write-Utf8NoBom {
     param([string]$LiteralPath, [string]$Content)
 
@@ -54,6 +88,7 @@ function Write-Utf8NoBom {
 function New-RegionalQuest {
     param(
         [object[]]$Candidates,
+        [object[]]$SearchAreas,
         [string]$RegionId,
         [string]$QuestName,
         [string]$SearchObjectiveName,
@@ -62,7 +97,6 @@ function New-RegionalQuest {
         [string]$QuestDescriptionKey,
         [string]$RequestContext,
         [string]$TargetDeathContext,
-        [AllowEmptyString()][string]$SearchAreaAlias,
         [string]$OutputPath,
         [string]$Template
     )
@@ -70,7 +104,14 @@ function New-RegionalQuest {
     if ($Candidates.Count -gt $MaxCandidatesPerRegion) {
         throw "Region '$RegionId' has $($Candidates.Count) candidates; limit is $MaxCandidatesPerRegion."
     }
+    if ($SearchAreas.Count -eq 0) {
+        throw "Region '$RegionId' has no generated settlement search areas."
+    }
 
+    $searchTypeEnumerations = [System.Collections.Generic.List[string]]::new()
+    $searchStateEdges = [System.Collections.Generic.List[string]]::new()
+    $searchAreaAssets = [System.Collections.Generic.List[string]]::new()
+    $searchLogs = [System.Collections.Generic.List[string]]::new()
     $selectedTypeEnumerations = [System.Collections.Generic.List[string]]::new()
     $targetTypeEnumerations = [System.Collections.Generic.List[string]]::new()
     $selectedStateEdges = [System.Collections.Generic.List[string]]::new()
@@ -84,8 +125,70 @@ function New-RegionalQuest {
     $assets = [System.Collections.Generic.List[string]]::new()
     $logs = [System.Collections.Generic.List[string]]::new()
     $presentationSignal = 'Revealed'
-    if ([string]::IsNullOrWhiteSpace($SearchAreaAlias)) {
-        $presentationSignal = 'Tagged'
+
+    $candidateSlots = @($Candidates | ForEach-Object { [int]$_.slot })
+    $mappedSlots = @(
+        $SearchAreas |
+            ForEach-Object { $_.candidateSlots } |
+            ForEach-Object { [int]$_ }
+    )
+    $duplicateMappedSlot = $mappedSlots |
+        Group-Object |
+        Where-Object Count -gt 1 |
+        Select-Object -First 1
+    if ($null -ne $duplicateMappedSlot) {
+        throw "Region '$RegionId' maps candidate slot '$($duplicateMappedSlot.Name)' to multiple search areas."
+    }
+    $missingMappedSlots = @($candidateSlots | Where-Object { $_ -notin $mappedSlots })
+    $unknownMappedSlots = @($mappedSlots | Where-Object { $_ -notin $candidateSlots })
+    if ($missingMappedSlots.Count -gt 0 -or $unknownMappedSlots.Count -gt 0) {
+        throw "Region '$RegionId' search-area candidate slots do not match the enabled candidate pool."
+    }
+
+    foreach ($searchArea in $SearchAreas) {
+        $stateName = [string]$searchArea.alias
+        if ($stateName -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Search-area alias '$stateName' is not a valid Skald identifier."
+        }
+        $englishDisplayName = [string]$searchArea.displayName.english
+        $russianDisplayName = [string]$searchArea.displayName.russian
+        if (
+            [string]::IsNullOrWhiteSpace($englishDisplayName) -or
+            [string]::IsNullOrWhiteSpace($russianDisplayName)
+        ) {
+            throw "Search area '$RegionId/$($searchArea.id)' requires bilingual display names."
+        }
+        $localizationKey = Get-SearchLocalizationKey `
+            -RegionId $RegionId `
+            -SettlementId ([string]$searchArea.id)
+        $fallbackText = ConvertTo-XmlText (
+            "The trail leads to $englishDisplayName. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain."
+        )
+
+        $searchTypeEnumerations.Add(
+            "          <StateTypeEnumeration Name=`"$stateName`" ObjectiveValueType=`"Started`" />"
+        )
+        $searchAreaAssets.Add(
+            "        <TriggerAreaAsset Name=`"$stateName`" />"
+        )
+        $searchLogs.Add(
+            "            <EnumLog Type=`"Started`" Name=`"$stateName`" IsTracked=`"true`" Marker=`"$stateName`">"
+        )
+        $searchLogs.Add(
+            "              <Log StringName=`"$localizationKey`" Text=`"$fallbackText`">"
+        )
+        $searchLogs.Add(
+            "                <Localization Text=`"$fallbackText`" Language=`"WHS`" />"
+        )
+        $searchLogs.Add('              </Log>')
+        $searchLogs.Add('            </EnumLog>')
+
+        foreach ($slot in @($searchArea.candidateSlots)) {
+            $slotNode = 'targetSlot{0:D3}' -f [int]$slot
+            $searchStateEdges.Add(
+                "          <Edge From=`"$($slotNode)Tagged.True`" To=`"Set$stateName`" />"
+            )
+        }
     }
 
     foreach ($candidate in $Candidates) {
@@ -158,14 +261,6 @@ function New-RegionalQuest {
         $logs.Add('            </EnumLog>')
     }
 
-    $searchAreaAsset = ''
-    $searchMarkerAttribute = ''
-    if (-not [string]::IsNullOrWhiteSpace($SearchAreaAlias)) {
-        $searchAreaAsset =
-            "        <TriggerAreaAsset Name=`"$SearchAreaAlias`" />"
-        $searchMarkerAttribute = " Marker=`"$SearchAreaAlias`""
-    }
-
     $replacements = [ordered]@{
         '{{DP_QUEST_NAME}}' = $QuestName
         '{{DP_REGION_ID}}' = $RegionId
@@ -176,8 +271,10 @@ function New-RegionalQuest {
         '{{DP_CLEANUP_OBJECTIVE_NAME}}' = $CleanupObjectiveName
         '{{DP_QUEST_DESCRIPTION_KEY}}' = $QuestDescriptionKey
         '{{DP_TARGET_POOL_GUIDS}}' = (@($Candidates.guid) -join ' ')
-        '{{DP_SEARCH_AREA_ASSET}}' = $searchAreaAsset
-        '{{DP_SEARCH_MARKER_ATTRIBUTE}}' = $searchMarkerAttribute
+        '{{DP_SEARCH_TYPE_ENUMS}}' = $searchTypeEnumerations -join "`n"
+        '{{DP_SEARCH_STATE_EDGES}}' = $searchStateEdges -join "`n"
+        '{{DP_SEARCH_AREA_ASSETS}}' = $searchAreaAssets -join "`n"
+        '{{DP_SEARCH_LOGS}}' = $searchLogs -join "`n"
         '{{DP_SELECTED_TYPE_ENUMS}}' = $selectedTypeEnumerations -join "`n"
         '{{DP_TARGET_TYPE_ENUMS}}' = $targetTypeEnumerations -join "`n"
         '{{DP_SELECTED_STATE_EDGES}}' = $selectedStateEdges -join "`n"
@@ -220,10 +317,41 @@ if (-not (Test-Path -LiteralPath $CatalogPath)) {
 if (-not (Test-Path -LiteralPath $TemplatePath)) {
     throw "Quest template not found: $TemplatePath"
 }
+if (-not (Test-Path -LiteralPath $AreaManifestPath)) {
+    throw "Settlement investigation area manifest not found: $AreaManifestPath"
+}
 
 $catalog = Get-Content -Raw -LiteralPath $CatalogPath | ConvertFrom-Json
 if ($catalog.schemaVersion -ne 2) {
     throw "Unsupported candidate catalogue schemaVersion '$($catalog.schemaVersion)'."
+}
+$areaManifest = Get-Content -Raw -LiteralPath $AreaManifestPath | ConvertFrom-Json
+if ($areaManifest.schemaVersion -ne 1) {
+    throw "Unsupported settlement area manifest schemaVersion '$($areaManifest.schemaVersion)'."
+}
+$allSearchAreas = @(
+    $areaManifest.regions |
+        ForEach-Object { $_.settlements } |
+        Sort-Object gameRegion, id
+)
+if ($allSearchAreas.Count -eq 0) {
+    throw 'Settlement investigation area manifest is empty.'
+}
+Assert-UniqueCandidateField -Candidates $allSearchAreas -Field 'alias'
+$englishLocalizationKeys = Get-LocalizationKeys `
+    -LiteralPath $EnglishLocalizationPath
+$russianLocalizationKeys = Get-LocalizationKeys `
+    -LiteralPath $RussianLocalizationPath
+foreach ($searchArea in $allSearchAreas) {
+    $localizationKey = Get-SearchLocalizationKey `
+        -RegionId ([string]$searchArea.gameRegion) `
+        -SettlementId ([string]$searchArea.id)
+    if (
+        -not $englishLocalizationKeys.Contains($localizationKey) -or
+        -not $russianLocalizationKeys.Contains($localizationKey)
+    ) {
+        throw "Settlement search localization key '$localizationKey' is missing from English or Russian tables."
+    }
 }
 
 $allCandidates = @($catalog.candidates)
@@ -266,7 +394,6 @@ $regionSpecifications = @(
         descriptionKey = 'dark_within_description_k'
         requestContext = 'dp_select_victim_kutnohorsko'
         targetDeathContext = 'dp_target_dead_kutnohorsko'
-        searchAreaAlias = 'DP_PritokySearchArea'
         output = $KuttenbergQuestOutputPath
     }
     [ordered]@{
@@ -278,7 +405,6 @@ $regionSpecifications = @(
         descriptionKey = 'dark_within_description_t'
         requestContext = 'dp_select_victim_trosecko'
         targetDeathContext = 'dp_target_dead_trosecko'
-        searchAreaAlias = ''
         output = $TroskyQuestOutputPath
     }
 )
@@ -288,8 +414,13 @@ foreach ($specification in $regionSpecifications) {
         $enabledCandidates |
             Where-Object { $_.gameRegion -eq $specification.region }
     )
+    $regionalSearchAreas = @(
+        $allSearchAreas |
+            Where-Object { $_.gameRegion -eq $specification.region }
+    )
     New-RegionalQuest `
         -Candidates $regionalCandidates `
+        -SearchAreas $regionalSearchAreas `
         -RegionId $specification.region `
         -QuestName $specification.quest `
         -SearchObjectiveName $specification.searchObjective `
@@ -298,7 +429,6 @@ foreach ($specification in $regionSpecifications) {
         -QuestDescriptionKey $specification.descriptionKey `
         -RequestContext $specification.requestContext `
         -TargetDeathContext $specification.targetDeathContext `
-        -SearchAreaAlias $specification.searchAreaAlias `
         -OutputPath $specification.output `
         -Template $template
 }

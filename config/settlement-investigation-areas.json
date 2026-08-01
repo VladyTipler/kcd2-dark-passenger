@@ -9,8 +9,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Bohounovice",
           "displayName": {
-            "english": "bohounovice",
-            "russian": "bohounovice"
+            "english": "Bohunowitz",
+            "russian": "Богуновице"
           },
           "primaryGuid": "596616a5-a2b1-137d",
           "areaGuids": [
@@ -35,8 +35,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Bylansko",
           "displayName": {
-            "english": "bylansko",
-            "russian": "bylansko"
+            "english": "Bylany",
+            "russian": "Биланы"
           },
           "primaryGuid": "2b422aa1-4576-1d96",
           "areaGuids": [
@@ -71,8 +71,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Certovka",
           "displayName": {
-            "english": "certovka",
-            "russian": "certovka"
+            "english": "Devil's Den",
+            "russian": "«Чертово место»"
           },
           "primaryGuid": "488fe0e2-0690-1e5f",
           "areaGuids": [
@@ -92,8 +92,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Grunta",
           "displayName": {
-            "english": "grunta",
-            "russian": "grunta"
+            "english": "Grund",
+            "russian": "Грунта"
           },
           "primaryGuid": "ccc44d56-353e-1e21",
           "areaGuids": [
@@ -163,8 +163,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Horansko",
           "displayName": {
-            "english": "horansko",
-            "russian": "horansko"
+            "english": "Horschan",
+            "russian": "Горжаны"
           },
           "primaryGuid": "5e3dade8-5e23-19b3",
           "areaGuids": [
@@ -210,8 +210,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Kuklicko",
           "displayName": {
-            "english": "Kuklice and its surroundings",
-            "russian": "Куклице и окрестности"
+            "english": "Kuklitz",
+            "russian": "Куклице"
           },
           "primaryGuid": "90673de6-80c6-4ff9",
           "areaGuids": [
@@ -241,8 +241,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Kutnahora",
           "displayName": {
-            "english": "kutnaHora",
-            "russian": "kutnaHora"
+            "english": "Kuttenberg",
+            "russian": "Кутна-Гора"
           },
           "primaryGuid": "b38a0f58-b308-1e1d",
           "areaGuids": [
@@ -770,8 +770,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Lorec",
           "displayName": {
-            "english": "lorec",
-            "russian": "lorec"
+            "english": "Loretz",
+            "russian": "Лорец"
           },
           "primaryGuid": "33715ea8-96e5-1814",
           "areaGuids": [
@@ -818,8 +818,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Malesov",
           "displayName": {
-            "english": "malesov",
-            "russian": "malesov"
+            "english": "Maleshov",
+            "russian": "Малешов"
           },
           "primaryGuid": "8b1e4114-c678-4f7e",
           "areaGuids": [
@@ -841,8 +841,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Mezholezsko",
           "displayName": {
-            "english": "Mezholezy camp and its surroundings",
-            "russian": "Лагерь у Межголез и окрестности"
+            "english": "Mesoles",
+            "russian": "Межолезы"
           },
           "primaryGuid": "f75a13df-772f-433a",
           "areaGuids": [
@@ -864,8 +864,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Miskovicko",
           "displayName": {
-            "english": "miskovicko",
-            "russian": "miskovicko"
+            "english": "Miskowitz",
+            "russian": "Мышковицы"
           },
           "primaryGuid": "33aeea76-ad9b-1f33",
           "areaGuids": [
@@ -907,8 +907,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Nabylance",
           "displayName": {
-            "english": "Na Bylance and its surroundings",
-            "russian": "На Биланце и окрестности"
+            "english": "Bylanka Valley",
+            "russian": "Долина Биланки"
           },
           "primaryGuid": "b16ea403-308a-4e84",
           "areaGuids": [
@@ -932,8 +932,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Opatovicko",
           "displayName": {
-            "english": "opatovicko",
-            "russian": "opatovicko"
+            "english": "Opatowitz",
+            "russian": "Опатовицы"
           },
           "primaryGuid": "0030e286-3a48-159f",
           "areaGuids": [
@@ -952,8 +952,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Pritoky",
           "displayName": {
-            "english": "Pritoky and its surroundings",
-            "russian": "Пржитоки и окрестности"
+            "english": "Pschitoky",
+            "russian": "Пржитоки"
           },
           "primaryGuid": "d0fa0ece-6af5-19f6",
           "areaGuids": [
@@ -1012,8 +1012,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Rabstejnsko",
           "displayName": {
-            "english": "Rabstejn and its surroundings",
-            "russian": "Рабштейн и окрестности"
+            "english": "Rabstein",
+            "russian": "Рабштейн"
           },
           "primaryGuid": "0acda29d-96bd-14dd",
           "areaGuids": [
@@ -1050,8 +1050,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Ratboricko",
           "displayName": {
-            "english": "ratboricko",
-            "russian": "ratboricko"
+            "english": "Raborsch",
+            "russian": "Ратборж"
           },
           "primaryGuid": "7eb21d9b-bf33-1144",
           "areaGuids": [
@@ -1079,8 +1079,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Sedlcko",
           "displayName": {
-            "english": "Sedlec and its surroundings",
-            "russian": "Седлец и окрестности"
+            "english": "Sedletz",
+            "russian": "Седлец"
           },
           "primaryGuid": "cda2e04f-3c27-4c02",
           "areaGuids": [
@@ -1100,8 +1100,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Starakutna",
           "displayName": {
-            "english": "staraKutna",
-            "russian": "staraKutna"
+            "english": "Old Kutna",
+            "russian": "Стара-Кутна"
           },
           "primaryGuid": "e11bb439-c568-107d",
           "areaGuids": [
@@ -1149,8 +1149,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Suchdol",
           "displayName": {
-            "english": "suchdol",
-            "russian": "suchdol"
+            "english": "Suchdol",
+            "russian": "Сухдол"
           },
           "primaryGuid": "f71fc93e-346e-1cd6",
           "areaGuids": [
@@ -1176,8 +1176,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Sukov",
           "displayName": {
-            "english": "sukov",
-            "russian": "sukov"
+            "english": "Sukov",
+            "russian": "Суков"
           },
           "primaryGuid": "7123ed66-563a-4dd2",
           "areaGuids": [
@@ -1197,8 +1197,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Vlcihory",
           "displayName": {
-            "english": "vlciHory",
-            "russian": "vlciHory"
+            "english": "Wolf Mountains",
+            "russian": "Волчьи горы"
           },
           "primaryGuid": "70bde9bb-90af-433c",
           "areaGuids": [
@@ -1218,8 +1218,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Vrchlicko",
           "displayName": {
-            "english": "vrchlicko",
-            "russian": "vrchlicko"
+            "english": "Vrchlitz",
+            "russian": "Врхлица"
           },
           "primaryGuid": "646e71d5-edb4-4dbc",
           "areaGuids": [
@@ -1271,8 +1271,8 @@
           "gameRegion": "kutnohorsko",
           "alias": "DP_SearchArea_Kutnohorsko_Vysoka",
           "displayName": {
-            "english": "vysoka",
-            "russian": "vysoka"
+            "english": "Wysoka",
+            "russian": "Висока"
           },
           "primaryGuid": "296b3800-d828-13c0",
           "areaGuids": [
@@ -1301,8 +1301,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Bukovina",
           "displayName": {
-            "english": "Bukovina and its surroundings",
-            "russian": "Буковина и окрестности"
+            "english": "Bukovina",
+            "russian": "Буковина"
           },
           "primaryGuid": "ebd4fe42-ec8b-41ad",
           "areaGuids": [
@@ -1325,8 +1325,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Kopanina",
           "displayName": {
-            "english": "Kopanina and its surroundings",
-            "russian": "Копанина и окрестности"
+            "english": "Kopanina",
+            "russian": "Копанина"
           },
           "primaryGuid": "ecedaa30-f828-4cd3",
           "areaGuids": [
@@ -1346,8 +1346,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Krcak",
           "displayName": {
-            "english": "Krcak and its surroundings",
-            "russian": "Крчак и окрестности"
+            "english": "Kerchak Pond",
+            "russian": "Керчакский пруд"
           },
           "primaryGuid": "49c77477-dd6b-49d1",
           "areaGuids": [
@@ -1367,8 +1367,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Nebakov",
           "displayName": {
-            "english": "nebakov",
-            "russian": "nebakov"
+            "english": "Nebakov",
+            "russian": "Небаков"
           },
           "primaryGuid": "4ebced12-f9d9-1874",
           "areaGuids": [
@@ -1393,8 +1393,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Podseminsko",
           "displayName": {
-            "english": "podseminsko",
-            "russian": "podseminsko"
+            "english": "Lower Semine Region",
+            "russian": "Регион Нижнего Семина"
           },
           "primaryGuid": "d5c6425f-e64b-10fa",
           "areaGuids": [
@@ -1439,8 +1439,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Semin",
           "displayName": {
-            "english": "semin",
-            "russian": "semin"
+            "english": "Semine",
+            "russian": "Семин"
           },
           "primaryGuid": "38fc6442-ecb1-1438",
           "areaGuids": [
@@ -1467,8 +1467,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Slatejov",
           "displayName": {
-            "english": "slatejov",
-            "russian": "slatejov"
+            "english": "Slatego",
+            "russian": "Слатейово"
           },
           "primaryGuid": "a66ec79f-76cd-1a8b",
           "areaGuids": [
@@ -1489,8 +1489,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Tachov",
           "displayName": {
-            "english": "tachov",
-            "russian": "tachov"
+            "english": "Tachov",
+            "russian": "Тахов"
           },
           "primaryGuid": "38ded23c-14c3-1223",
           "areaGuids": [
@@ -1520,8 +1520,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Troskovice",
           "displayName": {
-            "english": "troskovice",
-            "russian": "troskovice"
+            "english": "Troskowitz",
+            "russian": "Тросковице"
           },
           "primaryGuid": "2bc8a0bf-b978-105a",
           "areaGuids": [
@@ -1565,8 +1565,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Vezicko",
           "displayName": {
-            "english": "vezicko",
-            "russian": "vezicko"
+            "english": "Rocktower Region",
+            "russian": "Вежицкие земли"
           },
           "primaryGuid": "fe95446a-1a59-105a",
           "areaGuids": [
@@ -1611,8 +1611,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Vidlak",
           "displayName": {
-            "english": "vidlak",
-            "russian": "vidlak"
+            "english": "Vidlak Pond",
+            "russian": "Видлакский пруд"
           },
           "primaryGuid": "a27bf15d-ba18-43e4",
           "areaGuids": [
@@ -1640,8 +1640,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Zdar",
           "displayName": {
-            "english": "zdar",
-            "russian": "zdar"
+            "english": "Schdiar Valley",
+            "russian": "Ждярская долина"
           },
           "primaryGuid": "e7404e6c-c7b8-141c",
           "areaGuids": [
@@ -1677,8 +1677,8 @@
           "gameRegion": "trosecko",
           "alias": "DP_SearchArea_Trosecko_Zelejov",
           "displayName": {
-            "english": "zelejov",
-            "russian": "zelejov"
+            "english": "Zhelejov",
+            "russian": "Желеев"
           },
           "primaryGuid": "3fb7d6e2-5407-167a",
           "areaGuids": [

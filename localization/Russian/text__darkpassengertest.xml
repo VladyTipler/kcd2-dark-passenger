@@ -4,8 +4,44 @@
 	<Row><Cell>dark_within_t</Cell><Cell>Тьма внутри…</Cell></Row>
 	<Row><Cell>dark_within_description_k</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
 	<Row><Cell>dark_within_description_t</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
-	<Row><Cell>dark_within_obj_name</Cell><Cell>Узнать, кто в Пржитоках заслуживает приговора</Cell></Row>
-	<Row><Cell>dark_within_obj</Cell><Cell>Пассажир не даёт мне покоя. Но прежде чем вершить приговор, я должен понять, кто в Пржитоках действительно заслуживает смерти.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Найти того, кто заслуживает приговора</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>Пассажир не даёт мне покоя. Прежде чем вершить приговор, нужно найти того, чья вина не оставляет сомнений.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bohounovice</Cell><Cell>След ведёт сюда: Богуновице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bylansko</Cell><Cell>След ведёт сюда: Биланы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_certovka</Cell><Cell>След ведёт сюда: «Чертово место». Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_grunta</Cell><Cell>След ведёт сюда: Грунта. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_horansko</Cell><Cell>След ведёт сюда: Горжаны. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kuklicko</Cell><Cell>След ведёт сюда: Куклице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kutnahora</Cell><Cell>След ведёт сюда: Кутна-Гора. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_lorec</Cell><Cell>След ведёт сюда: Лорец. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_malesov</Cell><Cell>След ведёт сюда: Малешов. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_mezholezsko</Cell><Cell>След ведёт сюда: Межолезы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_miskovicko</Cell><Cell>След ведёт сюда: Мышковицы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_nabylance</Cell><Cell>След ведёт сюда: долина Биланки. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_opatovicko</Cell><Cell>След ведёт сюда: Опатовицы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_pritoky</Cell><Cell>След ведёт сюда: Пржитоки. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_rabstejnsko</Cell><Cell>След ведёт сюда: Рабштейн. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_ratboricko</Cell><Cell>След ведёт сюда: Ратборж. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sedlcko</Cell><Cell>След ведёт сюда: Седлец. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_starakutna</Cell><Cell>След ведёт сюда: Стара-Кутна. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_suchdol</Cell><Cell>След ведёт сюда: Сухдол. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sukov</Cell><Cell>След ведёт сюда: Суков. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vlcihory</Cell><Cell>След ведёт сюда: Волчьи горы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vrchlicko</Cell><Cell>След ведёт сюда: Врхлица. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vysoka</Cell><Cell>След ведёт сюда: Висока. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_bukovina</Cell><Cell>След ведёт сюда: Буковина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_kopanina</Cell><Cell>След ведёт сюда: Копанина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_krcak</Cell><Cell>След ведёт сюда: Керчакский пруд. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_nebakov</Cell><Cell>След ведёт сюда: Небаков. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_podseminsko</Cell><Cell>След ведёт сюда: регион Нижнего Семина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_semin</Cell><Cell>След ведёт сюда: Семин. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_slatejov</Cell><Cell>След ведёт сюда: Слатейово. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_tachov</Cell><Cell>След ведёт сюда: Тахов. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_troskovice</Cell><Cell>След ведёт сюда: Тросковице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vezicko</Cell><Cell>След ведёт сюда: Вежицкие земли. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vidlak</Cell><Cell>След ведёт сюда: Видлакский пруд. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zdar</Cell><Cell>След ведёт сюда: Ждярская долина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zelejov</Cell><Cell>След ведёт сюда: Желеев. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Настигнуть избранную жертву</Cell></Row>
 	<Row><Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
