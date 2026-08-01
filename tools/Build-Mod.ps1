@@ -10,10 +10,6 @@ $sourceRoot = Join-Path $repoRoot 'src'
 $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
-$areaGeneratorPath = Join-Path $PSScriptRoot 'Generate-InvestigationAreas.ps1'
-$areaPolicyPath = Join-Path $repoRoot 'config\investigation-areas.json'
-$victimCatalogPath = Join-Path $repoRoot 'config\victim-candidates.json'
-$areaGeneratedRoot = Join-Path $buildParent 'generated\investigation-areas'
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
 $localizationRoot = Join-Path $repoRoot 'localization'
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
@@ -72,24 +68,6 @@ if (-not (Test-Path -LiteralPath $rawEvidencePath)) {
 }
 
 & $generatorPath
-
-$resolvedAreaGeneratedRoot = [System.IO.Path]::GetFullPath($areaGeneratedRoot)
-if (-not $resolvedAreaGeneratedRoot.StartsWith(
-    $requiredPrefix,
-    [System.StringComparison]::OrdinalIgnoreCase
-)) {
-    throw "Refusing to replace generated area path outside build root: $resolvedAreaGeneratedRoot"
-}
-if (Test-Path -LiteralPath $resolvedAreaGeneratedRoot) {
-    Remove-Item -LiteralPath $resolvedAreaGeneratedRoot -Recurse -Force
-}
-New-Item -ItemType Directory -Path $resolvedAreaGeneratedRoot -Force |
-    Out-Null
-& $areaGeneratorPath `
-    -PolicyPath $areaPolicyPath `
-    -VictimCatalogPath $victimCatalogPath `
-    -GeneratedRoot $resolvedAreaGeneratedRoot `
-    -StageRoot $resolvedBuildRoot
 
 $sevenZip = (Get-Command 7z.exe -ErrorAction Stop).Source
 $barboraKuttenbergRoot =
@@ -203,47 +181,6 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $baseLevelPak = [string]@($baseLevelPakItem.Target)[0]
     }
 
-    $areaManifestPath = Join-Path $resolvedAreaGeneratedRoot 'manifest.json'
-    $areaEntityFragmentPath = Join-Path $resolvedAreaGeneratedRoot `
-        'kutnohorsko.entities.xml'
-    if (-not (Test-Path -LiteralPath $areaManifestPath -PathType Leaf)) {
-        throw "Generated investigation area manifest not found: $areaManifestPath"
-    }
-    if (-not (Test-Path -LiteralPath $areaEntityFragmentPath -PathType Leaf)) {
-        throw "Generated investigation area fragment not found: $areaEntityFragmentPath"
-    }
-    try {
-        $areaManifest = Get-Content -LiteralPath $areaManifestPath -Raw |
-            ConvertFrom-Json -Depth 100
-    }
-    catch {
-        throw "Generated investigation area manifest is invalid JSON: $($_.Exception.Message)"
-    }
-    $kuttenbergAreas = @(
-        $areaManifest.areas |
-            Where-Object { $_.gameRegion -eq 'kutnohorsko' }
-    )
-    if ($areaManifest.schemaVersion -ne 1 -or $kuttenbergAreas.Count -eq 0) {
-        throw 'Generated investigation area manifest has no Kuttenberg areas.'
-    }
-    $areaEntityFragmentText =
-        [System.IO.File]::ReadAllText($areaEntityFragmentPath)
-    try {
-        $null = [xml]$areaEntityFragmentText
-    }
-    catch {
-        throw "Generated investigation area fragment is invalid XML: $($_.Exception.Message)"
-    }
-    $generatedAreaEntries = @(
-        [regex]::Matches(
-            $areaEntityFragmentText,
-            '(?s)<Entity\b.*?</Entity>'
-        ) | ForEach-Object { $_.Value.Trim() }
-    )
-    if ($generatedAreaEntries.Count -ne $kuttenbergAreas.Count) {
-        throw 'Generated investigation area fragment does not match its manifest.'
-    }
-
     $waitingLinksPath = Join-Path $kuttenbergLevelRoot 'waitinglinks.xml'
     $waitingLinksPatchText =
         [System.IO.File]::ReadAllText($waitingLinksPath)
@@ -256,38 +193,38 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
     $waitingLinkEntries = @(
         $waitingLinksPatch.StaticLinksInfo.WaitingLinks.WaitingLink
     )
-    if ($waitingLinkEntries.Count -ne (1 + $kuttenbergAreas.Count)) {
-        throw 'Dark Passenger waitinglinks patch must contain the Barbora Level, Quest, and area chain.'
+    if ($waitingLinkEntries.Count -ne 4) {
+        throw 'Dark Passenger waitinglinks patch must contain the Barbora Level, Quest, and three-area chain.'
     }
     $linkSignatures = @(
         $waitingLinkEntries | ForEach-Object {
             "$([string]$_.SourceId)|$([string]$_.TargetId)|$([string]$_.LinkDefinition)"
         }
     )
-    $expectedLinkSignatures = @(
-        '10702dff-9271-4a74|f4a73e20-28c5-4bd2|module'
-        $kuttenbergAreas | ForEach-Object {
-            "f4a73e20-28c5-4bd2|$($_.entityGuid)|asset['$($_.alias)']"
-        }
-    )
-    if (@(
-        $expectedLinkSignatures |
-            Where-Object { $_ -notin $linkSignatures }
-    ).Count -gt 0) {
-        throw 'Dark Passenger waitinglinks patch has an unexpected Barbora-Level-Quest binding.'
+    if (
+        '10702dff-9271-4a74|f4a73e20-28c5-4bd2|module' -notin
+            $linkSignatures -or
+        "f4a73e20-28c5-4bd2|d0fa0ece-6af5-19f6|asset['DP_PritokySearchArea']" -notin
+            $linkSignatures -or
+        "f4a73e20-28c5-4bd2|d2fc29a3-6787-141c|asset['DP_PritokySearchArea']" -notin
+            $linkSignatures -or
+        "f4a73e20-28c5-4bd2|1b6b6d4e-905c-4f9e|asset['DP_PritokySearchArea']" -notin
+            $linkSignatures
+    ) {
+        throw 'Dark Passenger waitinglinks patch has an unexpected Barbora multi-area binding.'
     }
 
     $missionObjectsPatchPath =
         Join-Path $kuttenbergLevelRoot 'objects_mission0.patch.xml'
     $missionObjectsPatchText =
         [System.IO.File]::ReadAllText($missionObjectsPatchPath)
-    $questHolderEntries = @(
+    $missionObjectEntries = @(
         [regex]::Matches(
             $missionObjectsPatchText,
             '(?s)<Entity\b.*?</Entity>'
         )
     )
-    if ($questHolderEntries.Count -ne 1) {
+    if ($missionObjectEntries.Count -ne 1) {
         throw 'Dark Passenger mission-object patch must contain only the Quest holder.'
     }
 
@@ -310,51 +247,12 @@ if (Test-Path -LiteralPath $kuttenbergLevelRoot) {
         $objectsMissionText.Contains('Name="dark_within_k"')) {
         throw 'Base Kuttenberg mission objects already contain a Dark Passenger concept-graph identity.'
     }
-    foreach ($generatedArea in $kuttenbergAreas) {
-        $entityId = [string]$generatedArea.entityId
-        $entityGuid = [string]$generatedArea.entityGuid
-        $entityName = [string]$generatedArea.entityName
-        if ($objectsMissionText -match (
-            '<Entity\b[^>]*\bEntityId="' +
-            [regex]::Escape($entityId) + '"'
-        )) {
-            throw "Generated investigation EntityId collision: $entityId"
-        }
-        if ($objectsMissionText -match (
-            '<Entity\b[^>]*\bEntityGuid="' +
-            [regex]::Escape($entityGuid) + '"'
-        )) {
-            throw "Generated investigation EntityGuid collision: $entityGuid"
-        }
-        if ($objectsMissionText -match (
-            '<Entity\b[^>]*\bName="' +
-            [regex]::Escape($entityName) + '"'
-        )) {
-            throw "Generated investigation entity name collision: $entityName"
-        }
-        $matchingGeneratedEntry = @(
-            $generatedAreaEntries | Where-Object {
-                $_ -match (
-                    '<Entity\b(?=[^>]*\bName="' +
-                    [regex]::Escape($entityName) + '")' +
-                    '(?=[^>]*\bEntityId="' +
-                    [regex]::Escape($entityId) + '")' +
-                    '(?=[^>]*\bEntityGuid="' +
-                    [regex]::Escape($entityGuid) + '")'
-                )
-            }
-        )
-        if ($matchingGeneratedEntry.Count -ne 1) {
-            throw "Generated investigation area identity mismatch: $entityName"
-        }
-    }
     $objectsEnd = $objectsMissionText.LastIndexOf('</Objects>')
     if ($objectsEnd -lt 0) {
         throw 'Base Kuttenberg mission objects have no Objects root terminator.'
     }
     $missionObjectBlock = @(
-        $questHolderEntries | ForEach-Object { $_.Value.Trim() }
-        $generatedAreaEntries
+        $missionObjectEntries | ForEach-Object { $_.Value.Trim() }
     ) -join "`r`n`t"
     $objectsMissionText = $objectsMissionText.Insert(
         $objectsEnd,

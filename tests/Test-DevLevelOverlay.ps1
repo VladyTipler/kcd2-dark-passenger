@@ -8,8 +8,6 @@ $fixtureGame = Join-Path $fixtureRoot 'game'
 $fixtureBackup = Join-Path $fixtureRoot 'backups'
 $fixtureBuildLevel =
     Join-Path $fixtureBuild 'Data\Levels\kutnohorsko'
-$fixtureBuildCatalog = Join-Path $fixtureBuild `
-    'Data\Scripts\mods\generated\dp_investigation_area_catalog.lua'
 $fixtureGameLevel =
     Join-Path $fixtureGame 'Data\Levels\kutnohorsko'
 
@@ -33,6 +31,38 @@ New-Item -ItemType Directory -Force -Path `
     $fixtureBackup |
     Out-Null
 
+$staleRuntimeLayer = Join-Path $fixtureGameLevel `
+    'Layers\darkpassenger_investigation_areas_1b986e82-f241-016c-c428-a298fa47119a.xml'
+$staleEditorLayer = Join-Path $fixtureGameLevel `
+    'Layers\main\_quest\activity\darkpassenger_investigation_areas.lyr'
+$vanillaLayerSentinel = Join-Path $fixtureGameLevel 'Layers\main.lyr'
+$vanillaWhdataSentinel = Join-Path $fixtureGameLevel 'whdata_1'
+$vanillaLevelDataSentinel = Join-Path $fixtureGameLevel 'leveldata.xml'
+New-Item -ItemType Directory -Force -Path `
+    (Split-Path -Parent $staleRuntimeLayer),
+    (Split-Path -Parent $staleEditorLayer) |
+    Out-Null
+foreach ($path in @($staleRuntimeLayer, $staleEditorLayer)) {
+    [System.IO.File]::WriteAllText(
+        $path,
+        '<stale-dark-passenger-layer />',
+        [System.Text.Encoding]::ASCII
+    )
+}
+foreach (
+    $path in @(
+        $vanillaLayerSentinel,
+        $vanillaWhdataSentinel,
+        $vanillaLevelDataSentinel
+    )
+) {
+    [System.IO.File]::WriteAllText(
+        $path,
+        '<vanilla-sentinel />',
+        [System.Text.Encoding]::ASCII
+    )
+}
+
 $generatedObjects = @'
 <?xml version="1.0" encoding="us-ascii"?>
 <Objects>
@@ -40,11 +70,11 @@ $generatedObjects = @'
     <EntityLinks><Link TargetId="1831841" TargetGuid="00000000-0000-0000" Name="module" /></EntityLinks>
   </Entity>
   <Entity Name="dark_within_k" EntityClass="SmartObjectHolder" EntityId="1831841" EntityGuid="f4a73e20-28c5-4bd2">
-    <EntityLinks><Link TargetId="1889983" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" /></EntityLinks>
-  </Entity>
-  <Entity Name="dp_pritoky_investigation_area" EntityClass="SmartAreaShape" EntityId="1889983" EntityGuid="461f0d87-1d9f-fd80">
-    <Properties guidSmartAreaTemplate="d9064870-2806-4032-8698-c09886772cf6" bSaved_by_game="0" />
-    <Area Id="0" Group="0" Proximity="0" Priority="0" Height="500"><Points><Point Pos="0,0,-0.1" /></Points></Area>
+    <EntityLinks>
+      <Link TargetId="17080" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
+      <Link TargetId="14696" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
+      <Link TargetId="4803" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
+    </EntityLinks>
   </Entity>
 </Objects>
 '@
@@ -64,7 +94,13 @@ $generatedWaitingLinks = @'
     <WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">
       <LinkDefinition>module</LinkDefinition>
     </WaitingLink>
-    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="461f0d87-1d9f-fd80">
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">
       <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
     </WaitingLink>
   </WaitingLinks>
@@ -77,26 +113,6 @@ $generatedWaitingLinksPath =
     $generatedWaitingLinksPath,
     $generatedWaitingLinks,
     [System.Text.Encoding]::ASCII
-)
-New-Item -ItemType Directory -Force `
-    -Path (Split-Path -Parent $fixtureBuildCatalog) |
-    Out-Null
-$generatedCatalog = @'
-DarkPassengerInvestigationAreaCatalog = {
-    schemaVersion = 1,
-    ["kutnohorsko"] = {
-        ["pritoky"] = {
-            alias = "DP_PritokySearchArea",
-            entityName = "dp_pritoky_investigation_area",
-            entityGuid = "461f0d87-1d9f-fd80",
-        },
-    },
-}
-'@
-[System.IO.File]::WriteAllText(
-    $fixtureBuildCatalog,
-    $generatedCatalog,
-    [System.Text.UTF8Encoding]::new($false)
 )
 [System.IO.File]::WriteAllText(
     (Join-Path $fixtureGameLevel 'waitinglinks.xml'),
@@ -140,30 +156,20 @@ if (
 ) {
     throw 'Deployed loose waitinglinks do not match the generated build.'
 }
-$deployedWaitingLinksText =
-    [System.IO.File]::ReadAllText($deployedWaitingLinksPath)
-if (
-    -not $deployedWaitingLinksText.Contains(
-        '<WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="461f0d87-1d9f-fd80">'
-    ) -or
-    $deployedWaitingLinksText.Contains('d0fa0ece-6af5-19f6')
-) {
-    throw 'Deployed waitinglinks do not target the generated Pritoky area.'
-}
 $deployedText = [System.IO.File]::ReadAllText($deployedPath)
 if (
     -not $deployedText.Contains('EntityGuid="10702dff-9271-4a74"') -or
     -not $deployedText.Contains(
         '<Link TargetId="1831841" TargetGuid="00000000-0000-0000" Name="module" />'
     ) -or
-    -not $deployedText.Contains(
-        'Name="dp_pritoky_investigation_area" EntityClass="SmartAreaShape" EntityId="1889983" EntityGuid="461f0d87-1d9f-fd80"'
-    ) -or
+    ([regex]::Matches(
+        $deployedText,
+        "asset\['DP_PritokySearchArea'\]"
+    ).Count -ne 3) -or
     $deployedText.Contains('EntityGuid="b8bf53a6-8c3a-41c9"') -or
-    $deployedText.Contains('EntityGuid="c1d9358b-7f4e-4a26"') -or
-    $deployedText.Contains('EntityGuid="d0fa0ece-6af5-19f6"')
+    $deployedText.Contains('EntityGuid="c1d9358b-7f4e-4a26"')
 ) {
-    throw 'Deployed loose mission objects do not include the generated Pritoky area.'
+    throw 'Deployed loose mission objects do not attach the quest to Barbora Kuttenberg.'
 }
 $backedUpWaitingLinks = @(
     Get-ChildItem -LiteralPath $fixtureBackup -Recurse -File |
@@ -177,6 +183,37 @@ if (
     '<stale />'
 ) {
     throw 'Backup does not contain the replaced stale waitinglinks file.'
+}
+foreach ($path in @($staleRuntimeLayer, $staleEditorLayer)) {
+    if (Test-Path -LiteralPath $path) {
+        throw "Obsolete custom investigation layer survived deployment: $path"
+    }
+}
+$backedUpCustomLayers = @(
+    Get-ChildItem -LiteralPath $fixtureBackup -Recurse -File |
+        Where-Object {
+            $_.Name -in @(
+                'darkpassenger_investigation_areas_1b986e82-f241-016c-c428-a298fa47119a.xml',
+                'darkpassenger_investigation_areas.lyr'
+            )
+        }
+)
+if ($backedUpCustomLayers.Count -ne 2) {
+    throw 'Obsolete custom investigation layers were not backed up exactly once.'
+}
+foreach (
+    $path in @(
+        $vanillaLayerSentinel,
+        $vanillaWhdataSentinel,
+        $vanillaLevelDataSentinel
+    )
+) {
+    if (
+        -not (Test-Path -LiteralPath $path -PathType Leaf) -or
+        [System.IO.File]::ReadAllText($path) -ne '<vanilla-sentinel />'
+    ) {
+        throw "Vanilla loose level data was modified: $path"
+    }
 }
 
 Write-Host 'RESULT: PASS (dev loose level overlay)'

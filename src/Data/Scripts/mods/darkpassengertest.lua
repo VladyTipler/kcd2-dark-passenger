@@ -19,7 +19,6 @@ Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
-Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
@@ -726,19 +725,15 @@ function DarkPassengerTarget.DumpActiveObjectives()
     return true
 end
 
-local areaCatalog = DarkPassengerInvestigationAreaCatalog
-local areaRegion = DarkPassengerInvestigationAreaCatalog and
-    DarkPassengerInvestigationAreaCatalog.kutnohorsko
-local area = areaRegion and areaRegion.pritoky
-
 DarkPassengerAreaBridge = DarkPassengerAreaBridge or {}
-DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = areaRegion and
-    areaRegion.levelHolderName or nil
-DarkPassengerAreaBridge.HOLDER_NAME = areaRegion and
-    areaRegion.questHolderName or nil
-DarkPassengerAreaBridge.TARGET_NAME = area and area.entityName or nil
-DarkPassengerAreaBridge.LINK_NAME = area and
-    "asset['" .. tostring(area.alias) .. "']" or nil
+DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"
+DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"
+DarkPassengerAreaBridge.TARGET_NAMES = {
+    "kpri_publicEnemiesRepulsionZoneVillageArea_1",
+    "kpri_publicEnemiesRepulsionZoneVillageInnArea_1",
+    "kradeneZasilky_banditCamp_TaborDezerteru_area",
+}
+DarkPassengerAreaBridge.LINK_NAME = "asset['DP_PritokySearchArea']"
 DarkPassengerAreaBridge.POLL_INTERVAL_MS = 500
 DarkPassengerAreaBridge.MAX_ATTEMPTS = 120
 DarkPassengerAreaBridge.pollGeneration =
@@ -750,7 +745,7 @@ local function AreaLog(message)
     end
 end
 
-local function HasModuleLink(source, target)
+local function HasNamedLink(source, target, expectedName)
     local okCount, linkCount = pcall(function()
         return source:CountLinks()
     end)
@@ -761,7 +756,7 @@ local function HasModuleLink(source, target)
         local okLink, linkTarget, linkName = pcall(function()
             return source:GetLink(index)
         end)
-        if okLink and linkTarget ~= nil and linkName == "module" and
+        if okLink and linkTarget ~= nil and linkName == expectedName and
            linkTarget.id == target.id then
             return true
         end
@@ -769,24 +764,30 @@ local function HasModuleLink(source, target)
     return false
 end
 
-function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
+function DarkPassengerAreaBridge.EnsureNamedLink(
+    source,
+    target,
+    linkName,
+    label
+)
     if source == nil or source.id == nil or target == nil or
        target.id == nil or source.CountLinks == nil or
-       source.GetLink == nil or source.CreateLink == nil then
+       source.GetLink == nil or source.CreateLink == nil or
+       linkName == nil or linkName == "" then
         AreaLog(tostring(label) .. " link API unavailable")
         return false
     end
-    if HasModuleLink(source, target) then
+    if HasNamedLink(source, target, linkName) then
         return true
     end
     local okCreate, createError = pcall(function()
-        source:CreateLink("module", target.id)
+        source:CreateLink(linkName, target.id)
     end)
     if not okCreate then
         AreaLog(tostring(label) .. " CreateLink failed error=" .. tostring(createError))
         return false
     end
-    if HasModuleLink(source, target) then
+    if HasNamedLink(source, target, linkName) then
         AreaLog("linked " .. tostring(label))
         return true
     end
@@ -794,33 +795,16 @@ function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
     return false
 end
 
+function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
+    return DarkPassengerAreaBridge.EnsureNamedLink(
+        source,
+        target,
+        "module",
+        label
+    )
+end
+
 function DarkPassengerAreaBridge.EnsureLinked()
-    if areaCatalog == nil then
-        AreaLog("investigation area catalogue unavailable")
-        return false
-    end
-    if areaRegion == nil then
-        AreaLog("investigation area region unavailable: kutnohorsko")
-        return false
-    end
-    if area == nil then
-        AreaLog("investigation area entry unavailable: kutnohorsko/pritoky")
-        return false
-    end
-    if DarkPassengerAreaBridge.LEVEL_HOLDER_NAME == nil or
-       DarkPassengerAreaBridge.HOLDER_NAME == nil then
-        AreaLog("investigation area holder metadata unavailable: kutnohorsko")
-        return false
-    end
-    if DarkPassengerAreaBridge.TARGET_NAME == nil or
-       DarkPassengerAreaBridge.TARGET_NAME == "" then
-        AreaLog("investigation area entity name unavailable: kutnohorsko/pritoky")
-        return false
-    end
-    if area.alias == nil or area.alias == "" then
-        AreaLog("investigation area alias unavailable: kutnohorsko/pritoky")
-        return false
-    end
     if System == nil or System.GetEntityByName == nil then
         return false
     end
@@ -828,59 +812,37 @@ function DarkPassengerAreaBridge.EnsureLinked()
     local levelHolder =
         System.GetEntityByName(DarkPassengerAreaBridge.LEVEL_HOLDER_NAME)
     local holder = System.GetEntityByName(DarkPassengerAreaBridge.HOLDER_NAME)
-    local target = System.GetEntityByName(DarkPassengerAreaBridge.TARGET_NAME)
     if levelHolder == nil or levelHolder.id == nil or
-       holder == nil or holder.id == nil or
-       target == nil or target.id == nil then
-        return false
-    end
-    if holder.GetLinkTarget == nil or
-       holder.CreateLink == nil then
-        AreaLog("holder link API unavailable")
+       holder == nil or holder.id == nil then
         return false
     end
 
-    if not DarkPassengerAreaBridge.EnsureModuleLink(levelHolder, holder, "LevelHolder to Quest holder") then
+    local moduleLinked = DarkPassengerAreaBridge.EnsureModuleLink(
+        levelHolder,
+        holder,
+        "LevelHolder to Quest holder"
+    )
+    if not moduleLinked then
         return false
     end
 
-    local okExisting, existing = pcall(function()
-        return holder:GetLinkTarget(DarkPassengerAreaBridge.LINK_NAME, 0)
-    end)
-    if okExisting and existing ~= nil and existing.id == target.id then
-        return true
-    end
-    if okExisting and existing ~= nil then
-        AreaLog(
-            "alias already points to another entity id=" ..
-            tostring(existing.id)
+    for _, targetName in ipairs(DarkPassengerAreaBridge.TARGET_NAMES) do
+        local target = System.GetEntityByName(targetName)
+        if target == nil or target.id == nil then
+            return false
+        end
+        local areaLinked = DarkPassengerAreaBridge.EnsureNamedLink(
+            holder,
+            target,
+            DarkPassengerAreaBridge.LINK_NAME,
+            "Quest holder to area " .. targetName
         )
-        return false
+        if not areaLinked then
+            return false
+        end
     end
 
-    local okCreate, createError = pcall(function()
-        holder:CreateLink(DarkPassengerAreaBridge.LINK_NAME, target.id)
-    end)
-    if not okCreate then
-        AreaLog("CreateLink failed error=" .. tostring(createError))
-        return false
-    end
-
-    local okVerify, linkedTarget = pcall(function()
-        return holder:GetLinkTarget(DarkPassengerAreaBridge.LINK_NAME, 0)
-    end)
-    if okVerify and linkedTarget ~= nil and linkedTarget.id == target.id then
-        AreaLog(
-            "linked holder=" .. DarkPassengerAreaBridge.HOLDER_NAME ..
-            " alias=" .. DarkPassengerAreaBridge.LINK_NAME ..
-            " target=" .. DarkPassengerAreaBridge.TARGET_NAME ..
-            " id=" .. tostring(target.id)
-        )
-        return true
-    end
-
-    AreaLog("CreateLink returned without a verifiable target")
-    return false
+    return true
 end
 
 local function ScheduleAreaLinkPoll(generation, attempt)

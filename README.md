@@ -29,6 +29,7 @@ SkipTime presentation.
 - [x] Nearest-settlement victim selection in Kuttenberg and Trosky
 - [x] Native journal objective and quest marker on the selected NPC
 - [x] Target death completes the Case and resets hunger
+- [ ] Any player-caused human kill caps hunger at 50 without completing the Case
 
 ### Phase 2 — The first rule: do not get caught
 
