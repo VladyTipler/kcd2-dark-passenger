@@ -58,7 +58,7 @@ Also assert stable winding and canonical decimal formatting.
 Run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File 'H:\KCD2Mod\DarkPassenger\tests\Test-InvestigationAreaGeometry.ps1'
+pwsh -NoProfile -ExecutionPolicy Bypass -File 'H:\KCD2Mod\DarkPassenger\tests\Test-InvestigationAreaGeometry.ps1'
 ```
 
 Expected: FAIL because `InvestigationAreaGeometry.psm1` does not exist.
