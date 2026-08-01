@@ -6,10 +6,23 @@ $fixtureRoot = Join-Path $repoRoot 'build\test-dev-level-overlay'
 $fixtureBuild = Join-Path $fixtureRoot 'build'
 $fixtureGame = Join-Path $fixtureRoot 'game'
 $fixtureBackup = Join-Path $fixtureRoot 'backups'
-$fixtureBuildLevel =
-    Join-Path $fixtureBuild 'Data\Levels\kutnohorsko'
-$fixtureGameLevel =
-    Join-Path $fixtureGame 'Data\Levels\kutnohorsko'
+
+function Write-AsciiFile {
+    param(
+        [Parameter(Mandatory)][string]$LiteralPath,
+        [Parameter(Mandatory)][string]$Content
+    )
+
+    $parent = Split-Path -Parent $LiteralPath
+    if (-not (Test-Path -LiteralPath $parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    [System.IO.File]::WriteAllText(
+        $LiteralPath,
+        $Content,
+        [System.Text.Encoding]::ASCII
+    )
+}
 
 if (Test-Path -LiteralPath $fixtureRoot) {
     $resolvedFixture = [System.IO.Path]::GetFullPath($fixtureRoot)
@@ -25,195 +38,283 @@ if (Test-Path -LiteralPath $fixtureRoot) {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
 }
 
-New-Item -ItemType Directory -Force -Path `
-    $fixtureBuildLevel,
-    $fixtureGameLevel,
-    $fixtureBackup |
-    Out-Null
+$regions = @(
+    [pscustomobject]@{
+        id = 'kutnohorsko'
+        levelHolderGuid = '10702dff-9271-4a74'
+        questHolderName = 'dark_within_k'
+        questHolderGuid = 'f4a73e20-28c5-4bd2'
+        questHolderEntityId = '1831841'
+        alias = 'DP_SearchArea_Kutnohorsko_Pritoky'
+        areas = @(
+            [pscustomobject]@{ guid = 'd0fa0ece-6af5-19f6'; entityId = '17080' }
+            [pscustomobject]@{ guid = 'd2fc29a3-6787-141c'; entityId = '14696' }
+            [pscustomobject]@{ guid = '1b6b6d4e-905c-4f9e'; entityId = '4803' }
+        )
+    }
+    [pscustomobject]@{
+        id = 'trosecko'
+        levelHolderGuid = '30277b74-1c65-41e9'
+        questHolderName = 'dark_within_t'
+        questHolderGuid = 'a13d9e5c-7b42-4f61'
+        questHolderEntityId = '1831842'
+        alias = 'DP_SearchArea_Trosecko_Troskovice'
+        areas = @(
+            [pscustomobject]@{ guid = '0c34a13c-dd79-19a9'; entityId = '28001' }
+        )
+    }
+)
 
-$staleRuntimeLayer = Join-Path $fixtureGameLevel `
-    'Layers\darkpassenger_investigation_areas_1b986e82-f241-016c-c428-a298fa47119a.xml'
-$staleEditorLayer = Join-Path $fixtureGameLevel `
-    'Layers\main\_quest\activity\darkpassenger_investigation_areas.lyr'
-$vanillaLayerSentinel = Join-Path $fixtureGameLevel 'Layers\main.lyr'
-$vanillaWhdataSentinel = Join-Path $fixtureGameLevel 'whdata_1'
-$vanillaLevelDataSentinel = Join-Path $fixtureGameLevel 'leveldata.xml'
-New-Item -ItemType Directory -Force -Path `
-    (Split-Path -Parent $staleRuntimeLayer),
-    (Split-Path -Parent $staleEditorLayer) |
-    Out-Null
-foreach ($path in @($staleRuntimeLayer, $staleEditorLayer)) {
-    [System.IO.File]::WriteAllText(
-        $path,
-        '<stale-dark-passenger-layer />',
-        [System.Text.Encoding]::ASCII
-    )
-}
-foreach (
-    $path in @(
-        $vanillaLayerSentinel,
-        $vanillaWhdataSentinel,
-        $vanillaLevelDataSentinel
-    )
-) {
-    [System.IO.File]::WriteAllText(
-        $path,
-        '<vanilla-sentinel />',
-        [System.Text.Encoding]::ASCII
-    )
-}
+New-Item -ItemType Directory -Path $fixtureBackup -Force | Out-Null
+$sentinelHashes = @{}
+foreach ($region in $regions) {
+    $buildLevel = Join-Path $fixtureBuild "Data\Levels\$($region.id)"
+    $gameLevel = Join-Path $fixtureGame "Data\Levels\$($region.id)"
+    New-Item -ItemType Directory -Path $buildLevel, $gameLevel -Force |
+        Out-Null
 
-$generatedObjects = @'
+    $assetLinks = @(
+        $region.areas | ForEach-Object {
+            '      <Link TargetId="{0}" TargetGuid="00000000-0000-0000" Name="asset[''{1}'']" />' -f
+                $_.entityId,
+                $region.alias
+        }
+    ) -join "`r`n"
+    $areaEntities = @(
+        $region.areas | ForEach-Object {
+            '  <Entity Name="area_{0}" EntityClass="TriggerArea" EntityId="{1}" EntityGuid="{0}"><EntityLinks /></Entity>' -f
+                $_.guid,
+                $_.entityId
+        }
+    ) -join "`r`n"
+    $generatedObjects = @"
 <?xml version="1.0" encoding="us-ascii"?>
 <Objects>
-  <Entity Name="kutnohorsko" EntityClass="LevelHolder" EntityId="1" EntityGuid="10702dff-9271-4a74">
-    <EntityLinks><Link TargetId="1831841" TargetGuid="00000000-0000-0000" Name="module" /></EntityLinks>
+  <Entity Name="$($region.id)" EntityClass="LevelHolder" EntityId="1" EntityGuid="$($region.levelHolderGuid)">
+    <EntityLinks><Link TargetId="$($region.questHolderEntityId)" TargetGuid="00000000-0000-0000" Name="module" /></EntityLinks>
   </Entity>
-  <Entity Name="dark_within_k" EntityClass="SmartObjectHolder" EntityId="1831841" EntityGuid="f4a73e20-28c5-4bd2">
+  <Entity Name="$($region.questHolderName)" EntityClass="SmartObjectHolder" EntityId="$($region.questHolderEntityId)" EntityGuid="$($region.questHolderGuid)">
     <EntityLinks>
-      <Link TargetId="17080" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
-      <Link TargetId="14696" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
-      <Link TargetId="4803" TargetGuid="00000000-0000-0000" Name="asset['DP_PritokySearchArea']" />
+$assetLinks
     </EntityLinks>
   </Entity>
+$areaEntities
+  <Entity Name="vanilla_registry_$($region.id)" EntityClass="VanillaSentinel" EntityId="999" EntityGuid="99999999-9999-9999"><EntityLinks /></Entity>
 </Objects>
-'@
-$generatedPath = Join-Path $fixtureBuildLevel 'objects_mission0.xml'
-[System.IO.File]::WriteAllText(
-    $generatedPath,
-    $generatedObjects,
-    [System.Text.Encoding]::ASCII
-)
-$generatedWaitingLinks = @'
+"@
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $buildLevel 'objects_mission0.xml') `
+        -Content $generatedObjects
+
+    $waitingAreaLinks = @(
+        $region.areas | ForEach-Object {
+            @"
+    <WaitingLink SourceId="$($region.questHolderGuid)" TargetId="$($_.guid)">
+      <LinkDefinition>asset[&apos;$($region.alias)&apos;]</LinkDefinition>
+    </WaitingLink>
+"@
+        }
+    ) -join ''
+    $generatedWaitingLinks = @"
 <?xml version="1.0" encoding="us-ascii"?>
 <StaticLinksInfo version="1">
   <WaitingLinks>
-    <WaitingLink SourceId="vanilla-source" TargetId="vanilla-target">
+    <WaitingLink SourceId="vanilla-source-$($region.id)" TargetId="vanilla-target-$($region.id)">
       <LinkDefinition>vanilla</LinkDefinition>
     </WaitingLink>
-    <WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">
+    <WaitingLink SourceId="$($region.levelHolderGuid)" TargetId="$($region.questHolderGuid)">
       <LinkDefinition>module</LinkDefinition>
     </WaitingLink>
-    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">
-      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
-    </WaitingLink>
-    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">
-      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
-    </WaitingLink>
-    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">
-      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
-    </WaitingLink>
-  </WaitingLinks>
+$waitingAreaLinks  </WaitingLinks>
   <StreamableTargets />
 </StaticLinksInfo>
-'@
-$generatedWaitingLinksPath =
-    Join-Path $fixtureBuildLevel 'waitinglinks.xml'
-[System.IO.File]::WriteAllText(
-    $generatedWaitingLinksPath,
-    $generatedWaitingLinks,
-    [System.Text.Encoding]::ASCII
+"@
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $buildLevel 'waitinglinks.xml') `
+        -Content $generatedWaitingLinks
+
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $gameLevel 'objects_mission0.xml') `
+        -Content "<old-objects region=`"$($region.id)`" />"
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $gameLevel 'waitinglinks.xml') `
+        -Content "<old-waitinglinks region=`"$($region.id)`" />"
+
+    foreach ($relativePath in @(
+        'Layers\main.lyr',
+        'whdata_1',
+        'leveldata.xml',
+        'unrelated-loose-registry.xml'
+    )) {
+        $sentinelPath = Join-Path $gameLevel $relativePath
+        Write-AsciiFile `
+            -LiteralPath $sentinelPath `
+            -Content "<vanilla-sentinel region=`"$($region.id)`" path=`"$relativePath`" />"
+        $sentinelHashes[$sentinelPath] = (
+            Get-FileHash -LiteralPath $sentinelPath -Algorithm SHA256
+        ).Hash
+    }
+}
+
+$kuttenbergLevel = Join-Path $fixtureGame 'Data\Levels\kutnohorsko'
+$troskyLevel = Join-Path $fixtureGame 'Data\Levels\trosecko'
+$obsoleteRelativePaths = @(
+    'Layers\darkpassenger_investigation_areas_1b986e82-f241-016c-c428-a298fa47119a.xml',
+    'Layers\main\_quest\activity\darkpassenger_investigation_areas.lyr'
 )
-[System.IO.File]::WriteAllText(
-    (Join-Path $fixtureGameLevel 'waitinglinks.xml'),
-    '<stale />',
-    [System.Text.Encoding]::ASCII
-)
-[System.IO.File]::WriteAllText(
-    (Join-Path $fixtureGame 'user.cfg'),
-    "sys_PakPriority = 0`r`n",
-    [System.Text.Encoding]::ASCII
-)
+foreach ($relativePath in $obsoleteRelativePaths) {
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $kuttenbergLevel $relativePath) `
+        -Content '<obsolete-pritoky-layer />'
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $troskyLevel $relativePath) `
+        -Content '<same-name-trosky-sentinel />'
+}
+$unrelatedDarkPassengerFile =
+    Join-Path $kuttenbergLevel 'Layers\darkpassenger_investigation_areas.keep'
+Write-AsciiFile `
+    -LiteralPath $unrelatedDarkPassengerFile `
+    -Content '<unrelated-dark-passenger-file />'
+$unrelatedHash = (
+    Get-FileHash -LiteralPath $unrelatedDarkPassengerFile -Algorithm SHA256
+).Hash
+
+Write-AsciiFile `
+    -LiteralPath (Join-Path $fixtureGame 'user.cfg') `
+    -Content "sys_PakPriority = 0`r`n"
 
 if (-not (Test-Path -LiteralPath $deployScript)) {
     throw "Missing dev level overlay deployer: $deployScript"
 }
-
 & $deployScript `
     -BuildRoot $fixtureBuild `
     -DevGameRoot $fixtureGame `
     -BackupRoot $fixtureBackup `
     -GameProcessName 'DarkPassengerOverlayTestNoProcess'
 
-$deployedPath = Join-Path $fixtureGameLevel 'objects_mission0.xml'
-$deployedWaitingLinksPath =
-    Join-Path $fixtureGameLevel 'waitinglinks.xml'
-if (-not (Test-Path -LiteralPath $deployedPath)) {
-    throw 'Generated mission objects were not deployed as a loose dev file.'
-}
-if (
-    (Get-FileHash -Algorithm SHA256 -LiteralPath $deployedPath).Hash -ne
-    (Get-FileHash -Algorithm SHA256 -LiteralPath $generatedPath).Hash
-) {
-    throw 'Deployed loose mission objects do not match the generated build.'
-}
-if (-not (Test-Path -LiteralPath $deployedWaitingLinksPath)) {
-    throw 'Generated waitinglinks were not deployed as a loose dev file.'
-}
-if (
-    (Get-FileHash -Algorithm SHA256 -LiteralPath $deployedWaitingLinksPath).Hash -ne
-    (Get-FileHash -Algorithm SHA256 -LiteralPath $generatedWaitingLinksPath).Hash
-) {
-    throw 'Deployed loose waitinglinks do not match the generated build.'
-}
-$deployedText = [System.IO.File]::ReadAllText($deployedPath)
-if (
-    -not $deployedText.Contains('EntityGuid="10702dff-9271-4a74"') -or
-    -not $deployedText.Contains(
-        '<Link TargetId="1831841" TargetGuid="00000000-0000-0000" Name="module" />'
-    ) -or
-    ([regex]::Matches(
-        $deployedText,
-        "asset\['DP_PritokySearchArea'\]"
-    ).Count -ne 3) -or
-    $deployedText.Contains('EntityGuid="b8bf53a6-8c3a-41c9"') -or
-    $deployedText.Contains('EntityGuid="c1d9358b-7f4e-4a26"')
-) {
-    throw 'Deployed loose mission objects do not attach the quest to Barbora Kuttenberg.'
-}
-$backedUpWaitingLinks = @(
-    Get-ChildItem -LiteralPath $fixtureBackup -Recurse -File |
-        Where-Object { $_.Name -eq 'waitinglinks.xml' }
+$backupDirectories = @(
+    Get-ChildItem -LiteralPath $fixtureBackup -Directory |
+        Where-Object Name -Like 'dev-level-*'
 )
-if ($backedUpWaitingLinks.Count -ne 1) {
-    throw 'Stale loose waitinglinks.xml was not preserved exactly once.'
+if ($backupDirectories.Count -ne 1) {
+    throw 'Both regions must be preserved in one atomic deployment backup.'
 }
-if (
-    [System.IO.File]::ReadAllText($backedUpWaitingLinks[0].FullName) -ne
-    '<stale />'
-) {
-    throw 'Backup does not contain the replaced stale waitinglinks file.'
-}
-foreach ($path in @($staleRuntimeLayer, $staleEditorLayer)) {
-    if (Test-Path -LiteralPath $path) {
-        throw "Obsolete custom investigation layer survived deployment: $path"
-    }
-}
-$backedUpCustomLayers = @(
-    Get-ChildItem -LiteralPath $fixtureBackup -Recurse -File |
-        Where-Object {
-            $_.Name -in @(
-                'darkpassenger_investigation_areas_1b986e82-f241-016c-c428-a298fa47119a.xml',
-                'darkpassenger_investigation_areas.lyr'
-            )
+$backupDirectory = $backupDirectories[0].FullName
+
+foreach ($region in $regions) {
+    $buildLevel = Join-Path $fixtureBuild "Data\Levels\$($region.id)"
+    $gameLevel = Join-Path $fixtureGame "Data\Levels\$($region.id)"
+    $backupLevel = Join-Path $backupDirectory $region.id
+    foreach ($fileName in @('objects_mission0.xml', 'waitinglinks.xml')) {
+        $sourcePath = Join-Path $buildLevel $fileName
+        $deployedPath = Join-Path $gameLevel $fileName
+        $backupPath = Join-Path $backupLevel $fileName
+        $oldKind = if ($fileName -eq 'objects_mission0.xml') {
+            'objects'
         }
-)
-if ($backedUpCustomLayers.Count -ne 2) {
-    throw 'Obsolete custom investigation layers were not backed up exactly once.'
-}
-foreach (
-    $path in @(
-        $vanillaLayerSentinel,
-        $vanillaWhdataSentinel,
-        $vanillaLevelDataSentinel
-    )
-) {
-    if (
-        -not (Test-Path -LiteralPath $path -PathType Leaf) -or
-        [System.IO.File]::ReadAllText($path) -ne '<vanilla-sentinel />'
-    ) {
-        throw "Vanilla loose level data was modified: $path"
+        else {
+            'waitinglinks'
+        }
+        if (
+            -not (Test-Path -LiteralPath $deployedPath -PathType Leaf) -or
+            (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash -ne
+                (Get-FileHash -LiteralPath $deployedPath -Algorithm SHA256).Hash
+        ) {
+            throw "Deployed $($region.id)/$fileName does not match the generated build."
+        }
+        if (
+            -not (Test-Path -LiteralPath $backupPath -PathType Leaf) -or
+            [System.IO.File]::ReadAllText($backupPath) -ne
+                "<old-$oldKind region=`"$($region.id)`" />"
+        ) {
+            throw "Backup does not preserve $($region.id)/$fileName exactly once."
+        }
     }
 }
 
-Write-Host 'RESULT: PASS (dev loose level overlay)'
+foreach ($entry in $sentinelHashes.GetEnumerator()) {
+    if (
+        -not (Test-Path -LiteralPath $entry.Key -PathType Leaf) -or
+        (Get-FileHash -LiteralPath $entry.Key -Algorithm SHA256).Hash -ne
+            $entry.Value
+    ) {
+        throw "Vanilla loose level data was modified: $($entry.Key)"
+    }
+}
+foreach ($relativePath in $obsoleteRelativePaths) {
+    if (Test-Path -LiteralPath (Join-Path $kuttenbergLevel $relativePath)) {
+        throw "Obsolete Pritoky layer survived deployment: $relativePath"
+    }
+    if (-not (Test-Path -LiteralPath (
+        Join-Path $backupDirectory "kutnohorsko\obsolete\$relativePath"
+    ))) {
+        throw "Obsolete Pritoky layer was not backed up: $relativePath"
+    }
+    $troskySentinel = Join-Path $troskyLevel $relativePath
+    if (
+        -not (Test-Path -LiteralPath $troskySentinel -PathType Leaf) -or
+        [System.IO.File]::ReadAllText($troskySentinel) -ne
+            '<same-name-trosky-sentinel />'
+    ) {
+        throw "Deployment removed a non-Pritoky lookalike: $troskySentinel"
+    }
+}
+if (
+    -not (Test-Path -LiteralPath $unrelatedDarkPassengerFile -PathType Leaf) -or
+    (Get-FileHash -LiteralPath $unrelatedDarkPassengerFile -Algorithm SHA256).Hash -ne
+        $unrelatedHash
+) {
+    throw 'Deployment removed an unrelated Dark Passenger layer file.'
+}
+
+# Prove rollback across the regional boundary with a real locked target file.
+foreach ($region in $regions) {
+    $gameLevel = Join-Path $fixtureGame "Data\Levels\$($region.id)"
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $gameLevel 'objects_mission0.xml') `
+        -Content "<rollback-old-objects region=`"$($region.id)`" />"
+    Write-AsciiFile `
+        -LiteralPath (Join-Path $gameLevel 'waitinglinks.xml') `
+        -Content "<rollback-old-waitinglinks region=`"$($region.id)`" />"
+}
+$lockedTroskyWaitingLinks = Join-Path $troskyLevel 'waitinglinks.xml'
+$lockStream = [System.IO.File]::Open(
+    $lockedTroskyWaitingLinks,
+    [System.IO.FileMode]::Open,
+    [System.IO.FileAccess]::ReadWrite,
+    [System.IO.FileShare]::None
+)
+$rollbackTriggered = $false
+try {
+    try {
+        & $deployScript `
+            -BuildRoot $fixtureBuild `
+            -DevGameRoot $fixtureGame `
+            -BackupRoot $fixtureBackup `
+            -GameProcessName 'DarkPassengerOverlayTestNoProcess'
+    }
+    catch {
+        $rollbackTriggered = $true
+    }
+}
+finally {
+    $lockStream.Dispose()
+}
+if (-not $rollbackTriggered) {
+    throw 'Locked Trosky registry did not abort the regional deployment.'
+}
+foreach ($region in $regions) {
+    $gameLevel = Join-Path $fixtureGame "Data\Levels\$($region.id)"
+    if (
+        [System.IO.File]::ReadAllText(
+            (Join-Path $gameLevel 'objects_mission0.xml')
+        ) -ne "<rollback-old-objects region=`"$($region.id)`" />" -or
+        [System.IO.File]::ReadAllText(
+            (Join-Path $gameLevel 'waitinglinks.xml')
+        ) -ne "<rollback-old-waitinglinks region=`"$($region.id)`" />"
+    ) {
+        throw "Failed deployment left a partial regional overlay: $($region.id)"
+    }
+}
+
+Write-Host 'RESULT: PASS (two-region atomic dev loose level overlay)'

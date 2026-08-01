@@ -17,7 +17,8 @@ The retail-confirmed core supports persistent hunger, nearest-settlement victim
 selection in both regions, native quest objectives and markers, and automatic
 post-target-death satisfaction reset. The dev-confirmed aftermath layer tracks
 witness outcomes and adds global hold-to-bury corpse disposal with native
-SkipTime presentation.
+SkipTime presentation. The investigation pipeline generates settlement-sized
+multi-area search districts for all supported settlements in both regions.
 
 ## Roadmap
 
@@ -77,7 +78,7 @@ See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 
 - `src` — authored KCD2 Lua/XML mod sources;
 - `localization` — authored English and Russian localization;
-- `config` — victim catalogue and selection policy;
+- `config` — victim policy plus generated settlement-area selection manifest;
 - `tools` — extraction, generation, build, and deployment scripts;
 - `tests` — structural verification;
 - `docs` — designs, plans, and reference notes;
@@ -91,13 +92,40 @@ Reference mods and extracted game data are intentionally excluded.
 ```powershell
 $env:KCD2_DEV_ROOT = 'D:\path\to\KCD2Mod'
 $env:KCD2_REFERENCE_DATA_ROOT = 'D:\path\to\AssetLinker\InternalData'
+pwsh -NoProfile -File '.\tests\Test-SettlementInvestigationAreas.ps1' `
+  -ReferenceDataRoot $env:KCD2_REFERENCE_DATA_ROOT `
+  -DevGameRoot $env:KCD2_DEV_ROOT
 pwsh -NoProfile -File '.\tools\Build-Mod.ps1'
-pwsh -NoProfile -File '.\tests\Test-DarkPassengerSatisfaction.ps1'
+pwsh -NoProfile -File '.\tests\Test-DarkPassengerSatisfaction.ps1' `
+  -ReferenceDataRoot $env:KCD2_REFERENCE_DATA_ROOT `
+  -DevGameRoot $env:KCD2_DEV_ROOT
+pwsh -NoProfile -File '.\tests\Test-DevLevelOverlay.ps1'
+pwsh -NoProfile -File '.\tests\Test-InvestigationAreaGeometry.ps1'
 ```
 
-The first local build regenerates ignored extraction evidence from the KCD2 dev
-data and the separately installed AssetLinker reference. Those external files
-are prerequisites, not repository content.
+The normalized vanilla TriggerArea inventory under `build/generated` is a
+build-time input, not a runtime dependency. Regenerate it only when the game
+registries, settlement coverage, or area policy changes. The committed
+settlement manifest then generates quest states, both regional world bindings,
+and `dp_investigation_area_catalog.lua`; Node/.NET is never required by the
+running game. `Test-SettlementInvestigationAreas.ps1` creates the ignored
+inventory on its first run and validates the committed manifest thereafter.
+
+The first local generation uses the KCD2 dev data and separately installed
+AssetLinker reference. Those external files are prerequisites, not repository
+content.
+
+## Dev deployment
+
+Close the game before deploying. The deployer validates and stages both
+regional registries, stores one rollback-safe backup, installs exactly
+`objects_mission0.xml` and `waitinglinks.xml` per region, and removes only the
+two obsolete custom Pritoky layer artifacts.
+
+```powershell
+pwsh -NoProfile -File '.\tools\Deploy-DevLevelOverlay.ps1' `
+  -DevGameRoot $env:KCD2_DEV_ROOT
+```
 
 ## Dependencies and references
 
