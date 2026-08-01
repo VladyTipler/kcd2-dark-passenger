@@ -74,6 +74,8 @@ $burialRecoveryTreePath =
 $legacyBurialRecoveryTreePath =
     "$stageRoot\Data\AI\world\darkPassengerRecoverBuriedBody.xml"
 $generatedCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_candidate_catalog.lua"
+$investigationAreaCatalogLuaPath =
+    "$stageRoot\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua"
 $questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item_catalog.lua"
 $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
 $kuttenbergWaitingLinksPath = "$stageRoot\Data\Levels\kutnohorsko\waitinglinks.xml"
@@ -91,6 +93,7 @@ $catalogBuilderPath = "$testRoot\tools\Build-VictimCatalog.ps1"
 $victimPolicyPath = "$testRoot\config\victim-policy.json"
 $rawWorldCandidatesPath = "$testRoot\evidence\world-candidates.raw.json"
 $buildScriptPath = "$testRoot\tools\Build-Mod.ps1"
+$areaInventoryPath = "$testRoot\build\generated\vanilla-trigger-areas.json"
 $englishPath = "$testRoot\localization\English\text__darkpassengertest.xml"
 $russianPath = "$testRoot\localization\Russian\text__darkpassengertest.xml"
 
@@ -263,6 +266,8 @@ $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
+$investigationAreaCatalogLuaText =
+    Read-OptionalText -LiteralPath $investigationAreaCatalogLuaPath
 $kuttenbergWaitingLinksText = Read-OptionalText -LiteralPath $kuttenbergWaitingLinksPath
 $kuttenbergObjectsMissionText =
     Read-OptionalText -LiteralPath $kuttenbergObjectsMissionPath
@@ -627,17 +632,24 @@ if (Test-Path -LiteralPath $areaBindingGeneratorPath) {
     $temporaryBindingRoot = Join-Path (
         [System.IO.Path]::GetTempPath()
     ) ('dp-area-bindings-' + [guid]::NewGuid().ToString('N'))
+    $temporaryAreaCatalogPath =
+        Join-Path $temporaryBindingRoot 'dp_investigation_area_catalog.lua'
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     try {
         & pwsh -NoProfile -File $areaBindingGeneratorPath `
             -ManifestPath $settlementAreaManifestPath `
-            -OutputRoot $temporaryBindingRoot *> $null
+            -AreaInventoryPath $areaInventoryPath `
+            -OutputRoot $temporaryBindingRoot `
+            -LuaOutputPath $temporaryAreaCatalogPath *> $null
         if ($LASTEXITCODE -eq 0) {
             $firstBindingHashes = @{}
             foreach ($relativePath in @(
                 'kutnohorsko\objects_mission0.patch.xml',
                 'kutnohorsko\waitinglinks.xml',
                 'trosecko\objects_mission0.patch.xml',
-                'trosecko\waitinglinks.xml'
+                'trosecko\waitinglinks.xml',
+                'dp_investigation_area_catalog.lua'
             )) {
                 $generatedPath = Join-Path $temporaryBindingRoot $relativePath
                 if (Test-Path -LiteralPath $generatedPath) {
@@ -648,8 +660,10 @@ if (Test-Path -LiteralPath $areaBindingGeneratorPath) {
             }
             & pwsh -NoProfile -File $areaBindingGeneratorPath `
                 -ManifestPath $settlementAreaManifestPath `
-                -OutputRoot $temporaryBindingRoot *> $null
-            if ($LASTEXITCODE -eq 0 -and $firstBindingHashes.Count -eq 4) {
+                -AreaInventoryPath $areaInventoryPath `
+                -OutputRoot $temporaryBindingRoot `
+                -LuaOutputPath $temporaryAreaCatalogPath *> $null
+            if ($LASTEXITCODE -eq 0 -and $firstBindingHashes.Count -eq 5) {
                 $areaBindingGeneratorDeterministic = $true
                 foreach ($relativePath in $firstBindingHashes.Keys) {
                     $generatedPath = Join-Path $temporaryBindingRoot $relativePath
@@ -664,6 +678,7 @@ if (Test-Path -LiteralPath $areaBindingGeneratorPath) {
         }
     }
     finally {
+        $ErrorActionPreference = $previousErrorActionPreference
         if (Test-Path -LiteralPath $temporaryBindingRoot) {
             Remove-Item -LiteralPath $temporaryBindingRoot -Recurse -Force
         }
@@ -671,7 +686,7 @@ if (Test-Path -LiteralPath $areaBindingGeneratorPath) {
 }
 Add-Result (
     $areaBindingGeneratorDeterministic
-) 'settlement area binding generator emits four deterministic regional files'
+) 'settlement area binding generator emits deterministic regional files and Lua catalog'
 
 $areaBindingSpecs = @(
     [pscustomobject]@{
@@ -3064,76 +3079,174 @@ Add-Result (
         'DarkPassengerTarget\.SelectNearest\(request\.region\)'
     )
 ) 'a new quest cycle discards the previous fixed settlement before reselection'
+$areaInventory = $null
+if (Test-Path -LiteralPath $areaInventoryPath) {
+    try {
+        $areaInventory =
+            Get-Content -Raw -LiteralPath $areaInventoryPath |
+            ConvertFrom-Json
+    }
+    catch {
+        $areaInventory = $null
+    }
+}
+$areaCatalogMatchesManifest =
+    $null -ne $areaInventory -and
+    $supportedInvestigationAreas.Count -eq 36 -and
+    $investigationAreaCatalogLuaText.Contains(
+        'DarkPassengerInvestigationAreaCatalog = {'
+    ) -and
+    $investigationAreaCatalogLuaText.Contains('schemaVersion = 1')
+$selectedAreaCount = 0
+if ($areaCatalogMatchesManifest) {
+    foreach ($manifestRegion in @($settlementAreaManifest.regions)) {
+        $gameRegion = [string]$manifestRegion.id
+        foreach ($settlement in @($manifestRegion.settlements)) {
+            $catalogKey = "$gameRegion/$([string]$settlement.id)"
+            if (
+                -not $investigationAreaCatalogLuaText.Contains(
+                    "key = `"$catalogKey`""
+                ) -or
+                -not $investigationAreaCatalogLuaText.Contains(
+                    "alias = `"$([string]$settlement.alias)`""
+                )
+            ) {
+                $areaCatalogMatchesManifest = $false
+            }
+            foreach ($areaGuid in @($settlement.areaGuids)) {
+                $selectedAreaCount++
+                $inventoryMatches = @(
+                    $areaInventory.areas |
+                        Where-Object {
+                            [string]$_.region -eq $gameRegion -and
+                            [string]$_.guid -eq [string]$areaGuid
+                        }
+                )
+                if (
+                    $inventoryMatches.Count -ne 1 -or
+                    -not $investigationAreaCatalogLuaText.Contains(
+                        "name = `"$([string]$inventoryMatches[0].name)`""
+                    ) -or
+                    -not $investigationAreaCatalogLuaText.Contains(
+                        "guid = `"$([string]$areaGuid)`""
+                    )
+                ) {
+                    $areaCatalogMatchesManifest = $false
+                }
+            }
+        }
+    }
+}
+Add-Result (
+    $areaCatalogMatchesManifest -and
+    $selectedAreaCount -eq 71
+) 'generated Lua area catalog groups all selected entities by region and settlement'
 Add-Result (
     $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"'
+        'Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")'
     ) -and
-    -not $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.PROJECT_HOLDER_NAME'
-    ) -and
-    -not $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.LEVEL_HOLDER_ENTITY_ID'
-    ) -and
-    $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"'
-    ) -and
-    $runtimeLuaText.Contains('DarkPassengerAreaBridge.TARGET_NAMES = {') -and
-    $runtimeLuaText.Contains(
-        '"kpri_publicEnemiesRepulsionZoneVillageArea_1"'
-    ) -and
-    $runtimeLuaText.Contains(
-        '"kpri_publicEnemiesRepulsionZoneVillageInnArea_1"'
-    ) -and
-    $runtimeLuaText.Contains(
-        '"kradeneZasilky_banditCamp_TaborDezerteru_area"'
-    ) -and
-    $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.LINK_NAME = "asset[''DP_PritokySearchArea'']"'
-    )
-) 'area bridge identifies the holders, shared alias, and three vanilla areas explicitly'
+    -not $runtimeLuaText.Contains('DarkPassengerAreaBridge.TARGET_NAMES') -and
+    -not $runtimeLuaText.Contains('DP_PritokySearchArea')
+) 'runtime loads the generated area catalog without hard-coded Pritoky identities'
+
+$areaBridgeText = ''
+$areaBridgeMatch = [regex]::Match(
+    $runtimeLuaText,
+    '(?s)DarkPassengerAreaBridge =.*?(?=DarkPassengerQuestBridge = )'
+)
+if ($areaBridgeMatch.Success) {
+    $areaBridgeText = $areaBridgeMatch.Value
+}
 Add-Result (
-    $runtimeLuaText.Contains(
-        'function DarkPassengerAreaBridge.EnsureLinked()'
+    $areaBridgeText.Contains(
+        'function DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement)'
     ) -and
-    $runtimeLuaText.Contains(
+    $areaBridgeText.Contains(
+        'DarkPassengerInvestigationAreaCatalog.regions[gameRegion]'
+    ) -and
+    $areaBridgeText.Contains('region.settlements[settlement]') -and
+    $areaBridgeText.Contains(
+        'System.GetEntityByName(region.levelHolderName)'
+    ) -and
+    $areaBridgeText.Contains(
+        'System.GetEntityByName(region.questHolderName)'
+    ) -and
+    $areaBridgeText.Contains(
+        'for _, area in ipairs(settlementEntry.areas) do'
+    ) -and
+    $areaBridgeText.Contains('System.GetEntityByName(area.name)') -and
+    $areaBridgeText.Contains(
+        'local linkName = "asset[''" .. settlementEntry.alias .. "'']"'
+    ) -and
+    $areaBridgeText.Contains(
         'function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)'
     ) -and
-    $runtimeLuaText.Contains(
-        'return source:CountLinks()'
+    $areaBridgeText.Contains('return source:CountLinks()') -and
+    $areaBridgeText.Contains('return source:GetLink(index)') -and
+    $areaBridgeText.Contains('linkName == expectedName')
+) 'area bridge repairs only the requested settlement module and same-alias links'
+Add-Result (
+    $areaBridgeText.Contains(
+        'DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement)'
     ) -and
-    $runtimeLuaText.Contains(
-        'return source:GetLink(index)'
+    $areaBridgeText.Contains('gameRegion = gameRegion') -and
+    $areaBridgeText.Contains('settlement = settlement') -and
+    $areaBridgeText.Contains(
+        'ScheduleAreaLinkPoll(generation, attempt + 1, gameRegion, settlement)'
     ) -and
-    $runtimeLuaText.Contains(
-        'linkName == expectedName'
-    ) -and
-    $runtimeLuaText.Contains(
-        'System.GetEntityByName(DarkPassengerAreaBridge.LEVEL_HOLDER_NAME)'
-    ) -and
-    $runtimeLuaText.Contains(
-        'for _, targetName in ipairs(DarkPassengerAreaBridge.TARGET_NAMES) do'
+    -not $areaBridgeText.Contains('DarkPassengerTarget.Select(') -and
+    -not $areaBridgeText.Contains('DarkPassengerTarget.Clear(')
+) 'missing streamed areas retry without replacing the target or settlement'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'BindRecoveredTarget\(.*?return true.*?' +
+        'function DarkPassengerTarget\.SelectNearest\(gameRegion\).*?' +
+        'if DarkPassengerTarget\.RestoreExisting\(gameRegion\) then return true end'
     ) -and
     $runtimeLuaText -match (
-        '(?s)DarkPassengerAreaBridge\.EnsureNamedLink\(\s*' +
-        'holder,\s*target,\s*DarkPassengerAreaBridge\.LINK_NAME'
+        '(?s)function BindRecoveredTarget\(candidate, entity\).*?' +
+        'DarkPassengerAreaBridge\.StartPolling\(\s*' +
+        '"target_restore",\s*candidate\.gameRegion,\s*candidate\.settlement'
     ) -and
     $runtimeLuaText -match (
-        '(?s)DarkPassengerAreaBridge\.EnsureModuleLink\(\s*' +
-        'levelHolder,\s*holder,\s*"LevelHolder to Quest holder"'
-    ) -and
-    -not $runtimeLuaText.Contains('DarkPassengerAreaBridge.TARGET_NAME =')
-) 'area bridge repairs the module link and all same-alias area links idempotently'
+        '(?s)function DarkPassengerTarget\.Select\(gameRegion, settlement\).*?' +
+        'DarkPassengerAreaBridge\.StartPolling\(\s*' +
+        '"target_select",\s*gameRegion,\s*settlement'
+    )
+) 'target restoration and selection activate only their persisted settlement area'
 Add-Result (
     $runtimeLuaText.Contains(
         'DarkPassengerAreaBridge.StartPolling("script_load")'
     ) -and
-    $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.StartPolling("player_reload")'
+    $runtimeLuaText -match (
+        '(?s)OnReloadEvent.*?' +
+        'DarkPassengerAreaBridge\.StartPolling\("player_reload"\).*?' +
+        'DarkPassengerQuestBridge\.StartPolling\("player_reload"\)'
     ) -and
-    $runtimeLuaText.Contains(
-        'DarkPassengerAreaBridge.StartPolling("player_init")'
+    $runtimeLuaText -match (
+        '(?s)OnInitEvent.*?' +
+        'DarkPassengerAreaBridge\.StartPolling\("player_init"\).*?' +
+        'DarkPassengerQuestBridge\.StartPolling\("player_init"\)'
     )
-) 'area bridge starts before quest restore and retries on player lifecycle events'
+) 'save and player lifecycle restore area links before any new case selection'
+
+$luaCompilerPath =
+    Join-Path $DevGameRoot 'Bin\Win64SharedPrivate\LuaCompiler.exe'
+$areaBridgeLuaParses = $false
+if (
+    (Test-Path -LiteralPath $luaCompilerPath) -and
+    (Test-Path -LiteralPath $runtimeLuaPath) -and
+    (Test-Path -LiteralPath $investigationAreaCatalogLuaPath)
+) {
+    & $luaCompilerPath -p `
+        $runtimeLuaPath `
+        $investigationAreaCatalogLuaPath *> $null
+    $areaBridgeLuaParses = $LASTEXITCODE -eq 0
+}
+Add-Result (
+    $areaBridgeLuaParses
+) 'runtime bridge and generated investigation area catalog pass LuaCompiler'
 
 Add-Result (
     $buildScriptText.Contains('function Set-ReproducibleTimestamps') -and

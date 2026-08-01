@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$ManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
-    [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Levels')
+    [string]$AreaInventoryPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\generated\vanilla-trigger-areas.json'),
+    [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Levels'),
+    [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,12 +23,114 @@ function Write-TextFile {
     [System.IO.File]::WriteAllText($LiteralPath, $Content, $Encoding)
 }
 
+function Escape-LuaString {
+    param([AllowEmptyString()][string]$Value)
+
+    if ($null -eq $Value) {
+        return ''
+    }
+    return $Value.Replace('\', '\\').Replace('"', '\"')
+}
+
+function Format-LuaNumber {
+    param([Parameter(Mandatory)]$Value)
+
+    return ([double]$Value).ToString(
+        'R',
+        [System.Globalization.CultureInfo]::InvariantCulture
+    )
+}
+
+function Convert-AreaToLuaLines {
+    param(
+        [Parameter(Mandatory)]$Area,
+        [Parameter(Mandatory)][string]$Indent
+    )
+
+    if (
+        [string]::IsNullOrWhiteSpace([string]$Area.name) -or
+        [string]::IsNullOrWhiteSpace([string]$Area.guid) -or
+        [string]::IsNullOrWhiteSpace([string]$Area.entityId) -or
+        $null -eq $Area.bounds -or
+        @($Area.polygon).Count -lt 3
+    ) {
+        throw "TriggerArea '$([string]$Area.region)/$([string]$Area.guid)' lacks runtime catalog metadata."
+    }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add("$Indent{")
+    $lines.Add(
+        "$Indent    name = `"$(Escape-LuaString ([string]$Area.name))`","
+    )
+    $lines.Add(
+        "$Indent    guid = `"$(Escape-LuaString ([string]$Area.guid))`","
+    )
+    $lines.Add(
+        "$Indent    fullGuid = `"$(Escape-LuaString ([string]$Area.fullGuid))`","
+    )
+    $lines.Add(
+        "$Indent    entityId = $([int64]$Area.entityId),"
+    )
+    $lines.Add(
+        "$Indent    editorLayer = `"$(Escape-LuaString ([string]$Area.editorLayer))`","
+    )
+    $lines.Add(
+        "$Indent    label = `"$(Escape-LuaString ([string]$Area.label))`","
+    )
+    $lines.Add(
+        "$Indent    height = $(Format-LuaNumber $Area.height),"
+    )
+    $lines.Add(
+        "$Indent    surfaceArea = $(Format-LuaNumber $Area.surfaceArea),"
+    )
+    $lines.Add("$Indent    bounds = {")
+    $lines.Add(
+        "$Indent        minX = $(Format-LuaNumber $Area.bounds.minX),"
+    )
+    $lines.Add(
+        "$Indent        minY = $(Format-LuaNumber $Area.bounds.minY),"
+    )
+    $lines.Add(
+        "$Indent        maxX = $(Format-LuaNumber $Area.bounds.maxX),"
+    )
+    $lines.Add(
+        "$Indent        maxY = $(Format-LuaNumber $Area.bounds.maxY),"
+    )
+    $lines.Add("$Indent    },")
+    $lines.Add("$Indent    polygon = {")
+    foreach ($point in @($Area.polygon)) {
+        $lines.Add(
+            "$Indent        { x = $(Format-LuaNumber $point.x), y = $(Format-LuaNumber $point.y) },"
+        )
+    }
+    $lines.Add("$Indent    },")
+    $lines.Add("$Indent},")
+    return $lines.ToArray()
+}
+
 if (-not (Test-Path -LiteralPath $ManifestPath -PathType Leaf)) {
     throw "Settlement investigation area manifest not found: $ManifestPath"
 }
 $manifest = Get-Content -Raw -LiteralPath $ManifestPath | ConvertFrom-Json
 if ($manifest.schemaVersion -ne 1) {
     throw "Unsupported settlement area manifest schemaVersion '$($manifest.schemaVersion)'."
+}
+if (-not (Test-Path -LiteralPath $AreaInventoryPath -PathType Leaf)) {
+    throw "Vanilla TriggerArea inventory not found: $AreaInventoryPath"
+}
+$areaInventory =
+    Get-Content -Raw -LiteralPath $AreaInventoryPath |
+    ConvertFrom-Json
+if ($areaInventory.schemaVersion -ne 1) {
+    throw "Unsupported TriggerArea inventory schemaVersion '$($areaInventory.schemaVersion)'."
+}
+$areasByRegionAndGuid = @{}
+foreach ($area in @($areaInventory.areas)) {
+    $areaKey = '{0}|{1}' -f [string]$area.region, [string]$area.guid
+    if ($areasByRegionAndGuid.ContainsKey($areaKey)) {
+        throw "Duplicate TriggerArea inventory identity '$areaKey'."
+    }
+    $areasByRegionAndGuid[$areaKey] = $area
 }
 
 $regionSpecifications = @(
@@ -58,6 +162,8 @@ if (
     throw 'Settlement area manifest must contain exactly the Kuttenberg and Trosky regions.'
 }
 
+$luaRegionLines = [System.Collections.Generic.List[string]]::new()
+$totalCatalogAreas = 0
 foreach ($specification in $regionSpecifications) {
     $manifestRegion = @(
         $manifest.regions |
@@ -70,6 +176,7 @@ foreach ($specification in $regionSpecifications) {
     if ($settlements.Count -eq 0) {
         throw "Manifest region '$($specification.region)' has no settlement areas."
     }
+    $luaSettlementLines = [System.Collections.Generic.List[string]]::new()
 
     $waitingLinkLines = [System.Collections.Generic.List[string]]::new()
     $waitingLinkLines.Add(
@@ -93,6 +200,22 @@ foreach ($specification in $regionSpecifications) {
         if ($areaGuids.Count -eq 0) {
             throw "Settlement '$($specification.region)/$($settlement.id)' has no selected TriggerArea."
         }
+        $settlementId = [string]$settlement.id
+        $catalogKey = "$($specification.region)/$settlementId"
+        $luaSettlementLines.Add("                [`"$(Escape-LuaString $settlementId)`"] = {")
+        $luaSettlementLines.Add(
+            "                    key = `"$(Escape-LuaString $catalogKey)`","
+        )
+        $luaSettlementLines.Add(
+            "                    region = `"$(Escape-LuaString $specification.region)`","
+        )
+        $luaSettlementLines.Add(
+            "                    settlement = `"$(Escape-LuaString $settlementId)`","
+        )
+        $luaSettlementLines.Add(
+            "                    alias = `"$(Escape-LuaString $alias)`","
+        )
+        $luaSettlementLines.Add('                    areas = {')
         foreach ($areaGuid in $areaGuids) {
             if ($areaGuid -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$') {
                 throw "Settlement '$($specification.region)/$($settlement.id)' has invalid short GUID '$areaGuid'."
@@ -103,6 +226,18 @@ foreach ($specification in $regionSpecifications) {
             if (-not $linkSignatures.Add($signature)) {
                 throw "Duplicate settlement area link '$signature'."
             }
+            $inventoryKey = "$($specification.region)|$areaGuid"
+            if (-not $areasByRegionAndGuid.ContainsKey($inventoryKey)) {
+                throw "Selected TriggerArea '$inventoryKey' is absent from the normalized inventory."
+            }
+            foreach (
+                $luaAreaLine in Convert-AreaToLuaLines `
+                    -Area $areasByRegionAndGuid[$inventoryKey] `
+                    -Indent '                        '
+            ) {
+                $luaSettlementLines.Add($luaAreaLine)
+            }
+            $totalCatalogAreas++
             $waitingLinkLines.Add(
                 "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$areaGuid`">"
             )
@@ -111,7 +246,23 @@ foreach ($specification in $regionSpecifications) {
             )
             $waitingLinkLines.Add('    </WaitingLink>')
         }
+        $luaSettlementLines.Add('                    },')
+        $luaSettlementLines.Add('                },')
     }
+
+    $luaRegionLines.Add("        [`"$(Escape-LuaString $specification.region)`"] = {")
+    $luaRegionLines.Add(
+        "            levelHolderName = `"$(Escape-LuaString $specification.region)`","
+    )
+    $luaRegionLines.Add(
+        "            questHolderName = `"$(Escape-LuaString $specification.questHolderName)`","
+    )
+    $luaRegionLines.Add('            settlements = {')
+    foreach ($luaSettlementLine in $luaSettlementLines) {
+        $luaRegionLines.Add($luaSettlementLine)
+    }
+    $luaRegionLines.Add('            },')
+    $luaRegionLines.Add('        },')
 
     $missionObjects = @(
         '<?xml version="1.0" encoding="utf-8"?>'
@@ -158,3 +309,23 @@ foreach ($specification in $regionSpecifications) {
         "settlements=$($settlements.Count) links=$($linkSignatures.Count)"
     )
 }
+
+$luaCatalog = @(
+    '-- Generated from settlement-investigation-areas.json and vanilla-trigger-areas.json.'
+    '-- Do not edit by hand.'
+    'DarkPassengerInvestigationAreaCatalog = {'
+    '    schemaVersion = 1,'
+    '    regions = {'
+    $luaRegionLines
+    '    },'
+    '}'
+    ''
+) -join "`n"
+Write-TextFile `
+    -LiteralPath $LuaOutputPath `
+    -Content $luaCatalog `
+    -Encoding ([System.Text.UTF8Encoding]::new($false))
+Write-Host (
+    'Generated investigation area Lua catalog: ' +
+    "settlements=$(@($manifest.regions.settlements).Count) areas=$totalCatalogAreas"
+)

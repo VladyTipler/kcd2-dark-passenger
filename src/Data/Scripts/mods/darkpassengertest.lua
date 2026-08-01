@@ -19,6 +19,7 @@ Script.ReloadScript("Scripts/mods/dpwitness.lua")
 Script.ReloadScript("Scripts/mods/dpaftermath.lua")
 Script.ReloadScript("Scripts/mods/dpwitnessdetector.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
+Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
@@ -204,6 +205,14 @@ local function BindRecoveredTarget(candidate, entity)
     }
     RememberTarget(candidate)
     DarkPassengerInvestigation.Restore(candidate, entity)
+    if DarkPassengerAreaBridge ~= nil and
+       DarkPassengerAreaBridge.StartPolling ~= nil then
+        DarkPassengerAreaBridge.StartPolling(
+            "target_restore",
+            candidate.gameRegion,
+            candidate.settlement
+        )
+    end
     return true
 end
 
@@ -436,6 +445,14 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
     DarkPassengerInvestigation.Open(selectedCandidate, selected)
     if CaseReady() then
         DarkPassengerCase.Open(selected.id, displayName, settlement)
+    end
+    if DarkPassengerAreaBridge ~= nil and
+       DarkPassengerAreaBridge.StartPolling ~= nil then
+        DarkPassengerAreaBridge.StartPolling(
+            "target_select",
+            gameRegion,
+            settlement
+        )
     end
 
     TargetLog(
@@ -726,14 +743,6 @@ function DarkPassengerTarget.DumpActiveObjectives()
 end
 
 DarkPassengerAreaBridge = DarkPassengerAreaBridge or {}
-DarkPassengerAreaBridge.LEVEL_HOLDER_NAME = "kutnohorsko"
-DarkPassengerAreaBridge.HOLDER_NAME = "dark_within_k"
-DarkPassengerAreaBridge.TARGET_NAMES = {
-    "kpri_publicEnemiesRepulsionZoneVillageArea_1",
-    "kpri_publicEnemiesRepulsionZoneVillageInnArea_1",
-    "kradeneZasilky_banditCamp_TaborDezerteru_area",
-}
-DarkPassengerAreaBridge.LINK_NAME = "asset['DP_PritokySearchArea']"
 DarkPassengerAreaBridge.POLL_INTERVAL_MS = 500
 DarkPassengerAreaBridge.MAX_ATTEMPTS = 120
 DarkPassengerAreaBridge.pollGeneration =
@@ -804,14 +813,36 @@ function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)
     )
 end
 
-function DarkPassengerAreaBridge.EnsureLinked()
+function DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement)
     if System == nil or System.GetEntityByName == nil then
         return false
     end
+    if DarkPassengerInvestigationAreaCatalog == nil or
+       DarkPassengerInvestigationAreaCatalog.schemaVersion ~= 1 or
+       DarkPassengerInvestigationAreaCatalog.regions == nil then
+        AreaLog("generated area catalog unavailable")
+        return false
+    end
 
-    local levelHolder =
-        System.GetEntityByName(DarkPassengerAreaBridge.LEVEL_HOLDER_NAME)
-    local holder = System.GetEntityByName(DarkPassengerAreaBridge.HOLDER_NAME)
+    local region =
+        DarkPassengerInvestigationAreaCatalog.regions[gameRegion]
+    if region == nil or region.settlements == nil then
+        AreaLog("unknown region=" .. tostring(gameRegion))
+        return false
+    end
+    local settlementEntry = region.settlements[settlement]
+    if settlementEntry == nil or settlementEntry.alias == nil or
+       type(settlementEntry.areas) ~= "table" or
+       #settlementEntry.areas == 0 then
+        AreaLog(
+            "unknown settlement=" .. tostring(gameRegion) .. "/" ..
+            tostring(settlement)
+        )
+        return false
+    end
+
+    local levelHolder = System.GetEntityByName(region.levelHolderName)
+    local holder = System.GetEntityByName(region.questHolderName)
     if levelHolder == nil or levelHolder.id == nil or
        holder == nil or holder.id == nil then
         return false
@@ -820,22 +851,23 @@ function DarkPassengerAreaBridge.EnsureLinked()
     local moduleLinked = DarkPassengerAreaBridge.EnsureModuleLink(
         levelHolder,
         holder,
-        "LevelHolder to Quest holder"
+        tostring(gameRegion) .. " LevelHolder to Quest holder"
     )
     if not moduleLinked then
         return false
     end
 
-    for _, targetName in ipairs(DarkPassengerAreaBridge.TARGET_NAMES) do
-        local target = System.GetEntityByName(targetName)
+    local linkName = "asset['" .. settlementEntry.alias .. "']"
+    for _, area in ipairs(settlementEntry.areas) do
+        local target = System.GetEntityByName(area.name)
         if target == nil or target.id == nil then
             return false
         end
         local areaLinked = DarkPassengerAreaBridge.EnsureNamedLink(
             holder,
             target,
-            DarkPassengerAreaBridge.LINK_NAME,
-            "Quest holder to area " .. targetName
+            linkName,
+            "Quest holder to area " .. tostring(area.name)
         )
         if not areaLinked then
             return false
@@ -845,7 +877,38 @@ function DarkPassengerAreaBridge.EnsureLinked()
     return true
 end
 
-local function ScheduleAreaLinkPoll(generation, attempt)
+local function ResolveActiveAreaCase()
+    local persistedCandidate = FindCandidateBySlot(ReadPersistedTargetSlot())
+    if persistedCandidate ~= nil then
+        return persistedCandidate.gameRegion, persistedCandidate.settlement
+    end
+
+    local runtimeCandidate =
+        DarkPassengerTarget ~= nil and
+        DarkPassengerTarget.targetCandidate or nil
+    if runtimeCandidate ~= nil then
+        return runtimeCandidate.gameRegion, runtimeCandidate.settlement
+    end
+
+    local activeRegion =
+        DarkPassengerTarget ~= nil and
+        DarkPassengerTarget.activeRegion or nil
+    local activeCase =
+        activeRegion ~= nil and
+        DarkPassengerTarget.cases[activeRegion] or nil
+    if activeCase ~= nil and activeCase.settlement ~= nil and
+       (activeCase.status == "SELECTING" or activeCase.status == "ACTIVE") then
+        return activeRegion, activeCase.settlement
+    end
+    return nil, nil
+end
+
+local function ScheduleAreaLinkPoll(
+    generation,
+    attempt,
+    gameRegion,
+    settlement
+)
     if Script == nil or Script.SetTimerForFunction == nil then
         AreaLog("poll unavailable: Script.SetTimerForFunction is nil")
         return false
@@ -854,7 +917,12 @@ local function ScheduleAreaLinkPoll(generation, attempt)
         return Script.SetTimerForFunction(
             DarkPassengerAreaBridge.POLL_INTERVAL_MS,
             "DarkPassengerAreaBridge.Poll",
-            { generation = generation, attempt = attempt }
+            {
+                generation = generation,
+                attempt = attempt,
+                gameRegion = gameRegion,
+                settlement = settlement,
+            }
         )
     end)
     if not ok then
@@ -868,33 +936,50 @@ function DarkPassengerAreaBridge.Poll(userData, timerId)
     local generation =
         userData ~= nil and tonumber(userData.generation) or nil
     local attempt = userData ~= nil and tonumber(userData.attempt) or 1
+    local gameRegion = userData ~= nil and userData.gameRegion or nil
+    local settlement = userData ~= nil and userData.settlement or nil
     if generation ~= DarkPassengerAreaBridge.pollGeneration then
         return
     end
-    if DarkPassengerAreaBridge.EnsureLinked() then
-        AreaLog("ready attempt=" .. tostring(attempt))
+    if DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement) then
+        AreaLog(
+            "ready settlement=" .. tostring(gameRegion) .. "/" ..
+            tostring(settlement) .. " attempt=" .. tostring(attempt)
+        )
         return
     end
     if attempt >= DarkPassengerAreaBridge.MAX_ATTEMPTS then
         AreaLog("poll exhausted attempts=" .. tostring(attempt))
         return
     end
-    ScheduleAreaLinkPoll(generation, attempt + 1)
+    ScheduleAreaLinkPoll(generation, attempt + 1, gameRegion, settlement)
 end
 
-function DarkPassengerAreaBridge.StartPolling(reason)
+function DarkPassengerAreaBridge.StartPolling(reason, gameRegion, settlement)
     DarkPassengerAreaBridge.pollGeneration =
         DarkPassengerAreaBridge.pollGeneration + 1
     local generation = DarkPassengerAreaBridge.pollGeneration
+    if gameRegion == nil or settlement == nil then
+        gameRegion, settlement = ResolveActiveAreaCase()
+    end
+    if gameRegion == nil or settlement == nil then
+        AreaLog(
+            "poll skipped reason=" .. tostring(reason) ..
+            " active settlement unavailable"
+        )
+        return false
+    end
     AreaLog(
         "poll started reason=" .. tostring(reason) ..
+        " settlement=" .. tostring(gameRegion) .. "/" ..
+        tostring(settlement) ..
         " generation=" .. tostring(generation)
     )
-    if DarkPassengerAreaBridge.EnsureLinked() then
+    if DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement) then
         AreaLog("ready attempt=0")
         return true
     end
-    return ScheduleAreaLinkPoll(generation, 1)
+    return ScheduleAreaLinkPoll(generation, 1, gameRegion, settlement)
 end
 
 DarkPassengerAreaBridge.StartPolling("script_load")
