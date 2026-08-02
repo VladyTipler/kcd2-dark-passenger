@@ -4,18 +4,8 @@ DarkPassengerEvidence.SCHEMA_VERSION = 1
 DarkPassengerEvidence.SOURCE_ENTITY_NAME = "kpri_innkeeper"
 DarkPassengerEvidence.SOURCE_REGION = "kutnohorsko"
 DarkPassengerEvidence.SOURCE_SETTLEMENT = "pritoky"
-DarkPassengerEvidence.CONFIDENCE_REWARD = 30
 DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID =
     "6e532a34-ce2b-47ae-9427-c67a4a1b94b1"
-
-DarkPassengerEvidence.RUMORS = {
-    pritoky = {
-        {
-            id = "innkeeper_rumor",
-            text = "Хозяин корчмы понизил голос: «Поговаривают, один из местных слишком часто возвращается домой с чужой кровью на рукавах. И каждый раз находит объяснение».",
-        },
-    },
-}
 
 local KEYS = {
     schema = "dp_evidence_schema_version",
@@ -259,10 +249,12 @@ local function InvestigationContext(source)
 end
 
 local function ResolveRumor(generation)
-    local rumors = DarkPassengerEvidence.RUMORS.pritoky or {}
-    if #rumors == 0 then return nil end
-    local index = ((tonumber(generation) or 1) - 1) % #rumors + 1
-    return rumors[index]
+    if DarkPassengerCaseContent == nil or
+       DarkPassengerCaseContent.GetSelected == nil then
+        return nil
+    end
+    local selected = DarkPassengerCaseContent.GetSelected(generation)
+    return selected ~= nil and selected.rumor or nil
 end
 
 local function DispatchJournalSignal(generation)
@@ -303,6 +295,17 @@ local function DispatchJournalSignal(generation)
 end
 
 function DarkPassengerEvidence.OnInvestigationOpened(generation)
+    if DarkPassengerCaseContent ~= nil and
+       DarkPassengerCaseContent.OnInvestigationOpened ~= nil then
+        local candidate =
+            DarkPassengerInvestigation ~= nil and
+            DarkPassengerInvestigation.GetCandidate ~= nil and
+            DarkPassengerInvestigation.GetCandidate() or nil
+        DarkPassengerCaseContent.OnInvestigationOpened(
+            generation,
+            candidate
+        )
+    end
     local state = ReadState()
     local nextState, result = DarkPassengerEvidence.Transition(
         state,
@@ -315,6 +318,14 @@ function DarkPassengerEvidence.OnInvestigationOpened(generation)
 end
 
 function DarkPassengerEvidence.Restore(investigationState)
+    if DarkPassengerCaseContent ~= nil and
+       DarkPassengerCaseContent.Restore ~= nil then
+        local candidate =
+            DarkPassengerInvestigation ~= nil and
+            DarkPassengerInvestigation.GetCandidate ~= nil and
+            DarkPassengerInvestigation.GetCandidate() or nil
+        DarkPassengerCaseContent.Restore(investigationState, candidate)
+    end
     local state = ReadState()
     local generation = tonumber(
         investigationState ~= nil and investigationState.generation
@@ -378,14 +389,14 @@ function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
     end
 
     local generation = tonumber(context.generation)
-    local rumor = ResolveRumor(generation)
-    if rumor == nil then
+    local selectedRumor = ResolveRumor(generation)
+    if selectedRumor == nil then
         Log("rumor rejected: content unavailable")
         return false
     end
     local evidenceResult = DarkPassengerInvestigation.AddEvidence(
-        DarkPassengerEvidence.CONFIDENCE_REWARD,
-        "innkeeper_rumor",
+        selectedRumor.confidence,
+        selectedRumor.id,
         generation
     )
     if evidenceResult == nil or evidenceResult.accepted ~= true then
@@ -406,7 +417,7 @@ function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
 
     if Game ~= nil and Game.ShowNotification ~= nil then
         pcall(function()
-            Game.ShowNotification(rumor.text)
+            Game.ShowNotification(selectedRumor.notification)
         end)
     end
     Log(

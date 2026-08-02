@@ -94,19 +94,18 @@ foreach ($token in
     'SOURCE_ENTITY_NAME = "kpri_innkeeper"',
     'SOURCE_REGION = "kutnohorsko"',
     'SOURCE_SETTLEMENT = "pritoky"',
-    'CONFIDENCE_REWARD = 30',
     'dp_evidence_schema_version',
     'dp_evidence_awarded_generation',
     'dp_evidence_signal_dispatched',
-    'innkeeper_rumor'
+    'DarkPassengerCaseContent.GetSelected('
 ) {
     Add-Result ($evidence.Contains($token)) "evidence contract contains $token"
 }
 Add-Result (
-    $evidence -match '(?s)AddEvidence\(.*?CONFIDENCE_REWARD.*?innkeeper_rumor.*?generation.*?\).*?DispatchJournalSignal'
+    $evidence -match '(?s)AddEvidence\(.*?selectedRumor.confidence.*?selectedRumor.id.*?generation.*?\).*?DispatchJournalSignal'
 ) 'confidence is accepted before the journal signal is dispatched'
 Add-Result (
-    $evidence.Contains('Game.ShowNotification(rumor.text)') -and
+    $evidence.Contains('Game.ShowNotification(selectedRumor.notification)') -and
     $evidence.Contains('DarkPassengerInteractions.RegisterProvider(')
 ) 'rumor copy resolves in Lua at action time through the shared registry'
 Add-Result (

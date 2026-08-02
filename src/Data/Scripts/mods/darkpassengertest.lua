@@ -23,6 +23,8 @@ Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinteractions.lua")
+Script.ReloadScript("Scripts/mods/content/dp_case_convenient_accident.lua")
+Script.ReloadScript("Scripts/mods/dpcasecontent.lua")
 Script.ReloadScript("Scripts/mods/dpevidence.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
 
