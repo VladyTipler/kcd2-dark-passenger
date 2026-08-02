@@ -87,6 +87,12 @@ See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 The game `Mods` directories are deployment targets, never source directories.
 Reference mods and extracted game data are intentionally excluded.
 
+Investigation stories are authored as bilingual CaseSpec JSON under
+`content/cases`. Settlement-specific entity and container IDs live separately
+in `config/case-settlement-bindings.json`. `Compile-CaseSpecs.ps1` validates
+both sources and emits the runtime Lua catalog plus a compatibility report;
+generated artifacts are never edited by hand.
+
 ## Local build
 
 ```powershell
@@ -94,6 +100,9 @@ $env:KCD2_DEV_ROOT = 'D:\path\to\KCD2Mod'
 $env:KCD2_REFERENCE_DATA_ROOT = 'D:\path\to\AssetLinker\InternalData'
 pwsh -NoProfile -File '.\tests\Test-SettlementInvestigationAreas.ps1' `
   -ReferenceDataRoot $env:KCD2_REFERENCE_DATA_ROOT `
+  -DevGameRoot $env:KCD2_DEV_ROOT
+pwsh -NoProfile -File '.\tests\Test-CaseSpecCompiler.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseSpecGeneration.ps1' `
   -DevGameRoot $env:KCD2_DEV_ROOT
 pwsh -NoProfile -File '.\tools\Build-Mod.ps1'
 pwsh -NoProfile -File '.\tests\Test-DarkPassengerSatisfaction.ps1' `

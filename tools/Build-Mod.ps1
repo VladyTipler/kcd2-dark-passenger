@@ -10,6 +10,9 @@ $sourceRoot = Join-Path $repoRoot 'src'
 $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
+$caseCompilerPath = Join-Path $PSScriptRoot 'Compile-CaseSpecs.ps1'
+$caseRoot = Join-Path $repoRoot 'content\cases'
+$caseBindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
 $areaBindingGeneratorPath =
     Join-Path $PSScriptRoot 'Generate-SettlementAreaBindings.ps1'
 $levelRegistryMergeModulePath =
@@ -70,6 +73,11 @@ New-Item -ItemType Directory -Path $resolvedBuildRoot -Force | Out-Null
 foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force) {
     Copy-Item -LiteralPath $item.FullName -Destination $resolvedBuildRoot -Recurse
 }
+
+& $caseCompilerPath `
+    -CaseRoot $caseRoot `
+    -BindingPath $caseBindingPath `
+    -BuildRoot $buildParent
 
 if (-not (Test-Path -LiteralPath $rawEvidencePath)) {
     & $worldExporterPath

@@ -95,6 +95,12 @@ $catalogBuilderPath = "$testRoot\tools\Build-VictimCatalog.ps1"
 $victimPolicyPath = "$testRoot\config\victim-policy.json"
 $rawWorldCandidatesPath = "$testRoot\evidence\world-candidates.raw.json"
 $buildScriptPath = "$testRoot\tools\Build-Mod.ps1"
+$caseCompilerPath = "$testRoot\tools\Compile-CaseSpecs.ps1"
+$caseCompilerModulePath = "$testRoot\tools\CaseSpecCompiler.psm1"
+$caseCatalogPath =
+    "$stageRoot\Data\Scripts\mods\generated\dp_case_catalog.lua"
+$caseCompatibilityPath =
+    "$testRoot\build\generated\cases\case-compatibility.json"
 $areaInventoryPath = "$testRoot\build\generated\vanilla-trigger-areas.json"
 $englishPath = "$testRoot\localization\English\text__darkpassengertest.xml"
 $russianPath = "$testRoot\localization\Russian\text__darkpassengertest.xml"
@@ -294,6 +300,18 @@ $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
 $questItemCatalogLuaText =
     Read-OptionalText -LiteralPath $questItemCatalogLuaPath
 $buildScriptText = Read-OptionalText -LiteralPath $buildScriptPath
+$caseCompilerText = Read-OptionalText -LiteralPath $caseCompilerPath
+$caseCatalogText = Read-OptionalText -LiteralPath $caseCatalogPath
+$caseCompatibility = $null
+if (Test-Path -LiteralPath $caseCompatibilityPath) {
+    try {
+        $caseCompatibility = Get-Content -Raw `
+            -LiteralPath $caseCompatibilityPath | ConvertFrom-Json -Depth 100
+    }
+    catch {
+        $caseCompatibility = $null
+    }
+}
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
@@ -330,6 +348,24 @@ Add-Result (
     (Test-Path -LiteralPath $manifestPath) -and
     $manifestText.Contains('<modifies_level>true</modifies_level>')
 ) 'mod manifest enables level and AI scheduler modifications'
+Add-Result (
+    (Test-Path -LiteralPath $caseCompilerPath) -and
+    $caseCompilerText.Contains('Get-DpValidatedCaseSpecs')
+) 'CaseSpec compiler entry point exists'
+Add-Result (
+    $buildScriptText.Contains('Compile-CaseSpecs.ps1') -and
+    $buildScriptText.Contains('& $caseCompilerPath')
+) 'build invokes CaseSpec compiler'
+Add-Result (
+    $caseCatalogText.Contains('id = "convenient_accident"') -and
+    $caseCatalogText.Contains('code = 1001')
+) 'build contains compiled convenient-accident catalog'
+Add-Result (
+    $null -ne $caseCompatibility -and
+    @($caseCompatibility.cases | Where-Object {
+        $_.id -eq 'convenient_accident' -and [int]$_.code -eq 1001
+    }).Count -eq 1
+) 'build compatibility report contains convenient accident'
 
 Add-Result (Test-Path -LiteralPath $candidateCatalogPath) 'victim candidate catalogue exists'
 
