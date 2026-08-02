@@ -12,6 +12,8 @@ $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
 $areaBindingGeneratorPath =
     Join-Path $PSScriptRoot 'Generate-SettlementAreaBindings.ps1'
+$levelRegistryMergeModulePath =
+    Join-Path $PSScriptRoot 'LevelRegistryMerge.psm1'
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
 $localizationRoot = Join-Path $repoRoot 'localization'
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
@@ -20,6 +22,8 @@ $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot)
 $resolvedBuildRoot = [System.IO.Path]::GetFullPath($buildRoot)
 $requiredPrefix = [System.IO.Path]::GetFullPath($buildParent) +
     [System.IO.Path]::DirectorySeparatorChar
+
+Import-Module $levelRegistryMergeModulePath -Force
 
 function Set-ReproducibleTimestamps {
     param([string]$LiteralPath)
@@ -180,6 +184,7 @@ $levelHolderGuids = @{
     trosecko = '30277b74-1c65-41e9'
 }
 $regionalLevelRoots = [System.Collections.Generic.List[string]]::new()
+$regionalRegistryStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 foreach ($region in @('kutnohorsko', 'trosecko')) {
     $regionalLevelRoot = Join-Path $resolvedBuildRoot "Data\Levels\$region"
     if (-not (Test-Path -LiteralPath $regionalLevelRoot)) {
@@ -320,83 +325,14 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
         $objectsMissionText.Contains("Name=`"$questHolderName`"")) {
         throw "Base $region mission objects already contain a Dark Passenger concept-graph identity."
     }
-    $objectsEnd = $objectsMissionText.LastIndexOf('</Objects>')
-    if ($objectsEnd -lt 0) {
-        throw "Base $region mission objects have no Objects root terminator."
-    }
     $missionObjectBlock = @(
         $missionObjectEntries | ForEach-Object { $_.Value.Trim() }
     ) -join "`r`n`t"
-    $objectsMissionText = $objectsMissionText.Insert(
-        $objectsEnd,
-        "`t$missionObjectBlock`r`n"
-    )
-
-    foreach ($waitingLink in $waitingLinkEntries) {
-        $sourceGuid = [string]$waitingLink.SourceId
-        $targetGuid = [string]$waitingLink.TargetId
-        $linkDefinition = [string]$waitingLink.LinkDefinition
-        $sourceGuidPattern = [regex]::Escape($sourceGuid)
-        $targetGuidPattern = [regex]::Escape($targetGuid)
-        $sourceMatches = @(
-            [regex]::Matches(
-                $objectsMissionText,
-                "(?s)<Entity\b(?=[^>]*EntityGuid=`"$sourceGuidPattern`")[^>]*>.*?</Entity>"
-            )
-        )
-        $targetMatches = @(
-            [regex]::Matches(
-                $objectsMissionText,
-                "<Entity\b(?=[^>]*EntityGuid=`"$targetGuidPattern`")[^>]*>"
-            )
-        )
-        if ($sourceMatches.Count -ne 1 -or $targetMatches.Count -ne 1) {
-            throw (
-                "Unable to resolve unique $region link entities: " +
-                "sourceGuid=$sourceGuid source=$($sourceMatches.Count) " +
-                "targetGuid=$targetGuid target=$($targetMatches.Count)"
-            )
-        }
-
-        $targetIdMatch = [regex]::Match(
-            $targetMatches[0].Value,
-            'EntityId="([0-9]+)"'
-        )
-        if (-not $targetIdMatch.Success) {
-            throw "$region link target '$targetGuid' has no numeric EntityId."
-        }
-        $targetEntityId = $targetIdMatch.Groups[1].Value
-        $targetEntityIdPattern = [regex]::Escape($targetEntityId)
-        $sourceEntityText = $sourceMatches[0].Value
-        $duplicateLinkPattern =
-            "<Link\b(?=[^>]*TargetId=`"$targetEntityIdPattern`")(?=[^>]*Name=`"$([regex]::Escape($linkDefinition))`")[^>]*/>"
-        if ([regex]::IsMatch($sourceEntityText, $duplicateLinkPattern)) {
-            throw "$region source '$sourceGuid' already contains '$linkDefinition'."
-        }
-        $entityLink =
-            "`t`t`t<Link TargetId=`"$targetEntityId`" TargetGuid=`"00000000-0000-0000`" Name=`"$linkDefinition`" />`r`n`t`t"
-        if ($sourceEntityText -match '<EntityLinks\s*/>') {
-            $sourceEntityText = [regex]::Replace(
-                $sourceEntityText,
-                '<EntityLinks\s*/>',
-                "<EntityLinks>`r`n$entityLink</EntityLinks>",
-                1
-            )
-        }
-        else {
-            $entityLinksEnd = $sourceEntityText.IndexOf('</EntityLinks>')
-            if ($entityLinksEnd -lt 0) {
-                throw "$region source '$sourceGuid' has no EntityLinks section."
-            }
-            $sourceEntityText =
-                $sourceEntityText.Insert($entityLinksEnd, $entityLink)
-        }
-        $objectsMissionText =
-            $objectsMissionText.Remove(
-                $sourceMatches[0].Index,
-                $sourceMatches[0].Length
-            ).Insert($sourceMatches[0].Index, $sourceEntityText)
-    }
+    $objectsMissionText = Merge-LevelMissionObjects `
+        -BaseObjectsText $objectsMissionText `
+        -MissionObjectBlock $missionObjectBlock `
+        -WaitingLinks $waitingLinkEntries `
+        -Region $region
     try {
         $null = [xml]$objectsMissionText
     }
@@ -500,6 +436,11 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
     )
     Remove-Item -LiteralPath $missionObjectsPatchPath -Force
 }
+$regionalRegistryStopwatch.Stop()
+Write-Host (
+    'Merged regional level registries in {0:N2}s' -f
+        $regionalRegistryStopwatch.Elapsed.TotalSeconds
+)
 
 Set-ReproducibleTimestamps -LiteralPath $resolvedBuildRoot
 
