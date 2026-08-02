@@ -6,6 +6,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
 $casePath = Join-Path $repoRoot `
     'content\cases\convenient-accident.case.json'
+$missingTravelerPath = Join-Path $repoRoot `
+    'content\cases\missing-traveler.case.json'
 $bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
 
 $script:checks = 0
@@ -25,6 +27,8 @@ function Add-Result {
 Add-Result (Test-Path -LiteralPath $modulePath) 'CaseSpec compiler module exists'
 Add-Result (Test-Path -LiteralPath $casePath) `
     'convenient-accident CaseSpec exists'
+Add-Result (Test-Path -LiteralPath $missingTravelerPath) `
+    'missing-traveler CaseSpec exists'
 Add-Result (Test-Path -LiteralPath $bindingPath) `
     'settlement binding source exists'
 
@@ -138,12 +142,43 @@ if ((Test-Path -LiteralPath $modulePath) -and
         )
     ) 'unsupported settlement is rejected'
 
+    $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+
+    $mismatchedLocalization = Copy-JsonObject $missingTraveler
+    $mismatchedLocalization.localization.en.PSObject.Properties.Remove(
+        'dp_mt_ledger_content'
+    )
+    $localizationErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $mismatchedLocalization `
+        -Bindings $bindings `
+        -SourceName 'mismatched-localization.json')
+    Add-Result (
+        $localizationErrors -contains (
+            'mismatched-localization.json: localization.ru and ' +
+            'localization.en key sets must match'
+        )
+    ) 'localization key mismatch is rejected'
+
+    $missingDocumentItem = Copy-JsonObject $missingTraveler
+    $missingDocumentItem.evidence[1].item.name = ''
+    $documentErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $missingDocumentItem `
+        -Bindings $bindings `
+        -SourceName 'missing-document-item.json')
+    Add-Result (
+        $documentErrors -contains (
+            "missing-document-item.json: evidence 'matej_guest_ledger' " +
+            'item.name is required'
+        )
+    ) 'document item metadata is required'
+
     $validated = @(Get-DpValidatedCaseSpecs `
         -CaseRoot (Split-Path -Parent $casePath) `
         -BindingPath $bindingPath)
     Add-Result (
-        $validated.Count -eq 1 -and
-        $validated[0].id -eq 'convenient_accident'
+        $validated.Count -eq 2 -and
+        $validated[0].id -eq 'convenient_accident' -and
+        $validated[1].id -eq 'missing_traveler'
     ) 'validated loader returns authored cases'
 }
 

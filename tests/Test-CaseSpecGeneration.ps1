@@ -75,7 +75,17 @@ try {
         'id = "vojtech_belongings"',
         'id = "tavern_witness"',
         'entityName = "kpri_innkeeper"',
-        'containerGuid = "277db45d-28ac-0286"'
+        'containerGuid = "277db45d-28ac-0286"',
+        'id = "missing_traveler"',
+        'code = 2001',
+        'region = "trosecko"',
+        'settlement = "zelejov"',
+        'id = "zelejov_innkeeper_missing_traveler"',
+        'id = "matej_guest_ledger"',
+        'id = "zelejov_stablehand_witness"',
+        'entityName = "tzel_vavrinec"',
+        'containerGuid = "aaf89994-e94b-0309"',
+        'documentGuid = "d5833fd4-f7bf-4957-86f5-d661db38bcf3"'
     )) {
         Add-Result ($catalog.Contains($token)) "Lua catalog contains $token"
     }
@@ -89,7 +99,7 @@ try {
     Add-Result (
         $null -ne $report -and
         [int]$report.schemaVersion -eq 1 -and
-        @($report.cases).Count -eq 1
+        @($report.cases).Count -eq 2
     ) 'compatibility report has stable schema and case count'
     Add-Result (
         $report.cases[0].id -eq 'convenient_accident' -and
@@ -100,6 +110,13 @@ try {
         (@($report.cases[0].evidenceIds) -join ',') -eq
         'pritoky_innkeeper_strong_suspicion,vojtech_belongings,tavern_witness'
     ) 'compatibility report preserves evidence IDs'
+    Add-Result (
+        $report.cases[1].id -eq 'missing_traveler' -and
+        [int]$report.cases[1].code -eq 2001 -and
+        $report.cases[1].bindingKey -eq 'trosecko/zelejov' -and
+        (@($report.cases[1].evidenceIds) -join ',') -eq
+        'zelejov_innkeeper_missing_traveler,matej_guest_ledger,zelejov_stablehand_witness'
+    ) 'compatibility report identifies Missing Traveler contract'
 
     Import-Module $modulePath -Force
     Add-Result (

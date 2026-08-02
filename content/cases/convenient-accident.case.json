@@ -104,7 +104,14 @@
       "kind": "document",
       "role": "document",
       "confidence": 30,
-      "nextLead": "tavern_witness"
+      "nextLead": "tavern_witness",
+      "reaction": "vanilla_neutral",
+      "item": {
+        "name": "dp_vojtech_last_letter",
+        "nameKey": "dp_vojtech_letter_name",
+        "infoKey": "dp_vojtech_letter_info",
+        "contentKey": "dp_vojtech_letter_content"
+      }
     },
     {
       "id": "tavern_witness",

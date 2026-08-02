@@ -520,6 +520,36 @@ function Get-DpCaseSpecValidationErrors {
         }
     }
 
+    $localizationProperty = $CaseSpec.PSObject.Properties['localization']
+    if ($null -ne $localizationProperty) {
+        $ruLocalization = $CaseSpec.localization.ru
+        $enLocalization = $CaseSpec.localization.en
+        $ruKeys = if ($null -ne $ruLocalization) {
+            @($ruLocalization.PSObject.Properties.Name | Sort-Object)
+        }
+        else { @() }
+        $enKeys = if ($null -ne $enLocalization) {
+            @($enLocalization.PSObject.Properties.Name | Sort-Object)
+        }
+        else { @() }
+        if (($ruKeys -join "`n") -ne ($enKeys -join "`n")) {
+            $errors.Add(
+                "$prefix localization.ru and localization.en key sets must match"
+            )
+        }
+        foreach ($language in 'ru', 'en') {
+            $languageLocalization = $CaseSpec.localization.$language
+            if ($null -eq $languageLocalization) { continue }
+            foreach ($property in $languageLocalization.PSObject.Properties) {
+                if (-not (Test-DpTextValue $property.Value)) {
+                    $errors.Add(
+                        "$prefix localization.$language.$($property.Name) is required"
+                    )
+                }
+            }
+        }
+    }
+
     if (-not (Test-DpTextValue $CaseSpec.native.questName)) {
         $errors.Add("$prefix native.questName is required")
     }
@@ -598,6 +628,21 @@ function Get-DpCaseSpecValidationErrors {
         }
         if (-not (Test-DpTextValue $step.kind)) {
             $errors.Add("$prefix evidence '$evidenceId' kind is required")
+        }
+        if ([string]$step.kind -eq 'document') {
+            foreach ($field in 'name', 'nameKey', 'infoKey', 'contentKey') {
+                if ($null -eq $step.PSObject.Properties['item'] -or
+                    -not (Test-DpTextValue $step.item.$field)) {
+                    $errors.Add(
+                        "$prefix evidence '$evidenceId' item.$field is required"
+                    )
+                }
+            }
+            if (-not (Test-DpTextValue $step.reaction)) {
+                $errors.Add(
+                    "$prefix evidence '$evidenceId' reaction is required"
+                )
+            }
         }
         if ([int]$step.confidence -le 0) {
             $errors.Add("$prefix evidence '$evidenceId' confidence must be positive")
