@@ -129,11 +129,17 @@ function New-RegionalQuest {
     $presentationSignal = 'Revealed'
     $rumorDialogDefinition = ''
     $rumorDialogNodes = ''
+    $witnessNodes = ''
+    $evidenceWitnessEdge = ''
+    $witnessObjectiveNodes = ''
+    $witnessType = ''
+    $witnessObjective = ''
 
     if ($RegionId -eq 'kutnohorsko') {
         $rumorDialogDefinition = @'
       <Definitions>
         <Definition File="dark_within_k/innkeeper_rumor_dialog_k.xml" />
+        <Definition File="dark_within_k/tavern_witness_dialog_k.xml" />
       </Definitions>
 '@
         $rumorDialogNodes = @'
@@ -173,6 +179,83 @@ function New-RegionalQuest {
           <Asset Name="Souls" Alias="player" />
           <Edge From="rumorDialogueRequestActive.State" To="IsActive" />
         </SetEntityContext>
+'@
+        $witnessNodes = @'
+        <MakeArray Name="witnessAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="36" />
+        </MakeArray>
+        <BuffTagTrigger Name="witnessAvailableTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="witnessAvailableTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="witnessDialogueAvailable" TypeT="bool">
+          <Edge From="witnessAvailableTrigger.OnAdded" To="SetTrue" />
+          <Edge From="witnessAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <tavern_witness_dialog_k Name="tavernWitnessDialog">
+          <Edge From="witnessDialogueAvailable.State" To="available" />
+        </tavern_witness_dialog_k>
+        <State Name="witnessDialogueRequestActive" TypeT="bool">
+          <Edge From="questProgress.OnActive" To="SetFalse" />
+          <Edge From="tavernWitnessDialog.heard" To="SetTrue" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <SetEntityContext Name="witnessDialogueRequest">
+          <Constant Name="Context" Value="dp_witness_heard_kutnohorsko" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="witnessDialogueRequestActive.State" To="IsActive" />
+        </SetEntityContext>
+'@
+        $evidenceWitnessEdge = '          <Edge From="witnessAvailableTrigger.OnAdded" To="SetDone" />'
+        $witnessObjectiveNodes = @'
+        <State Name="witnessObjectiveProgress" TypeT="DP_WitnessProgress">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+          <Edge From="witnessAvailableTrigger.OnAdded" To="SetActive" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
+        </State>
+        <DarkWithinWitnessObjective_k Name="witnessVisual">
+          <Edge From="witnessObjectiveProgress.State" To="Progress" />
+        </DarkWithinWitnessObjective_k>
+'@
+        $witnessType = @'
+        <Type TypeName="DP_WitnessProgress">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+'@
+        $witnessObjective = @'
+        <Objective TypeT="DP_WitnessProgress" Name="DarkWithinWitnessObjective_k">
+          <LocalizedName StringName="dark_within_witness_name" Text="Question the inn workers">
+            <Localization Text="Question the inn workers" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+            <EnumLog Type="Started" Name="Active" IsTracked="true">
+              <Log StringName="dark_within_witness_active" Text="Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.">
+                <Localization Text="Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="Done">
+              <Log StringName="dark_within_witness_done" Text="The maid confirmed that Vojtech had been threatened and identified the suspect.">
+                <Localization Text="The maid confirmed that Vojtech had been threatened and identified the suspect." Language="WHS" />
+              </Log>
+            </EnumLog>
+          </Logs>
+        </Objective>
 '@
     }
 
@@ -360,6 +443,11 @@ function New-RegionalQuest {
         '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
         '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
         '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
+        '{{DP_WITNESS_NODES}}' = $witnessNodes.TrimEnd()
+        '{{DP_EVIDENCE_WITNESS_EDGE}}' = $evidenceWitnessEdge
+        '{{DP_WITNESS_OBJECTIVE_NODES}}' = $witnessObjectiveNodes.TrimEnd()
+        '{{DP_WITNESS_TYPE}}' = $witnessType.TrimEnd()
+        '{{DP_WITNESS_OBJECTIVE}}' = $witnessObjective.TrimEnd()
         '{{DP_SEARCH_OBJECTIVE_NAME}}' = $SearchObjectiveName
         '{{DP_EVIDENCE_OBJECTIVE_NAME}}' = $EvidenceObjectiveName
         '{{DP_TARGET_OBJECTIVE_NAME}}' = $TargetObjectiveName
@@ -413,6 +501,15 @@ function New-RegionalQuest {
         Write-Utf8NoBom `
             -LiteralPath $dialogOutputPath `
             -Content (Get-Content -Raw -LiteralPath $KuttenbergRumorDialogSourcePath)
+        $witnessSourcePath = Join-Path `
+            (Split-Path -Parent $KuttenbergRumorDialogSourcePath) `
+            'tavern_witness_dialog_k.xml'
+        if (-not (Test-Path -LiteralPath $witnessSourcePath)) {
+            throw "Tavern witness dialogue not found: $witnessSourcePath"
+        }
+        Write-Utf8NoBom `
+            -LiteralPath (Join-Path (Split-Path -Parent $dialogOutputPath) 'tavern_witness_dialog_k.xml') `
+            -Content (Get-Content -Raw -LiteralPath $witnessSourcePath)
     }
     Write-Host "Generated $RegionId graph: $($Candidates.Count) candidates, $questBytes bytes."
 }

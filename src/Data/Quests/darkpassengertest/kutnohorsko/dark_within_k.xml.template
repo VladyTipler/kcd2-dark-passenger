@@ -10,6 +10,7 @@
 {{DP_RUMOR_DIALOG_DEFINITION}}
       <Nodes>
 {{DP_RUMOR_DIALOG_NODES}}
+{{DP_WITNESS_NODES}}
         <State Name="watcherActive" TypeT="bool">
           <Edge From="arm" To="SetTrue" />
         </State>
@@ -182,11 +183,13 @@
         <State Name="evidenceProgress" TypeT="DP_EvidenceProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />
+{{DP_EVIDENCE_WITNESS_EDGE}}
           <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
         </State>
         <{{DP_EVIDENCE_OBJECTIVE_NAME}} Name="evidenceVisual">
           <Edge From="evidenceProgress.State" To="Progress" />
         </{{DP_EVIDENCE_OBJECTIVE_NAME}}>
+{{DP_WITNESS_OBJECTIVE_NODES}}
         <State Name="selectedTarget" TypeT="DP_SelectedTarget">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
@@ -233,6 +236,7 @@
           <StateTypeEnumeration Name="FirstLead" ObjectiveValueType="Started" />
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
+{{DP_WITNESS_TYPE}}
         <Type TypeName="DP_TargetProgress">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_TARGET_TYPE_ENUMS}}
@@ -340,6 +344,7 @@
             <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>
+{{DP_WITNESS_OBJECTIVE}}
         <Objective TypeT="DP_CleanupProgress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">
           <LocalizedName StringName="dark_within_cleanup_name" Text="Leave no trace">
             <Localization Text="Leave no trace" Language="WHS" />

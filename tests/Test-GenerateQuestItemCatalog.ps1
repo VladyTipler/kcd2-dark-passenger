@@ -6,6 +6,7 @@ $tempRoot = Join-Path (
     [System.IO.Path]::GetTempPath()
 ) ('dp-quest-items-' + [guid]::NewGuid().ToString('N'))
 $inputRoot = Join-Path $tempRoot 'input'
+$additionalRoot = Join-Path $tempRoot 'additional'
 $outputPath = Join-Path $tempRoot 'dp_quest_item_catalog.lua'
 $failures = [System.Collections.Generic.List[string]]::new()
 
@@ -18,6 +19,7 @@ function Assert-True {
 
 try {
     New-Item -ItemType Directory -Path $inputRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $additionalRoot -Force | Out-Null
     [System.IO.File]::WriteAllText(
         (Join-Path $inputRoot 'item.xml'),
         @'
@@ -44,11 +46,24 @@ try {
 '@,
         [System.Text.UTF8Encoding]::new($false)
     )
+    [System.IO.File]::WriteAllText(
+        (Join-Path $additionalRoot 'item__mod.xml'),
+        @'
+<?xml version="1.0" encoding="utf-8"?>
+<Table>
+  <Rows>
+    <Document IsQuestItem="true" Id="DDDDDDDD-DDDD-DDDD-DDDD-DDDDDDDDDDDD" Name="mod_quest_item" />
+  </Rows>
+</Table>
+'@,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 
     Assert-True (Test-Path -LiteralPath $generatorPath) 'generator exists'
     if (Test-Path -LiteralPath $generatorPath) {
         & pwsh -NoProfile -File $generatorPath `
             -InputDirectory $inputRoot `
+            -AdditionalInputDirectory $additionalRoot `
             -OutputPath $outputPath *> $null
         Assert-True ($LASTEXITCODE -eq 0) 'generator exits successfully'
     }
@@ -75,8 +90,13 @@ try {
         )
     ) 'ordinary item is excluded'
     Assert-True (
-        ([regex]::Matches($firstText, '= true')).Count -eq 2
-    ) 'quest item GUIDs are deduplicated'
+        $firstText.Contains(
+            '["dddddddd-dddd-dddd-dddd-dddddddddddd"] = true'
+        )
+    ) 'additional mod quest item is emitted'
+    Assert-True (
+        ([regex]::Matches($firstText, '= true')).Count -eq 3
+    ) 'quest item GUIDs are merged and deduplicated'
     Assert-True (
         $firstText.IndexOf('aaaaaaaa-aaaa') -lt
         $firstText.IndexOf('bbbbbbbb-bbbb')
@@ -91,6 +111,7 @@ try {
         }
         & pwsh -NoProfile -File $generatorPath `
             -InputDirectory $inputRoot `
+            -AdditionalInputDirectory $additionalRoot `
             -OutputPath $outputPath *> $null
         $secondHash = if (Test-Path -LiteralPath $outputPath) {
             (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash
@@ -127,4 +148,4 @@ if ($failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host 'RESULT: PASS (7 checks)' -ForegroundColor Green
+Write-Host 'RESULT: PASS (8 checks)' -ForegroundColor Green

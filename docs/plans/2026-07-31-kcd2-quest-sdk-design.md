@@ -88,6 +88,55 @@ domain events, deterministic generation and no duplicated quest configuration.
    commands plus editor schema/autocomplete.
 7. **Diagnostics** - event trace, current state, generated signal map and dev
    bridge commands such as `qk_status`, `qk_emit` and `qk_trace`.
+8. **DialogueSpec** - a declarative dialogue and reply model compiled into
+   native FaderDialog, Storm roles, quest-graph wiring, localization and
+   runtime events.
+
+## Future dialogue generator
+
+Dialogue authoring belongs in the SDK, but not in the current Dark Passenger
+implementation scope. The intended model is a build-time compiler over one
+small declarative source:
+
+```lua
+q.dialogue({
+    id = "pritoky_innkeeper_rumor",
+    actor = q.actor.named("kpri_innkeeper"),
+    availableWhen = q.caseStep("innkeeper_rumor"),
+    lines = {
+        q.player("@dp_rumor_ask"),
+        q.actor("@dp_rumor_answer")
+    },
+    onComplete = q.emit("evidence.found", {
+        evidence = "innkeeper_rumor",
+        confidence = 20
+    })
+})
+```
+
+The syntax is provisional. One DialogueSpec remains the source of truth and
+the compiler generates:
+
+- native FaderDialog definition, sequences, prompts, replies and output ports;
+- the quest-project `Definition` and node wiring;
+- Storm actor-role assignment and required RPG role rows;
+- ScriptContext or generated bridge signal for completion and selected reply;
+- Russian and English localization stubs with parity checks;
+- a runtime manifest mapping dialogue outputs to domain events;
+- structural validation for duplicate identifiers, missing roles, missing
+  localization, unreachable replies and unconnected outputs.
+
+Static dialogue structure is generated ahead of time because mod Lua cannot
+create arbitrary Skald/Storm graph nodes during gameplay. Runtime Lua may
+control availability, case state, one-shot guards and consequences. Dynamic
+content therefore selects among generated branches or variants; it does not
+inject arbitrary new native lines at runtime unless a future live proof finds
+a supported engine boundary.
+
+The current Pritoky innkeeper canary is the first integration fixture for this
+future subsystem: it already crosses Storm role -> FaderDialog -> quest output
+-> ScriptContext -> Lua evidence state. Do not extract the generator until
+that round trip has passed live save/load testing.
 
 ## Generated contract
 
@@ -130,15 +179,18 @@ the only source inputs.
    objective progression and completion in retail.
 3. Migrate one Dark Passenger slice and validate save compatibility.
 4. Build a second independent proof quest to expose false abstractions.
-5. Add dynamic entity/area marker pools, localization tooling and diagnostics.
-6. Extract a standalone repository, documentation and distributable CLI.
+5. Add a minimal linear DialogueSpec compiler from the proven innkeeper
+   canary; add branching, conditions and reply consequences only after a
+   second native dialogue proves the same contract.
+6. Add dynamic entity/area marker pools, localization tooling and diagnostics.
+7. Extract a standalone repository, documentation and distributable CLI.
 
 ## Success criteria
 
 A mod author can create a journal quest with native banner/sound, three
-objectives, a marker and save-safe progression without writing quest XML or
-manually allocating bridge buffs. The same spec passes structural tests and a
-real retail integration scenario.
+objectives, a marker, one native dialogue and save-safe progression without
+writing quest XML, Storm role XML or manually allocating bridge signals. The
+same spec passes structural tests and a real retail integration scenario.
 
 ## Open questions
 
@@ -148,3 +200,5 @@ real retail integration scenario.
    second independent quest.
 3. Identifier registry and third-party mod collision policy.
 4. Licensing and redistribution boundaries for generated templates and tools.
+5. Which actor selectors can be bound generically beyond named Storm roles;
+   this needs two live dialogue proofs before the public API is frozen.

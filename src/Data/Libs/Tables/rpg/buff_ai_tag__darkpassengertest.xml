@@ -11,5 +11,6 @@
 		<buff_ai_tag buff_ai_tag_id="30" buff_ai_tag_name="darkpassenger_target_revealed" />
 		<buff_ai_tag buff_ai_tag_id="31" buff_ai_tag_name="dp_evidence_first_lead" />
 		<buff_ai_tag buff_ai_tag_id="32" buff_ai_tag_name="dp_evidence_rumor_available" />
+		<buff_ai_tag buff_ai_tag_id="36" buff_ai_tag_name="dp_tavern_witness_available" />
 	</buff_ai_tags>
 </database>

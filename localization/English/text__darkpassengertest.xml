@@ -56,6 +56,26 @@
 	<Row><Cell>dp_rumor_innkeeper_refusal</Cell><Cell>Someone local. Do not expect a name from me - I have no wish to tumble down a slope while drunk myself one day.</Cell></Row>
 	<Row><Cell>dp_rumor_henry_what_to_seek</Cell><Cell>Then what should I look for?</Cell></Row>
 	<Row><Cell>dp_rumor_innkeeper_belongings</Cell><Cell>Vojtech slept in the hayloft behind the inn. His chest is still there. The bailiff did not even bother to look inside. If the lad knew what was coming, perhaps he left something. Hurry, before the mice learn to read.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_name</Cell><Cell>Vojtech's Unsent Letter</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_info</Cell><Cell>A folded sheet hidden among the dead farmhand's belongings.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_content</Cell><Cell>&lt;p&gt;Marta,&lt;/p&gt;&lt;p&gt;you asked why I no longer sleep. I lied to you. It was not the drink.&lt;/p&gt;&lt;p&gt;Three nights ago by the old ford, I saw that man with the merchant's apprentice. The lad was on his knees, begging to be let go. He dragged him into the water and forced his face to the bottom. Twice he let him raise his head and take a breath — only to push him under again. The third time, the boy's hands stopped scraping at the stones.&lt;/p&gt;&lt;p&gt;I was hiding behind the willows. I could have called for help. Could have rushed him. But I lay in the mud with my hand over my mouth and waited for it to end.&lt;/p&gt;&lt;p&gt;Yesterday he found me in the tavern. Sat beside me, ordered two mugs, and said accidents were always happening to drunken farmhands: one falls from a bluff, another drowns in a stream. Then he smiled and paid for my ale.&lt;/p&gt;&lt;p&gt;He knows what I saw.&lt;/p&gt;&lt;p&gt;At dawn I am leaving. If I do not reach you, give this letter to someone who is not afraid to speak his name. The woman clearing tables after sunset saw us together. Perhaps she heard enough.&lt;/p&gt;&lt;p&gt;Forgive me. When I close my eyes, I can still hear the boy's fingernails scraping against the stones.&lt;/p&gt;&lt;p&gt;Vojtech&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_witness_dialog_root</Cell><Cell>A witness at the inn</Cell></Row>
+	<Row><Cell>dp_witness_ask_vojtech</Cell><Cell>Ask about Vojtech</Cell></Row>
+	<Row><Cell>dp_witness_henry_working</Cell><Cell>You were working here the night a man sat down with Vojtech.</Cell></Row>
+	<Row><Cell>dp_witness_maid_many_nights</Cell><Cell>I work here most nights. Plenty of men sit down with drunken farmhands.</Cell></Row>
+	<Row><Cell>dp_witness_henry_letter</Cell><Cell>Vojtech left a letter. He wrote that you saw them together.</Cell></Row>
+	<Row><Cell>dp_witness_maid_fool</Cell><Cell>Fool… I told him to keep quiet.</Cell></Row>
+	<Row><Cell>dp_witness_henry_dead</Cell><Cell>Now he is dead.</Cell></Row>
+	<Row><Cell>dp_witness_maid_stream</Cell><Cell>You think I do not know? Every morning since that night, I have looked at the stream and feared I would see someone else in it.</Cell></Row>
+	<Row><Cell>dp_witness_henry_heard</Cell><Cell>What did you hear?</Cell></Row>
+	<Row><Cell>dp_witness_maid_threat</Cell><Cell>The man ordered two mugs. Vojtech never touched his. He leaned close and said, “Even sober men lose their footing by the water.” Then he left a coin and walked away.</Cell></Row>
+	<Row><Cell>dp_witness_henry_who</Cell><Cell>Who was he?</Cell></Row>
+	<Row><Cell>dp_witness_maid_name</Cell><Cell>Do not make me say his name in here.</Cell></Row>
+	<Row><Cell>dp_witness_henry_where</Cell><Cell>Then tell me where to find him.</Cell></Row>
+	<Row><Cell>dp_witness_maid_location</Cell><Cell>I will tell you what he looks like and where to find him. But if he asks, we never spoke.</Cell></Row>
+	<Row><Cell>dark_within_witness_name</Cell><Cell>Question the inn workers</Cell></Row>
+	<Row><Cell>dark_within_witness_active</Cell><Cell>Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.</Cell></Row>
+	<Row><Cell>dark_within_witness_done</Cell><Cell>The maid confirmed that Vojtech had been threatened and identified the suspect.</Cell></Row>
 	<Row><Cell>dark_within_evidence_name</Cell><Cell>Gather proof of guilt</Cell></Row>
 	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>

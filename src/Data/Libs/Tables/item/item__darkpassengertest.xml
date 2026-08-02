@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="item.xsd" name="barbora">
+	<ItemClasses version="8">
+		<Document Type="5" IconId="letter_simple" UIInfo="dp_vojtech_letter_info" UIName="dp_vojtech_letter_name" PickpocketInPouch="true" Model="characters/assets/parchment_folded/parchment_folded.cdf" EntityScript="Book" Weight="0" Price="0" FadeCoef="1.333333" VisibilityCoef="1" Id="73762008-de9b-4c42-b509-235e63e60840" Name="dp_vojtech_last_letter">
+			<DocumentContent Parts="dp_vojtech_letter_content" />
+		</Document>
+	</ItemClasses>
+</database>

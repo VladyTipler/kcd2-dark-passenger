@@ -1253,7 +1253,7 @@ Add-Result (
     ) -and
     ([regex]::Matches($levelText, '<Definition File=').Count -gt 100) -and
     ([regex]::Matches($levelText, '<dark_within_k\b').Count -eq 1) -and
-    -not (Test-Path -LiteralPath $standaloneKuttenbergLevelPath) -and
+    (Test-Path -LiteralPath $standaloneKuttenbergLevelPath) -and
     $troskyLevelText.Contains(
         '<Definition File="trosecko/dark_within_t.xml" />'
     ) -and
@@ -1264,15 +1264,18 @@ Add-Result (
     ) -and
     ([regex]::Matches($troskyLevelText, '<Definition File=').Count -gt 100) -and
     ([regex]::Matches($troskyLevelText, '<dark_within_t\b').Count -eq 1) -and
-    -not (Test-Path -LiteralPath $standaloneTroskyLevelPath) -and
-    -not $projectText.Contains(
+    (Test-Path -LiteralPath $standaloneTroskyLevelPath) -and
+    $projectText.Contains(
         '<Definition File="darkpassengertest/kutnohorsko.xml" />'
     ) -and
-    -not $projectText.Contains('<kutnohorsko Name="kutnohorsko"') -and
-    -not $projectText.Contains(
+    $projectText.Contains('<kutnohorsko Name="kutnohorsko"') -and
+    $projectText.Contains(
         '<Definition File="darkpassengertest/trosecko.xml" />'
-    )
-) 'both regional quests are registered once inside the full Barbora level graphs'
+    ) -and
+    $projectText.Contains('<trosecko Name="trosecko"') -and
+    -not $projectText.Contains('<dark_within_k') -and
+    -not $projectText.Contains('<dark_within_t')
+) 'regional quests stay in Barbora while the global kill observer uses its own project'
 Add-Result (
     -not $levelText.Contains('dp_lua_call.xml') -and
     -not $troskyLevelText.Contains('dp_lua_call.xml')
@@ -2317,8 +2320,11 @@ Add-Result (
     $questItemCatalogLuaText.Contains(
         'DarkPassengerQuestItemCatalog = {'
     ) -and
-    ([regex]::Matches($questItemCatalogLuaText, '= true')).Count -eq 293
-) 'quest-item catalog contains all 293 authoritative base classes'
+    ([regex]::Matches($questItemCatalogLuaText, '= true')).Count -eq 293 -and
+    -not $questItemCatalogLuaText.Contains(
+        '73762008-de9b-4c42-b509-235e63e60840'
+    )
+) 'quest-item catalog contains only the 293 authoritative base classes'
 Add-Result (
     Test-Path -LiteralPath $burialLuaPath
 ) 'global corpse burial Lua module exists'

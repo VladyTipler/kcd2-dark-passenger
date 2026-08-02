@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <FaderDialog Name="tavern_witness_dialog_k">
+      <Ports>
+        <Port Name="available" Direction="In" Type="bool">
+          <DesignName Text="Witness lead available" />
+        </Port>
+        <Port Name="heard" Direction="Out" Type="trigger">
+          <DesignName Text="Witness heard" />
+        </Port>
+      </Ports>
+      <Text StringName="dp_witness_dialog_root" />
+      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false">
+        <Decision Name="witness_root" Priority="General">
+          <Sequences>
+            <Sequence EndType="EndDialogue" EntryCondition="Port('available')" Name="vojtech_tavern_witness">
+              <UiPrompt StringName="dp_witness_ask_vojtech" />
+              <Triggers>
+                <Port Name="heard" />
+              </Triggers>
+              <Elements>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_working" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_many_nights" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_letter" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_fool" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_dead" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_stream" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_heard" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_threat" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_who" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_name" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_witness_henry_where" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_TAVERN_WITNESS">
+                  <Text StringName="dp_witness_maid_location" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+              </Elements>
+            </Sequence>
+          </Sequences>
+        </Decision>
+      </Dialogue>
+    </FaderDialog>
+  </Skald>
+</Database>

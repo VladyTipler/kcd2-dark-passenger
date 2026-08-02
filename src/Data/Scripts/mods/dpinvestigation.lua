@@ -404,6 +404,37 @@ function DarkPassengerInvestigation.OnTargetDeath(generation)
     return true
 end
 
+function DarkPassengerInvestigation.DebugSetConfidence(confidence, generation)
+    local current = ReadState()
+    confidence = tonumber(confidence)
+    generation = tonumber(generation)
+    if current.active ~= true or confidence == nil or confidence < 0 or
+       confidence >= DarkPassengerInvestigation.REVEAL_THRESHOLD or
+       generation == nil or generation ~= current.generation then
+        InvestigationLog(
+            "debug confidence rejected value=" .. tostring(confidence) ..
+            " generation=" .. tostring(generation)
+        )
+        return false
+    end
+    if current.revealed or current.revealDispatched then
+        RemoveRevealBuff(ResolveEntity(
+            DarkPassengerInvestigation.candidate,
+            DarkPassengerInvestigation.entity
+        ))
+    end
+    current.confidence = confidence
+    current.revealed = false
+    current.revealDispatched = false
+    DarkPassengerInvestigation.state = current
+    if not PersistState(current) then return false end
+    InvestigationLog(
+        "debug confidence set value=" .. tostring(confidence) ..
+        " generation=" .. tostring(generation)
+    )
+    return true
+end
+
 function DarkPassengerInvestigation.Clear(entity)
     local current = ReadState()
     local nextState, result = DarkPassengerInvestigation.Transition(

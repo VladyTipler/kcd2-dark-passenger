@@ -10,6 +10,13 @@
         <addRole name="DP_INNKEEPER_RUMOR" />
       </operations>
     </rule>
+    <rule name="darkpassenger_pritoky_tavern_witness">
+      <selectors>
+        <hasName name="kpri_woman_10" />
+      </selectors>
+      <operations>
+        <addRole name="DP_TAVERN_WITNESS" />
+      </operations>
+    </rule>
   </rules>
 </storm>
-

@@ -25,6 +25,9 @@ Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinteractions.lua")
 Script.ReloadScript("Scripts/mods/content/dp_case_convenient_accident.lua")
 Script.ReloadScript("Scripts/mods/dpcasecontent.lua")
+Script.ReloadScript("Scripts/mods/dpevidencereaction.lua")
+Script.ReloadScript("Scripts/mods/dpwitnesslead.lua")
+Script.ReloadScript("Scripts/mods/dpbelongings.lua")
 Script.ReloadScript("Scripts/mods/dpevidence.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
 
@@ -1178,6 +1181,7 @@ DarkPassengerQuestBridge.REQUESTS = {
         context = "dp_select_victim_kutnohorsko",
         deathContext = "dp_target_dead_kutnohorsko",
         rumorContext = "dp_rumor_heard_kutnohorsko",
+        witnessContext = "dp_witness_heard_kutnohorsko",
     },
     {
         region = "trosecko",
@@ -1185,6 +1189,7 @@ DarkPassengerQuestBridge.REQUESTS = {
         deathContext = "dp_target_dead_trosecko",
     },
 }
+DarkPassengerQuestBridge.KILL_CONTEXT = "dp_ordinary_human_kill"
 DarkPassengerQuestBridge.POLL_INTERVAL_MS = 1000
 DarkPassengerQuestBridge.pollGeneration =
     DarkPassengerQuestBridge.pollGeneration or 0
@@ -1247,7 +1252,9 @@ function DarkPassengerQuestBridge.StartPolling(reason)
     DarkPassengerQuestBridge.pollAliveLoggedGeneration = nil
     DarkPassengerQuestBridge.lastRequestStates = {}
     DarkPassengerQuestBridge.lastDeathStates = {}
+    DarkPassengerQuestBridge.lastKillState = nil
     DarkPassengerQuestBridge.lastRumorStates = {}
+    DarkPassengerQuestBridge.lastWitnessStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
         " generation=" .. tostring(DarkPassengerQuestBridge.pollGeneration)
@@ -1291,6 +1298,38 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
     end
 
     local playerEntity = System.GetEntityByName("dude")
+    local hasKillRequest = false
+    if playerEntity ~= nil and
+       playerEntity.soul ~= nil and
+       playerEntity.soul.HasScriptContext ~= nil then
+        local ok, contextOrError = pcall(function()
+            return playerEntity.soul:HasScriptContext(
+                DarkPassengerQuestBridge.KILL_CONTEXT
+            )
+        end)
+        if ok then
+            hasKillRequest = contextOrError == true or contextOrError == 1
+        else
+            TargetLog(
+                "ordinary-kill context check failed error=" ..
+                tostring(contextOrError)
+            )
+        end
+    end
+    local previousKillState = DarkPassengerQuestBridge.lastKillState
+    local killRequestBecameActive =
+        hasKillRequest and previousKillState ~= true
+    if previousKillState ~= hasKillRequest then
+        DarkPassengerQuestBridge.lastKillState = hasKillRequest
+        TargetLog(
+            "ordinary-kill context active=" .. tostring(hasKillRequest)
+        )
+    end
+    if killRequestBecameActive and
+       DarkPassengerTest.OnOrdinaryHumanKillObserved ~= nil then
+        DarkPassengerTest.OnOrdinaryHumanKillObserved()
+    end
+
     for _, request in ipairs(DarkPassengerQuestBridge.REQUESTS) do
         local hasRequest = false
         if playerEntity ~= nil and
@@ -1433,6 +1472,43 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
            DarkPassengerEvidence ~= nil and
            DarkPassengerEvidence.OnRumorCompleted ~= nil then
             DarkPassengerEvidence.OnRumorCompleted(request.region)
+        end
+
+        local hasWitnessRequest = false
+        if request.witnessContext ~= nil and
+           playerEntity ~= nil and
+           playerEntity.soul ~= nil and
+           playerEntity.soul.HasScriptContext ~= nil then
+            local ok, contextOrError = pcall(function()
+                return playerEntity.soul:HasScriptContext(
+                    request.witnessContext
+                )
+            end)
+            if ok then
+                hasWitnessRequest =
+                    contextOrError == true or contextOrError == 1
+            else
+                TargetLog(
+                    "witness context check failed region=" ..
+                    tostring(request.region) ..
+                    " error=" .. tostring(contextOrError)
+                )
+            end
+        end
+        local previousWitnessState =
+            DarkPassengerQuestBridge.lastWitnessStates[request.region]
+        if previousWitnessState ~= hasWitnessRequest then
+            DarkPassengerQuestBridge.lastWitnessStates[request.region] =
+                hasWitnessRequest
+            TargetLog(
+                "witness context region=" .. tostring(request.region) ..
+                " active=" .. tostring(hasWitnessRequest)
+            )
+        end
+        if hasWitnessRequest and
+           DarkPassengerWitnessLead ~= nil and
+           DarkPassengerWitnessLead.OnDialogueCompleted ~= nil then
+            DarkPassengerWitnessLead.OnDialogueCompleted(request.region)
         end
     end
 
@@ -1957,9 +2033,7 @@ function DarkPassengerAftermathProbe.Attribution()
         " target_dead=" .. tostring(ProbeEntityDead(target))
     )
     AftermathProbeLog(
-        "attribution bindings notifyPlayerKill=" ..
-        tostring(ProbeMethod(GameRules, "SPNotifyPlayerKill")) ..
-        " actorDamageInfo=" ..
+        "attribution bindings actorDamageInfo=" ..
         tostring(target ~= nil and target.actor ~= nil and
             ProbeMethod(target.actor, "DamageInfo")) ..
         " note=bindings are presence-only; probe does not call them"
@@ -2537,6 +2611,24 @@ end
 function DarkPassengerTest.OnGrabCorpse(user, slotId, victim)
     local victimId, victimName = ResolveVictim(victim, slotId)
     System.LogAlways("[DarkPassenger] === GRAB_CORPSE FIRED === corpse=" .. tostring(victimName))
+end
+
+function DarkPassengerTest.OnOrdinaryHumanKillObserved()
+    if DarkPassengerHunger == nil or
+       DarkPassengerHunger.RelieveFromOrdinaryKill == nil then
+        return {
+            accepted = false,
+            reason = "hunger_runtime_unavailable",
+        }
+    end
+
+    local relief = DarkPassengerHunger.RelieveFromOrdinaryKill()
+    System.LogAlways(
+        "[DarkPassenger] ordinary human kill observed relief=" .. tostring(
+            relief ~= nil and relief.reason or nil
+        )
+    )
+    return relief
 end
 
 -- PlayerEventDispatcher emits BasicAIActionsOnStealthKill/MercyKill without

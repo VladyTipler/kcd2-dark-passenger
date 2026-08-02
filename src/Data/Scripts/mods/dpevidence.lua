@@ -4,7 +4,7 @@ DarkPassengerEvidence.SCHEMA_VERSION = 1
 DarkPassengerEvidence.SOURCE_ENTITY_NAME = "kpri_innkeeper"
 DarkPassengerEvidence.SOURCE_REGION = "kutnohorsko"
 DarkPassengerEvidence.SOURCE_SETTLEMENT = "pritoky"
-DarkPassengerEvidence.DEBUG_ACTION_ENABLED = true
+DarkPassengerEvidence.DEBUG_ACTION_ENABLED = false
 DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID =
     "6e532a34-ce2b-47ae-9427-c67a4a1b94b1"
 DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID =
@@ -366,13 +366,18 @@ function DarkPassengerEvidence.Restore(investigationState)
     SetRumorAvailability(
         selected ~= nil and state.awardedGeneration ~= generation
     )
-    if state.awardedGeneration == generation and
-       (not state.signalDispatched or
-        not HasBuff(
-            PlayerEntity(),
-            DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID
-        )) then
-        return DispatchJournalSignal(generation)
+    if state.awardedGeneration == generation then
+        if DarkPassengerBelongings ~= nil and
+           DarkPassengerBelongings.OnRumorAwarded ~= nil then
+            DarkPassengerBelongings.OnRumorAwarded(generation)
+        end
+        if not state.signalDispatched or
+           not HasBuff(
+               PlayerEntity(),
+               DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID
+           ) then
+            return DispatchJournalSignal(generation)
+        end
     end
     return true
 end
@@ -413,6 +418,10 @@ local function AwardSelectedRumor(generation, showNotification)
     if state.awardedGeneration == generation then
         SetRumorAvailability(false)
         DispatchJournalSignal(generation)
+        if DarkPassengerBelongings ~= nil and
+           DarkPassengerBelongings.OnRumorAwarded ~= nil then
+            DarkPassengerBelongings.OnRumorAwarded(generation)
+        end
         return true
     end
     local selectedRumor = ResolveRumor(generation)
@@ -451,6 +460,10 @@ local function AwardSelectedRumor(generation, showNotification)
         "rumor awarded generation=" .. tostring(generation) ..
         " confidence=" .. tostring(evidenceResult.current)
     )
+    if DarkPassengerBelongings ~= nil and
+       DarkPassengerBelongings.OnRumorAwarded ~= nil then
+        DarkPassengerBelongings.OnRumorAwarded(generation)
+    end
     return true
 end
 

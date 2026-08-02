@@ -6,6 +6,8 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Pak')]
     [string]$TablesPakPath,
 
+    [string[]]$AdditionalInputDirectory = @(),
+
     [string]$OutputPath = (
         Join-Path (
             Split-Path -Parent $PSScriptRoot
@@ -58,8 +60,11 @@ try {
         $sourceDirectory = Join-Path $temporaryRoot 'Libs\Tables\item'
     }
 
-    if (-not (Test-Path -LiteralPath $sourceDirectory -PathType Container)) {
-        throw "Item table directory not found: $sourceDirectory"
+    $sourceDirectories = @($sourceDirectory) + @($AdditionalInputDirectory)
+    foreach ($directory in $sourceDirectories) {
+        if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+            throw "Item table directory not found: $directory"
+        }
     }
 
     $questItemIds = [System.Collections.Generic.HashSet[string]]::new(
@@ -67,11 +72,14 @@ try {
     )
     $guidPattern = '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
 
-    $itemFiles = Get-ChildItem -LiteralPath $sourceDirectory `
-        -Filter 'item*.xml' -File -Recurse |
-        Sort-Object FullName
+    $itemFiles = @(
+        $sourceDirectories | ForEach-Object {
+            Get-ChildItem -LiteralPath $_ `
+                -Filter 'item*.xml' -File -Recurse
+        } | Sort-Object FullName -Unique
+    )
     if ($itemFiles.Count -eq 0) {
-        throw "No item*.xml files found in: $sourceDirectory"
+        throw "No item*.xml files found in configured directories."
     }
 
     foreach ($itemFile in $itemFiles) {

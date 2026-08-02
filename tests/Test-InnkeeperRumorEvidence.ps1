@@ -109,11 +109,9 @@ Add-Result (
     $evidence.Contains('DarkPassengerInteractions.RegisterProvider(')
 ) 'rumor copy resolves in Lua at action time through the shared registry'
 Add-Result (
-    $evidence.Contains('Action()') -and
-    $evidence.Contains(':hint("@dp_evidence_ask_rumors")') -and
-    $evidence.Contains(':action("butcher")') -and
-    $evidence.Contains(':hintType(AHT_RELEASE)')
-) 'innkeeper exposes one short-F secondary contextual action'
+    $evidence.Contains('DEBUG_ACTION_ENABLED = false') -and
+    $evidence.Contains('if not DarkPassengerEvidence.DEBUG_ACTION_ENABLED')
+) 'innkeeper short-F canary action is disabled in production'
 
 Add-Result (
     $investigation.Contains('function DarkPassengerInvestigation.GetState') -and

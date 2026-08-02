@@ -7,6 +7,7 @@ DarkPassengerHunger.LAST_SATISFACTION_KEY =
 DarkPassengerHunger.SECONDS_PER_DAY = 86400
 DarkPassengerHunger.HUNGER_PER_DAY = 10
 DarkPassengerHunger.MAX_HUNGER = 100
+DarkPassengerHunger.RELIEF_HUNGER = 50
 DarkPassengerHunger.FIRST_INSTALL_DAYS = 5
 DarkPassengerHunger.EVALUATION_INTERVAL_MS = 10000
 DarkPassengerHunger.SATISFACTION_GATE_GUID =
@@ -267,6 +268,113 @@ function DarkPassengerHunger.ResetAfterHunt(graceDays, result)
         )
     end
     return hunger ~= nil
+end
+
+function DarkPassengerHunger.ReliefTransition(hunger)
+    local value = tonumber(hunger)
+    if value == nil then
+        return {
+            accepted = false,
+            reason = "invalid_hunger",
+        }
+    end
+
+    value = math.max(
+        0,
+        math.min(DarkPassengerHunger.MAX_HUNGER, value)
+    )
+    if value <= DarkPassengerHunger.RELIEF_HUNGER then
+        return {
+            accepted = false,
+            reason = "not_hungry",
+            previous = value,
+            current = value,
+        }
+    end
+
+    return {
+        accepted = true,
+        reason = "relieved",
+        previous = value,
+        current = 50,
+    }
+end
+
+function DarkPassengerHunger.RelieveFromOrdinaryKill()
+    local transition = DarkPassengerHunger.ReliefTransition(
+        DarkPassengerHunger.Get()
+    )
+    if not transition.accepted then
+        return transition
+    end
+
+    local now = WorldTime()
+    if now == nil then
+        transition.accepted = false
+        transition.reason = "world_time_unavailable"
+        return transition
+    end
+
+    local lastSatisfaction =
+        now -
+        (DarkPassengerHunger.RELIEF_HUNGER /
+            DarkPassengerHunger.HUNGER_PER_DAY) *
+        DarkPassengerHunger.SECONDS_PER_DAY
+    if not WriteGlobal(
+        DarkPassengerHunger.LAST_SATISFACTION_KEY,
+        lastSatisfaction
+    ) then
+        transition.accepted = false
+        transition.reason = "timestamp_write_failed"
+        return transition
+    end
+    if not WriteGlobal(
+        DarkPassengerHunger.SCHEMA_KEY,
+        DarkPassengerHunger.SCHEMA_VERSION
+    ) then
+        transition.accepted = false
+        transition.reason = "schema_write_failed"
+        return transition
+    end
+
+    -- Force the neutral tier through ApplyTier even if this module was
+    -- hot-reloaded and no longer remembers the currently visible debuff.
+    DarkPassengerHunger.currentTier = false
+    local evaluated = DarkPassengerHunger.Evaluate()
+    if evaluated == nil then
+        transition.accepted = false
+        transition.reason = "evaluation_failed"
+        return transition
+    end
+
+    transition.current = evaluated
+    Log(
+        "ordinary kill relief previous=" ..
+        tostring(transition.previous) ..
+        " current=" .. tostring(transition.current)
+    )
+    return transition
+end
+
+function DarkPassengerHunger.RunReliefSelfTest()
+    local function assertTransition(input, accepted, current)
+        local transition = DarkPassengerHunger.ReliefTransition(input)
+        if transition.accepted ~= accepted or
+           transition.current ~= current then
+            error(
+                "relief transition failed input=" .. tostring(input) ..
+                " accepted=" .. tostring(transition.accepted) ..
+                " current=" .. tostring(transition.current)
+            )
+        end
+    end
+
+    assertTransition(40, false, 40)
+    assertTransition(50, false, 50)
+    assertTransition(60, true, 50)
+    assertTransition(100, true, 50)
+    Log("ordinary kill relief self-test passed")
+    return true
 end
 
 function DarkPassengerHunger.Status()

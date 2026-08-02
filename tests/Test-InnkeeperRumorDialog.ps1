@@ -157,8 +157,8 @@ Add-Result (
 Add-Result (
     $evidence.Contains('function DarkPassengerEvidence.OnRumorCompleted') -and
     $evidence.Contains('RUMOR_AVAILABLE_BUFF_GUID') -and
-    $evidence.Contains('DEBUG_ACTION_ENABLED = true')
-) 'evidence owns idempotent completion and keeps a canary fallback switch'
+    $evidence.Contains('DEBUG_ACTION_ENABLED = false')
+) 'evidence owns idempotent completion with the canary fallback disabled'
 
 foreach ($key in @('dp_evidence_dialog_root', 'dp_evidence_ask_unease') +
     $dialogLineKeys) {
