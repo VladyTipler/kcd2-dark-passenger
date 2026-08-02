@@ -18,7 +18,11 @@ selection in both regions, native quest objectives and markers, and automatic
 post-target-death satisfaction reset. The dev-confirmed aftermath layer tracks
 witness outcomes and adds global hold-to-bury corpse disposal with native
 SkipTime presentation. The investigation pipeline generates settlement-sized
-multi-area search districts for all supported settlements in both regions.
+multi-area search districts for all supported settlements in both regions. A
+declarative CaseSpec compiler now emits the Lua, quest dialogue, Storm-role,
+script-context, item-table, and bilingual localization artifacts used by the
+same universal quest container. Its first Trosky story, **Missing Traveler**,
+is structurally verified and awaiting a live Zhelejov playthrough.
 
 ## Roadmap
 
@@ -49,6 +53,8 @@ multi-area search districts for all supported settlements in both regions.
 - [x] Track hidden confidence while the player investigates
 - [x] Reveal the personal marker only after sufficient evidence
 - [ ] Add multiple investigation archetypes and complications
+- [x] Compile authored CaseSpec data into the universal quest container
+- [ ] Live-validate the generated Missing Traveler case in Zhelejov
 
 ### Phase 4 — A world that notices
 
@@ -77,12 +83,15 @@ See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 ## Repository layout
 
 - `src` — authored KCD2 Lua/XML mod sources;
-- `localization` — authored English and Russian localization;
+- `localization` — authored base English and Russian localization;
+- `content/cases` — bilingual authored CaseSpec stories;
 - `config` — victim policy plus generated settlement-area selection manifest;
+- `evidence/*-case-bindings.md` — reviewed native entity/container bindings;
 - `tools` — extraction, generation, build, and deployment scripts;
 - `tests` — structural verification;
 - `docs` — designs, plans, and reference notes;
-- `build`, `dist`, `evidence` — generated or local-only data ignored by Git.
+- `build`, `dist`, and raw evidence — generated or local-only data ignored by
+  Git.
 
 The game `Mods` directories are deployment targets, never source directories.
 Reference mods and extracted game data are intentionally excluded.
@@ -90,8 +99,25 @@ Reference mods and extracted game data are intentionally excluded.
 Investigation stories are authored as bilingual CaseSpec JSON under
 `content/cases`. Settlement-specific entity and container IDs live separately
 in `config/case-settlement-bindings.json`. `Compile-CaseSpecs.ps1` validates
-both sources and emits the runtime Lua catalog plus a compatibility report;
-generated artifacts are never edited by hand.
+both sources and emits the runtime Lua catalog, native dialogue XML, Storm
+roles, script contexts, document item rows, merged Russian/English
+localization, and compatibility manifests. Generated artifacts are never
+edited by hand.
+
+### CaseSpec workflow
+
+1. Write story content in `content/cases/<case>.case.json`.
+2. Put reviewed world IDs in `config/case-settlement-bindings.json`.
+3. Keep numeric case/evidence codes and native role names stable: they are save
+   schema.
+4. Run the focused compiler and generation tests.
+5. Build the mod; packaging consumes `build/generated/localization`, not the
+   authored base localization directly.
+6. Test a new case on a disposable save in its target settlement. Do not reuse
+   an already serialized quest instance as proof of cold-start behavior.
+
+One quest graph remains the lifecycle owner per region. CaseSpec adds stories
+as data; it does not create a separate quest project for every story.
 
 ## Local build
 
@@ -103,6 +129,10 @@ pwsh -NoProfile -File '.\tests\Test-SettlementInvestigationAreas.ps1' `
   -DevGameRoot $env:KCD2_DEV_ROOT
 pwsh -NoProfile -File '.\tests\Test-CaseSpecCompiler.ps1'
 pwsh -NoProfile -File '.\tests\Test-CaseSpecGeneration.ps1' `
+  -DevGameRoot $env:KCD2_DEV_ROOT
+pwsh -NoProfile -File '.\tests\Test-ZhelejovBindings.ps1'
+pwsh -NoProfile -File '.\tests\Test-MissingTravelerCase.ps1'
+pwsh -NoProfile -File '.\tests\Test-MissingTravelerGeneration.ps1' `
   -DevGameRoot $env:KCD2_DEV_ROOT
 pwsh -NoProfile -File '.\tools\Build-Mod.ps1'
 pwsh -NoProfile -File '.\tests\Test-DarkPassengerSatisfaction.ps1' `
