@@ -35,6 +35,8 @@ $hungerLuaPath = "$stageRoot\Data\Scripts\mods\dphunger.lua"
 $aftermathLuaPath = "$stageRoot\Data\Scripts\mods\dpaftermath.lua"
 $investigationLuaPath = "$stageRoot\Data\Scripts\mods\dpinvestigation.lua"
 $burialLuaPath = "$stageRoot\Data\Scripts\mods\dpburial.lua"
+$interactionsLuaPath = "$stageRoot\Data\Scripts\mods\dpinteractions.lua"
+$evidenceLuaPath = "$stageRoot\Data\Scripts\mods\dpevidence.lua"
 $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
@@ -283,6 +285,8 @@ $aftermathLuaText = Read-OptionalText -LiteralPath $aftermathLuaPath
 $investigationLuaText =
     Read-OptionalText -LiteralPath $investigationLuaPath
 $burialLuaText = Read-OptionalText -LiteralPath $burialLuaPath
+$interactionsLuaText = Read-OptionalText -LiteralPath $interactionsLuaPath
+$evidenceLuaText = Read-OptionalText -LiteralPath $evidenceLuaPath
 $witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
 $witnessDetectorLuaText =
     Read-OptionalText -LiteralPath $witnessDetectorLuaPath
@@ -2347,19 +2351,24 @@ Add-Result (
     )
 ) 'mod init loads quest-item catalog before corpse burial'
 Add-Result (
-    $burialLuaText.Contains(
+    $interactionsLuaText.Contains(
         'local actionClassNames = { "NPC", "NPC_Female", "NPC_NAI" }'
     )
-) 'burial targets the live NPC action classes used by entity GetActions'
+) 'shared interaction registry targets the live NPC action classes'
 Add-Result (
-    $burialLuaText.Contains('classTable.GetActions = wrapper') -and
-    $burialLuaText.Contains(
-        'DarkPassengerBurial.AddBuryAction(self, user, firstFast, output)'
+    $interactionsLuaText.Contains('classTable.GetActions = wrapper') -and
+    $interactionsLuaText.Contains(
+        'DarkPassengerInteractions.Dispatch('
     )
-) 'burial injects the contextual action through the live NPC class method'
+) 'shared registry injects providers through the live NPC class method'
 Add-Result (
-    -not $burialLuaText.Contains('BasicAIActions.GetActions = wrapper')
-) 'burial does not rely on a late BasicAIActions mutation invisible to merged NPC classes'
+    $burialLuaText.Contains('DarkPassengerInteractions.RegisterProvider(') -and
+    $burialLuaText.Contains('"burial"') -and
+    -not $burialLuaText.Contains('classTable.GetActions = wrapper')
+) 'burial registers one named provider without owning class hooks'
+Add-Result (
+    -not $interactionsLuaText.Contains('BasicAIActions.GetActions = wrapper')
+) 'interaction registry does not mutate the invisible base action table'
 Add-Result (
     $burialLuaText.Contains(':uiOrder(3)')
 ) 'burial action uses the proven Mercenaries interaction ordering'
@@ -2921,7 +2930,7 @@ Add-Result (
     -not $questText.Contains(
         '<Edge From="questProgress.OnActive" To="SetActive" />'
     )
-) 'empty candidate pool leaves search and target objectives inactive'
+) 'empty candidate pool leaves search target and evidence objectives inactive'
 
 $troskyQuestText = Read-OptionalText -LiteralPath $troskyQuestPath
 $troskyTemplateText = Read-OptionalText -LiteralPath $troskyQuestTemplatePath

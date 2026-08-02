@@ -41,7 +41,7 @@
 
 1. Add pure eligibility/transition logic for `kutnohorsko/pritoky`, `kpri_innkeeper`, current generation, living source, and not-yet-awarded state.
 2. Persist awarded generation and journal-signal state. Award through `DarkPassengerInvestigation.AddEvidence(30, "innkeeper_rumor", generation)` before signalling.
-3. Resolve rumor copy at action time, register a short-F `use_other` provider, expose status/self-test commands, and make reload replace behavior without stacking hooks.
+3. Resolve rumor copy at action time, register a short-F `butcher`/`AHT_RELEASE` provider, expose status/self-test commands, and make reload replace behavior without stacking hooks. (`talk` and `use_other` were live-disproven: both stay on E for this NPC.)
 4. Reset the signal on a new case and retry only journal dispatch after partial failure.
 
 ### Task 4: Bridge the first lead into both quest graphs
@@ -65,7 +65,7 @@
 
 1. Run focused tests, `Build-Mod.ps1 -SkipPackaging`, LuaCompiler, then the full suite.
 2. Run the full package/deploy once with the game closed.
-3. Live-test: Pritoky action visible only on the innkeeper; confidence `0 -> 30`; journal update; no reveal; repeat/reload stays 30.
+3. Live-test: Pritoky action visible only on the innkeeper; short F; confidence `0 -> 30`; journal update; no reveal; repeat/reload stays 30.
 4. Edit one rumor line, run `lua_reload_script Scripts/mods/dpevidence.lua`, and verify changed text on a fresh case without restarting KCD2.
 
 ### Task 6: Document and publish

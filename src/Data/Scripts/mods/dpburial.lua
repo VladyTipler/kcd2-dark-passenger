@@ -30,8 +30,6 @@ DarkPassengerBurial.DIGGABLE_SURFACES = {
 DarkPassengerBurial.generation =
     tonumber(DarkPassengerBurial.generation) or 0
 DarkPassengerBurial.active = DarkPassengerBurial.active or nil
-DarkPassengerBurial._actionClassHooks =
-    DarkPassengerBurial._actionClassHooks or {}
 
 local function Log(message)
     if System ~= nil and System.LogAlways ~= nil then
@@ -301,69 +299,23 @@ function DarkPassengerBurial.AddBuryAction(
     )
 end
 
-local actionClassNames = { "NPC", "NPC_Female", "NPC_NAI" }
-
-local function RestoreLegacyBasicActionHook()
-    local hook = DarkPassengerBurial._getActionsHook
-    if type(hook) ~= "table" or
-       type(hook.wrapper) ~= "function" or
-       type(hook.original) ~= "function" or
-       BasicAIActions == nil or
-       BasicAIActions.GetActions ~= hook.wrapper then
-        return false
-    end
-
-    BasicAIActions.GetActions = hook.original
-    DarkPassengerBurial._getActionsHook = nil
-    Log("legacy BasicAIActions hook removed")
-    return true
-end
-
-local function InstallClassActionHook(className, classTable)
-    if type(classTable) ~= "table" or
-       type(classTable.GetActions) ~= "function" then
-        return false
-    end
-
-    local hooks = DarkPassengerBurial._actionClassHooks
-    local hook = hooks[className]
-    if type(hook) ~= "table" then
-        hook = {}
-        hooks[className] = hook
-    end
-
-    if hook.wrapper ~= nil and
-       classTable.GetActions == hook.wrapper then
-        return true
-    end
-
-    hook.original = classTable.GetActions
-    local wrapper = function(self, user, firstFast)
-        local output = hook.original(self, user, firstFast)
-        if type(output) ~= "table" then output = {} end
-        DarkPassengerBurial.AddBuryAction(self, user, firstFast, output)
-        return output
-    end
-    hook.wrapper = wrapper
-    classTable.GetActions = wrapper
-    Log(className .. ".GetActions hook installed")
-    return true
-end
-
 function DarkPassengerBurial.InstallActionHook()
-    RestoreLegacyBasicActionHook()
-
-    local installed = 0
-    for _, className in ipairs(actionClassNames) do
-        local classTable = _G ~= nil and _G[className] or nil
-        if InstallClassActionHook(className, classTable) then
-            installed = installed + 1
-        else
-            Log(className .. ".GetActions hook unavailable")
-        end
+    if DarkPassengerInteractions == nil or
+       DarkPassengerInteractions.RegisterProvider == nil then
+        Log("shared interaction registry unavailable")
+        return false
     end
-
-    return installed > 0
+    return DarkPassengerInteractions.RegisterProvider(
+        "burial",
+        function(corpse, user, firstFast, output)
+            return DarkPassengerBurial.AddBuryAction(
+                corpse,
+                user,
+                firstFast,
+                output
+            )
+        end
+    )
 end
 
 local function BeginPresentation(corpse, actor)

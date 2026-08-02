@@ -66,10 +66,10 @@ Unsupported settlements expose no action and only produce diagnostic logs.
 The later worldwide layer will generate an evidence-source catalogue from
 innkeeper/editor-layer/faction metadata with explicit fallbacks.
 
-The pilot uses the native secondary-action mapping `use_other` with
-`AHT_RELEASE`, shown as a short **F** press. It must not reuse `talk`: the
-vanilla dialogue already owns **E**, and sharing that mapping makes the two
-actions visually ambiguous.
+The pilot uses `butcher` with `AHT_RELEASE`, shown as a short **F** press. Live
+testing disproved the original `use_other` assumption: both `talk` and
+`use_other` remained on **E** for the innkeeper. `action(...)` selects the
+native input mapping; `AHT_RELEASE` only selects short-press behavior.
 
 ### Evidence and journal bridge
 
@@ -102,6 +102,11 @@ the native journal, physical notes, container placement or all-settlement
 source selection. The contextual action plus hot-reloadable text proves the
 gameplay boundary first. Physical evidence follows on the same persistent
 evidence contract.
+
+The production replacement is an authored Skald dialogue shell. Mercenaries
+proves the shape: quest definitions own `FaderDialog`, prompts, responses,
+roles and output ports; Lua consumes the outputs. No pure-Lua injection into an
+already compiled vanilla response tree has been proven.
 
 ## Verification
 

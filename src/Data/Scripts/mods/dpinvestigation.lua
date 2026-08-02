@@ -155,6 +155,15 @@ function DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
     return DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES[gameRegion]
 end
 
+function DarkPassengerInvestigation.GetState()
+    return ReadState()
+end
+
+function DarkPassengerInvestigation.GetCandidate()
+    return DarkPassengerInvestigation.candidate or
+        FindCandidateByActiveSlot()
+end
+
 function DarkPassengerInvestigation.Transition(state, event)
     local nextState = CopyState(state)
     local result = {
@@ -298,6 +307,10 @@ function DarkPassengerInvestigation.Open(candidate, entity)
     DarkPassengerInvestigation.entity = ResolveEntity(candidate, entity)
     DarkPassengerInvestigation.state = nextState
     PersistState(nextState)
+    if DarkPassengerEvidence ~= nil and
+       DarkPassengerEvidence.OnInvestigationOpened ~= nil then
+        DarkPassengerEvidence.OnInvestigationOpened(nextState.generation)
+    end
     InvestigationLog(
         "opened generation=" .. tostring(nextState.generation) ..
         " region=" .. tostring(candidate.gameRegion) ..
@@ -325,6 +338,10 @@ function DarkPassengerInvestigation.Restore(candidate, entity)
     DarkPassengerInvestigation.entity = entity
     DarkPassengerInvestigation.state = nextState
     if nextState.revealed then DispatchReveal(nextState, entity) end
+    if DarkPassengerEvidence ~= nil and
+       DarkPassengerEvidence.Restore ~= nil then
+        DarkPassengerEvidence.Restore(nextState)
+    end
     return true
 end
 

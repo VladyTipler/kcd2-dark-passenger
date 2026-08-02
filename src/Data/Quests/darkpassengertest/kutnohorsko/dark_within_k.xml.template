@@ -25,6 +25,9 @@
         <MakeArray Name="revealTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
           <Constant Name="A" Value="30" />
         </MakeArray>
+        <MakeArray Name="firstLeadTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="31" />
+        </MakeArray>
         <MakeArray Name="cleanResultTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
           <Constant Name="A" Value="25" />
         </MakeArray>
@@ -48,6 +51,11 @@
         <BuffTagTrigger Name="revealTagTrigger">
           <Asset Name="Souls" Alias="RegionalTargetSouls" />
           <Edge From="revealTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="firstLeadTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="firstLeadTags.Array" To="BuffTags" />
           <Edge From="questProgress.Active" To="IsActive" />
         </BuffTagTrigger>
         <BuffTagTrigger Name="satisfactionTrigger">
@@ -169,6 +177,14 @@
         <{{DP_SEARCH_OBJECTIVE_NAME}} Name="visual">
           <Edge From="objectiveProgress.State" To="Progress" />
         </{{DP_SEARCH_OBJECTIVE_NAME}}>
+        <State Name="evidenceProgress" TypeT="DP_EvidenceProgress">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
+        </State>
+        <{{DP_EVIDENCE_OBJECTIVE_NAME}} Name="evidenceVisual">
+          <Edge From="evidenceProgress.State" To="Progress" />
+        </{{DP_EVIDENCE_OBJECTIVE_NAME}}>
         <State Name="selectedTarget" TypeT="DP_SelectedTarget">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
@@ -208,6 +224,11 @@
         <Type TypeName="DP_SelectedTarget">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_SELECTED_TYPE_ENUMS}}
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+        <Type TypeName="DP_EvidenceProgress">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+          <StateTypeEnumeration Name="FirstLead" ObjectiveValueType="Started" />
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
         <Type TypeName="DP_TargetProgress">
@@ -301,6 +322,20 @@
                 <Localization Text="The sentence has been carried out. Now I must leave no trace." Language="WHS" />
               </Log>
             </EnumLog>
+          </Logs>
+        </Objective>
+        <Objective TypeT="DP_EvidenceProgress" Name="{{DP_EVIDENCE_OBJECTIVE_NAME}}">
+          <LocalizedName StringName="dark_within_evidence_name" Text="Gather proof of guilt">
+            <Localization Text="Gather proof of guilt" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+            <EnumLog Type="Started" Name="FirstLead" IsTracked="true">
+              <Log StringName="dark_within_evidence_first_lead" Text="An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.">
+                <Localization Text="An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof." Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>
         <Objective TypeT="DP_CleanupProgress" Name="{{DP_CLEANUP_OBJECTIVE_NAME}}">

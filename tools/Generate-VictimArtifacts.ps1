@@ -92,6 +92,7 @@ function New-RegionalQuest {
         [string]$RegionId,
         [string]$QuestName,
         [string]$SearchObjectiveName,
+        [string]$EvidenceObjectiveName,
         [string]$TargetObjectiveName,
         [string]$CleanupObjectiveName,
         [string]$QuestDescriptionKey,
@@ -309,6 +310,7 @@ function New-RegionalQuest {
         '{{DP_REQUEST_CONTEXT}}' = $RequestContext
         '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
         '{{DP_SEARCH_OBJECTIVE_NAME}}' = $SearchObjectiveName
+        '{{DP_EVIDENCE_OBJECTIVE_NAME}}' = $EvidenceObjectiveName
         '{{DP_TARGET_OBJECTIVE_NAME}}' = $TargetObjectiveName
         '{{DP_CLEANUP_OBJECTIVE_NAME}}' = $CleanupObjectiveName
         '{{DP_QUEST_DESCRIPTION_KEY}}' = $QuestDescriptionKey
@@ -431,6 +433,7 @@ $regionSpecifications = @(
         region = 'kutnohorsko'
         quest = 'dark_within_k'
         searchObjective = 'dark_within_objk'
+        evidenceObjective = 'dark_within_evidencek'
         targetObjective = 'dark_within_targetk'
         cleanupObjective = 'dark_within_cleanupk'
         descriptionKey = 'dark_within_description_k'
@@ -442,6 +445,7 @@ $regionSpecifications = @(
         region = 'trosecko'
         quest = 'dark_within_t'
         searchObjective = 'dark_within_objt'
+        evidenceObjective = 'dark_within_evidencet'
         targetObjective = 'dark_within_targett'
         cleanupObjective = 'dark_within_cleanupt'
         descriptionKey = 'dark_within_description_t'
@@ -466,6 +470,7 @@ foreach ($specification in $regionSpecifications) {
         -RegionId $specification.region `
         -QuestName $specification.quest `
         -SearchObjectiveName $specification.searchObjective `
+        -EvidenceObjectiveName $specification.evidenceObjective `
         -TargetObjectiveName $specification.targetObjective `
         -CleanupObjectiveName $specification.cleanupObjective `
         -QuestDescriptionKey $specification.descriptionKey `

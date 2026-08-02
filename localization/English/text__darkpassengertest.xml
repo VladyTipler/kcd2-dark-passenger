@@ -45,6 +45,9 @@
 	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
 	<Row><Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
+	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Ask about local rumors</Cell></Row>
+	<Row><Cell>dark_within_evidence_name</Cell><Cell>Gather proof of guilt</Cell></Row>
+	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_witnessed</Cell><Cell>Someone saw too much.</Cell></Row>
