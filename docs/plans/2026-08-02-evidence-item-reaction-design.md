@@ -82,6 +82,49 @@ legacy/custom copies from Henry and the controlled chest, and inserts exactly
 one fresh custom document. This command exists only to reproduce the live
 first-read boundary; production progression never rolls evidence backward.
 
+## Canonical canary document
+
+The canary uses an authored unsent letter rather than a generic generated
+template. Vojtech witnessed the culprit deliberately drown a merchant's
+apprentice, hid instead of intervening, and was later threatened in the
+tavern. The threat foreshadows Vojtech's staged drunken accident without
+giving him impossible knowledge of his future death. A tavern worker who saw
+the confrontation remains the next lead.
+
+Title: `Неотправленное письмо Войтеха`
+
+> Марта,
+>
+> ты спрашивала, отчего я больше не сплю. Я солгал тебе. Дело не в выпивке.
+>
+> Три ночи назад у старого брода я видел того человека с купеческим
+> подмастерьем. Парень стоял на коленях и просил отпустить его. Тот затащил
+> его в воду и прижал лицом ко дну. Дважды позволил ему поднять голову и
+> вдохнуть — только затем, чтобы снова погрузить. На третий раз руки мальчишки
+> перестали скрести камни.
+>
+> Я прятался за ивами. Я мог позвать людей. Мог броситься на него. Но я лежал
+> в грязи, зажав себе рот, и ждал, пока всё закончится.
+>
+> Вчера он нашёл меня в корчме. Сел рядом, заказал две кружки и сказал, что с
+> пьяными батраками постоянно случаются несчастья: один упадёт с откоса,
+> другой захлебнётся в ручье. Потом улыбнулся и заплатил за моё пиво.
+>
+> Он знает, что я видел.
+>
+> На рассвете я уйду. Если не доберусь до тебя, отдай это письмо тому, кто не
+> побоится произнести его имя. Женщина, убиравшая столы после заката, видела
+> нас вместе. Возможно, она слышала достаточно.
+>
+> Прости меня. Когда закрываю глаза, я всё ещё слышу, как тот мальчик скребёт
+> ногтями по камням.
+>
+> Войтех
+
+Future cases follow the approved hybrid content model: authored case
+archetypes with several authored document variants, not sentence-level random
+assembly. Every variant declares its evidence value and next lead.
+
 ## Verification
 
 ### Automated
