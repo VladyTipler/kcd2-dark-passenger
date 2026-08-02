@@ -121,8 +121,43 @@ innkeeper rumor +20
   -> confidence 70, reveal the selected murderer
 ```
 
-The first chest is accessible without theft or lockpicking. This proves item
-placement, document reading and evidence delivery before adding access puzzles.
+The canary uses the authored attic chest beside the sleeping places in the
+Pritoky inn. Its vanilla ownership, lock and trespass rules remain untouched:
+opening a locked evidence container may require lockpicking, stealing a key or
+another ordinary game solution. The mod never silently unlocks the evidence.
+
+## Evidence-site resolver
+
+Stories request a semantic site role instead of hard-coding one world GUID:
+
+- `inn_attic` or `inn_barn` for rumors tied to travelers and hired hands;
+- `target_home` or `target_bedside` for personal evidence;
+- `target_workplace` for ledgers, tools and professional traces;
+- `public_cache` or `crime_scene` for later case families.
+
+A build-time world index records each eligible `Stash` GUID, position, editor
+layer, chest context label, generated inventory, lock state and relations to
+beds, inns, NPC homes and workplaces. At case creation the resolver filters by
+region, settlement, story role and technical safety, ranks candidates by
+semantic fit, then selects one of the best two or three with persisted weighted
+randomness. Save/load and Lua reload must not reroll the site.
+
+Locked or trespass-protected containers remain eligible. Only quest-owned,
+unresolvable or technically unsafe containers are excluded. A small authored
+deny/override list may repair exceptional world data without replacing the
+automatic catalog.
+
+Dialogue and objective copy describe the selected site category rather than
+assuming every case uses a hayloft. If the preferred category is unavailable,
+the resolver chooses a declared story fallback and the matching authored text;
+it must never direct the player to a place that was not selected.
+
+Navigation is progressive: the initial case marks the settlement search area;
+an acquired lead should normally reveal the exact evidence container. The first
+live canary may omit that exact marker so item placement and reading can be
+proved without a quest-graph restart. Production marking reuses generated
+static aliases for indexed containers instead of inventing a second runtime
+marker system.
 
 ### Innkeeper action
 
