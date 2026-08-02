@@ -19,6 +19,24 @@
           "dialogueRole": "DP_TAVERN_WITNESS"
         }
       }
+    },
+    {
+      "region": "trosecko",
+      "settlement": "zelejov",
+      "roles": {
+        "innkeeper": {
+          "entityName": "tzel_vavrinec",
+          "dialogueRole": "DP_INNKEEPER_RUMOR"
+        },
+        "document": {
+          "containerGuid": "aaf89994-e94b-0309",
+          "documentGuid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3"
+        },
+        "witness": {
+          "entityName": "tzel_bretislav",
+          "dialogueRole": "DP_TAVERN_WITNESS"
+        }
+      }
     }
   ]
 }
