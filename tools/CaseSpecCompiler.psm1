@@ -30,6 +30,208 @@ function Test-DpTextValue {
     return -not [string]::IsNullOrWhiteSpace([string]$Value)
 }
 
+function ConvertTo-DpLuaString {
+    param([AllowNull()][string]$Value)
+
+    if ($null -eq $Value) { return 'nil' }
+    $escaped = $Value.Replace('\', '\\')
+    $escaped = $escaped.Replace('"', '\"')
+    $escaped = $escaped.Replace("`r", '\r')
+    $escaped = $escaped.Replace("`n", '\n')
+    $escaped = $escaped.Replace("`t", '\t')
+    return '"' + $escaped + '"'
+}
+
+function ConvertTo-DpLuaValue {
+    param(
+        [AllowNull()]$Value,
+        [int]$Indent = 0
+    )
+
+    if ($null -eq $Value) { return 'nil' }
+    if ($Value -is [string] -or $Value -is [char]) {
+        return ConvertTo-DpLuaString ([string]$Value)
+    }
+    if ($Value -is [bool]) {
+        if ($Value) { return 'true' }
+        return 'false'
+    }
+    if ($Value -is [byte] -or $Value -is [sbyte] -or
+        $Value -is [int16] -or $Value -is [uint16] -or
+        $Value -is [int32] -or $Value -is [uint32] -or
+        $Value -is [int64] -or $Value -is [uint64] -or
+        $Value -is [single] -or $Value -is [double] -or
+        $Value -is [decimal]) {
+        return ([System.IFormattable]$Value).ToString(
+            $null,
+            [System.Globalization.CultureInfo]::InvariantCulture
+        )
+    }
+
+    $padding = ' ' * $Indent
+    $childPadding = ' ' * ($Indent + 4)
+    $rows = [System.Collections.Generic.List[string]]::new()
+
+    if ($Value -is [System.Collections.IDictionary]) {
+        foreach ($key in $Value.Keys) {
+            $name = [string]$key
+            $luaKey = if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$') {
+                $name
+            }
+            else {
+                '[' + (ConvertTo-DpLuaString $name) + ']'
+            }
+            $rendered = ConvertTo-DpLuaValue -Value $Value[$key] `
+                -Indent ($Indent + 4)
+            $rows.Add("$childPadding$luaKey = $rendered,")
+        }
+    }
+    elseif ($Value -is [System.Management.Automation.PSCustomObject]) {
+        foreach ($property in $Value.PSObject.Properties) {
+            $name = [string]$property.Name
+            $luaKey = if ($name -match '^[A-Za-z_][A-Za-z0-9_]*$') {
+                $name
+            }
+            else {
+                '[' + (ConvertTo-DpLuaString $name) + ']'
+            }
+            $rendered = ConvertTo-DpLuaValue -Value $property.Value `
+                -Indent ($Indent + 4)
+            $rows.Add("$childPadding$luaKey = $rendered,")
+        }
+    }
+    elseif ($Value -is [System.Collections.IEnumerable]) {
+        foreach ($item in $Value) {
+            $rendered = ConvertTo-DpLuaValue -Value $item `
+                -Indent ($Indent + 4)
+            $rows.Add("$childPadding$rendered,")
+        }
+    }
+    else {
+        return ConvertTo-DpLuaString ([string]$Value)
+    }
+
+    if ($rows.Count -eq 0) { return '{}' }
+    return "{`n$($rows -join "`n")`n$padding}"
+}
+
+function ConvertTo-DpRuntimeEvidence {
+    param([Parameter(Mandatory)]$Evidence)
+
+    return [ordered]@{
+        id = [string]$Evidence.id
+        kind = [string]$Evidence.kind
+        role = [string]$Evidence.role
+        weight = if ($null -ne $Evidence.PSObject.Properties['weight']) {
+            [double]$Evidence.weight
+        }
+        else { 1 }
+        purpose = if ($null -ne $Evidence.PSObject.Properties['purpose']) {
+            [string]$Evidence.purpose
+        }
+        else { $null }
+        source_stance = if (
+            $null -ne $Evidence.PSObject.Properties['sourceStance']
+        ) { [string]$Evidence.sourceStance } else { $null }
+        confidence = [int]$Evidence.confidence
+        next_lead = [string]$Evidence.nextLead
+        prompt_key = if (
+            $null -ne $Evidence.PSObject.Properties['promptKey']
+        ) { [string]$Evidence.promptKey } else { $null }
+    }
+}
+
+function ConvertTo-DpRuntimeCase {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $evidence = @(
+        $CaseSpec.evidence | ForEach-Object {
+            ConvertTo-DpRuntimeEvidence -Evidence $_
+        }
+    )
+    $rumors = @($evidence | Where-Object {
+        $_.kind -eq 'dialogue' -and $_.role -eq 'innkeeper'
+    })
+
+    return [ordered]@{
+        id = [string]$CaseSpec.id
+        code = [int]$CaseSpec.code
+        weight = [double]$CaseSpec.weight
+        constraints = [ordered]@{
+            region = [string]$CaseSpec.constraints.region
+            settlement = [string]$CaseSpec.constraints.settlement
+        }
+        target_policy = $CaseSpec.targetPolicy
+        crime_profile = $CaseSpec.crimeProfile
+        reveal_threshold = [int]$CaseSpec.revealThreshold
+        rumors = $rumors
+        evidence_steps = @($evidence | Select-Object -Skip 1)
+        evidence = $evidence
+        bindings = $Binding.roles
+        text = $CaseSpec.text
+    }
+}
+
+function ConvertTo-DpCaseCatalogLua {
+    param(
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)]$Bindings
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('-- Generated by Compile-CaseSpecs.ps1. Do not edit.')
+    $lines.Add('DarkPassengerCaseCatalog = {}')
+    $lines.Add('DarkPassengerCaseCatalogOrder = {')
+    foreach ($case in $CaseSpecs) {
+        $lines.Add('    ' + (ConvertTo-DpLuaString ([string]$case.id)) + ',')
+    }
+    $lines.Add('}')
+    $lines.Add('DarkPassengerCaseCatalogByCode = {}')
+    $lines.Add('')
+
+    foreach ($case in $CaseSpecs) {
+        $binding = @($Bindings.settlements | Where-Object {
+            [string]$_.region -eq [string]$case.constraints.region -and
+            [string]$_.settlement -eq [string]$case.constraints.settlement
+        })[0]
+        $runtimeCase = ConvertTo-DpRuntimeCase `
+            -CaseSpec $case `
+            -Binding $binding
+        $caseId = ConvertTo-DpLuaString ([string]$case.id)
+        $lines.Add("DarkPassengerCaseCatalog[$caseId] = " +
+            (ConvertTo-DpLuaValue -Value $runtimeCase))
+        $lines.Add(
+            "DarkPassengerCaseCatalogByCode[$([int]$case.code)] = " +
+            "DarkPassengerCaseCatalog[$caseId]"
+        )
+        $lines.Add('')
+    }
+
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-DpCaseCompatibilityReport {
+    param([Parameter(Mandatory)][object[]]$CaseSpecs)
+
+    $cases = @($CaseSpecs | ForEach-Object {
+        [ordered]@{
+            id = [string]$_.id
+            code = [int]$_.code
+            bindingKey =
+                [string]$_.constraints.region + '/' +
+                [string]$_.constraints.settlement
+            evidenceIds = @($_.evidence | ForEach-Object { [string]$_.id })
+        }
+    })
+    return [ordered]@{
+        schemaVersion = 1
+        cases = $cases
+    }
+}
+
 function Get-DpCaseSpecValidationErrors {
     param(
         [Parameter(Mandatory)]$CaseSpec,
@@ -200,5 +402,9 @@ Export-ModuleMember -Function @(
     'Read-DpCaseSpec',
     'Read-DpCaseSettlementBindings',
     'Get-DpCaseSpecValidationErrors',
-    'Get-DpValidatedCaseSpecs'
+    'Get-DpValidatedCaseSpecs',
+    'ConvertTo-DpLuaString',
+    'ConvertTo-DpLuaValue',
+    'ConvertTo-DpCaseCatalogLua',
+    'ConvertTo-DpCaseCompatibilityReport'
 )
