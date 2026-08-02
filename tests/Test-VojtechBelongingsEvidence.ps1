@@ -17,6 +17,9 @@ $englishLocalizationPath = Join-Path $repoRoot `
     'localization\English\text__darkpassengertest.xml'
 $russianLocalizationPath = Join-Path $repoRoot `
     'localization\Russian\text__darkpassengertest.xml'
+$caseSpecPath = Join-Path $repoRoot `
+    'content\cases\convenient-accident.case.json'
+$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -45,6 +48,14 @@ $itemTable = Read-OptionalText $itemPath
 $questItemCatalog = Read-OptionalText $questItemCatalogPath
 $englishLocalization = Read-OptionalText $englishLocalizationPath
 $russianLocalization = Read-OptionalText $russianLocalizationPath
+$caseSpec = Get-Content -Raw -LiteralPath $caseSpecPath |
+    ConvertFrom-Json -Depth 100
+$bindingManifest = Get-Content -Raw -LiteralPath $bindingPath |
+    ConvertFrom-Json -Depth 100
+$documentEvidence = @($caseSpec.evidence | Where-Object role -eq 'document')[0]
+$documentBinding = @($bindingManifest.settlements | Where-Object {
+    $_.region -eq 'kutnohorsko' -and $_.settlement -eq 'pritoky'
+})[0].roles.document
 
 Add-Result (Test-Path -LiteralPath $belongingsPath) `
     'Vojtech belongings runtime exists'
@@ -56,9 +67,11 @@ foreach ($export in 'Transition', 'Start', 'Poll', 'Status', 'RunSelfTest') {
 }
 
 foreach ($token in
-    'CHEST_GUID = "277db45d-28ac-0286"',
-    'EVIDENCE_ID = "vojtech_belongings"',
-    'CONFIDENCE_REWARD = 30',
+    'DarkPassengerCaseEvidence.ResolveActive("document")',
+    'resolved.binding.containerGuid',
+    'resolved.binding.documentGuid',
+    'resolved.evidence.id',
+    'resolved.evidence.confidence',
     'dp_belongings_schema_version',
     'dp_belongings_placed_generation',
     'dp_belongings_read_generation',
@@ -73,11 +86,15 @@ foreach ($token in
 }
 
 Add-Result (
-    $belongings -match '(?s)DOCUMENT_GUID\s*=\s*"73762008-de9b-4c42-b509-235e63e60840"'
-) 'belongings runtime uses the custom quest-document GUID'
+    [string]$documentBinding.documentGuid -eq
+        '73762008-de9b-4c42-b509-235e63e60840' -and
+    [string]$documentEvidence.id -eq 'vojtech_belongings' -and
+    [int]$documentEvidence.confidence -eq 30
+) 'CaseSpec resolves the custom document and evidence transaction'
 Add-Result (
-    $belongings -match '(?s)LEGACY_DOCUMENT_GUID\s*=\s*"08a31823-a5c6-43f9-9b4b-27b8230a352f"'
-) 'belongings runtime retains the borrowed letter only for canary cleanup'
+    [string]$documentBinding.legacyDocumentGuid -eq
+        '08a31823-a5c6-43f9-9b4b-27b8230a352f'
+) 'settlement binding retains the borrowed letter only for canary cleanup'
 
 Add-Result (Test-Path -LiteralPath $itemPath) `
     'custom Vojtech quest-document table exists'
@@ -150,7 +167,7 @@ Add-Result (
 
 Add-Result (
     $belongings.Contains('inventory:DeleteItem(') -and
-    $belongings.Contains('DarkPassengerBelongings.LEGACY_DOCUMENT_GUID')
+    $belongings.Contains('resolved.binding.legacyDocumentGuid')
 ) 'canary cleanup removes old inventory copies through native inventory API'
 
 Add-Result (
@@ -169,7 +186,7 @@ Add-Result (
 ) 'persisted placement is repaired when the selected chest has no document'
 
 Add-Result (
-    $belongings -match '(?s)AddEvidence\(\s*DarkPassengerBelongings.CONFIDENCE_REWARD,\s*DarkPassengerBelongings.EVIDENCE_ID,\s*generation\s*\)'
+    $belongings -match '(?s)AddEvidence\(\s*resolved\.evidence\.confidence,\s*resolved\.evidence\.id,\s*generation\s*\)'
 ) 'document read awards the configured evidence transaction'
 
 Add-Result (

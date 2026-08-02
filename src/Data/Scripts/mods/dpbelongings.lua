@@ -1,13 +1,6 @@
 DarkPassengerBelongings = DarkPassengerBelongings or {}
 
 DarkPassengerBelongings.SCHEMA_VERSION = 2
-DarkPassengerBelongings.CHEST_GUID = "277db45d-28ac-0286"
-DarkPassengerBelongings.DOCUMENT_GUID =
-    "73762008-de9b-4c42-b509-235e63e60840"
-DarkPassengerBelongings.LEGACY_DOCUMENT_GUID =
-    "08a31823-a5c6-43f9-9b4b-27b8230a352f"
-DarkPassengerBelongings.EVIDENCE_ID = "vojtech_belongings"
-DarkPassengerBelongings.CONFIDENCE_REWARD = 30
 DarkPassengerBelongings.POLL_INTERVAL_MS = 500
 DarkPassengerBelongings.timerSerial =
     tonumber(DarkPassengerBelongings.timerSerial) or 0
@@ -147,6 +140,20 @@ local function PlayerEntity()
     return nil
 end
 
+local function ResolveDocument(generation)
+    if DarkPassengerCaseEvidence == nil or
+       DarkPassengerCaseEvidence.ResolveActive == nil then
+        return nil
+    end
+    local resolved = DarkPassengerCaseEvidence.ResolveActive("document")
+    if resolved == nil then return nil end
+    if generation ~= nil and
+       tonumber(resolved.generation) ~= tonumber(generation) then
+        return nil
+    end
+    return resolved
+end
+
 local function PlayerInventoryHas(itemGuid)
     local actor = PlayerEntity()
     return actor ~= nil and InventoryHas(actor.inventory, itemGuid)
@@ -172,12 +179,14 @@ local function DeleteAllFromInventory(inventory, itemGuid)
     return removed
 end
 
-local function WasOpened()
+local function WasOpened(generation)
+    local resolved = ResolveDocument(generation)
+    local documentGuid = resolved ~= nil and
+        resolved.binding.documentGuid or nil
+    if documentGuid == nil then return nil end
     if Minigame == nil or Minigame.WasBookOpened == nil then return nil end
     local ok, opened = pcall(function()
-        return Minigame.WasBookOpened(
-            DarkPassengerBelongings.DOCUMENT_GUID
-        )
+        return Minigame.WasBookOpened(documentGuid)
     end)
     if not ok then
         Log("read probe failed error=" .. tostring(opened))
@@ -186,21 +195,32 @@ local function WasOpened()
     return opened == true or opened == 1
 end
 
-local function ResolveChest()
+local function ResolveChest(generation)
+    local resolved = ResolveDocument(generation)
+    local containerGuid = resolved ~= nil and
+        resolved.binding.containerGuid or nil
+    if containerGuid == nil then return nil end
     if System == nil or System.GetEntityByTextGUID == nil then return nil end
-    return System.GetEntityByTextGUID(DarkPassengerBelongings.CHEST_GUID)
+    return System.GetEntityByTextGUID(containerGuid)
 end
 
 local function EnsurePlaced(generation)
+    local resolved = ResolveDocument(generation)
+    if resolved == nil then
+        Log("placement deferred: document case binding unavailable")
+        return false
+    end
+    local documentGuid = resolved.binding.documentGuid
+    local containerGuid = resolved.binding.containerGuid
     local state = ReadState()
     if state.readGeneration == generation then return true end
 
-    local opened = WasOpened()
+    local opened = WasOpened(generation)
     if state.placedGeneration == generation and opened == true then
         return true
     end
 
-    local chest = ResolveChest()
+    local chest = ResolveChest(generation)
     if chest == nil or chest.inventory == nil or
        chest.inventory.CreateItem == nil then
         Log("placement deferred: bedside chest unavailable")
@@ -209,8 +229,8 @@ local function EnsurePlaced(generation)
 
     local exists = InventoryHas(
         chest.inventory,
-        DarkPassengerBelongings.DOCUMENT_GUID
-    ) or PlayerInventoryHas(DarkPassengerBelongings.DOCUMENT_GUID)
+        documentGuid
+    ) or PlayerInventoryHas(documentGuid)
     if state.placedGeneration == generation and exists then return true end
     if opened == true then
         Log("placement blocked: vanilla document was already opened")
@@ -219,7 +239,7 @@ local function EnsurePlaced(generation)
     if not exists then
         local ok, result = pcall(function()
             return chest.inventory:CreateItem(
-                DarkPassengerBelongings.DOCUMENT_GUID,
+                documentGuid,
                 1,
                 1
             )
@@ -234,7 +254,7 @@ local function EnsurePlaced(generation)
         Log(
             "document placement repaired generation=" ..
             tostring(generation) ..
-            " chest=" .. DarkPassengerBelongings.CHEST_GUID
+            " chest=" .. tostring(containerGuid)
         )
         return true
     end
@@ -247,7 +267,7 @@ local function EnsurePlaced(generation)
     if not PersistState(nextState) then return false end
     Log(
         "document placed generation=" .. tostring(generation) ..
-        " chest=" .. DarkPassengerBelongings.CHEST_GUID ..
+        " chest=" .. tostring(containerGuid) ..
         " existing=" .. tostring(exists)
     )
     return true
@@ -279,9 +299,11 @@ local function AwardReadEvidence(generation)
        DarkPassengerInvestigation.AddEvidence == nil then
         return false
     end
+    local resolved = ResolveDocument(generation)
+    if resolved == nil then return false end
     local result = DarkPassengerInvestigation.AddEvidence(
-        DarkPassengerBelongings.CONFIDENCE_REWARD,
-        DarkPassengerBelongings.EVIDENCE_ID,
+        resolved.evidence.confidence,
+        resolved.evidence.id,
         generation
     )
     if result == nil or result.accepted ~= true then
@@ -300,7 +322,7 @@ local function AwardReadEvidence(generation)
     if DarkPassengerEvidenceReaction ~= nil and
        DarkPassengerEvidenceReaction.Dispatch ~= nil then
         reaction = DarkPassengerEvidenceReaction.Dispatch(
-            DarkPassengerBelongings.EVIDENCE_ID,
+            resolved.evidence.id,
             generation
         )
     end
@@ -322,8 +344,10 @@ local function EnsureReaction(generation)
        DarkPassengerEvidenceReaction.Restore == nil then
         return false
     end
+    local resolved = ResolveDocument(generation)
+    if resolved == nil then return false end
     local result = DarkPassengerEvidenceReaction.Restore(
-        DarkPassengerBelongings.EVIDENCE_ID,
+        resolved.evidence.id,
         generation
     )
     return result ~= nil and (
@@ -352,7 +376,7 @@ function DarkPassengerBelongings.Poll(payload, timerId)
     if not EnsurePlaced(generation) then
         return Schedule(generation, timerSerial)
     end
-    if WasOpened() == true then return AwardReadEvidence(generation) end
+    if WasOpened(generation) == true then return AwardReadEvidence(generation) end
     return Schedule(generation, timerSerial)
 end
 
@@ -379,7 +403,7 @@ function DarkPassengerBelongings.Start(generation)
     Log(
         "poll started generation=" .. tostring(generation) ..
         " serial=" .. tostring(timerSerial) ..
-        " opened=" .. tostring(WasOpened())
+        " opened=" .. tostring(WasOpened(generation))
     )
     return DarkPassengerBelongings.Poll(
         { generation = generation, timerSerial = timerSerial }
@@ -392,11 +416,16 @@ end
 
 function DarkPassengerBelongings.Status()
     local state = ReadState()
+    local investigation =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local generation = investigation ~= nil and investigation.generation or nil
     Log(
         "status placedGeneration=" .. tostring(state.placedGeneration) ..
         " readGeneration=" .. tostring(state.readGeneration) ..
         " timerSerial=" .. tostring(DarkPassengerBelongings.timerSerial) ..
-        " opened=" .. tostring(WasOpened())
+        " opened=" .. tostring(WasOpened(generation))
     )
     return state
 end
@@ -416,22 +445,35 @@ function DarkPassengerBelongings.ResetCanary(generation)
         Log("canary reset rejected: no matching active investigation")
         return false
     end
-    if WasOpened() == true then
+    local resolved = ResolveDocument(generation)
+    if resolved == nil then
+        Log("canary reset rejected: document case binding unavailable")
+        return false
+    end
+    local documentGuid = resolved.binding.documentGuid
+    local legacyDocumentGuid = resolved.binding.legacyDocumentGuid
+    local openerConfidence =
+        resolved.selected ~= nil and resolved.selected.rumor ~= nil and
+        tonumber(resolved.selected.rumor.confidence) or 0
+    if WasOpened(generation) == true then
         Log(
             "canary reset rejected: native opened state cannot be cleared " ..
-            "for document=" .. DarkPassengerBelongings.DOCUMENT_GUID
+            "for document=" .. tostring(documentGuid)
         )
         return false
     end
 
-    local chest = ResolveChest()
+    local chest = ResolveChest(generation)
     local actor = PlayerEntity()
     if chest == nil or chest.inventory == nil or
        actor == nil or actor.inventory == nil then
         Log("canary reset rejected: inventory unavailable")
         return false
     end
-    if not DarkPassengerInvestigation.DebugSetConfidence(20, generation) then
+    if not DarkPassengerInvestigation.DebugSetConfidence(
+        openerConfidence,
+        generation
+    ) then
         Log("canary reset rejected: confidence reset failed")
         return false
     end
@@ -439,27 +481,31 @@ function DarkPassengerBelongings.ResetCanary(generation)
     local playerRemoved =
         DeleteAllFromInventory(
             actor.inventory,
-            DarkPassengerBelongings.DOCUMENT_GUID
-        ) +
-        DeleteAllFromInventory(
-            actor.inventory,
-            DarkPassengerBelongings.LEGACY_DOCUMENT_GUID
+            documentGuid
         )
+    if legacyDocumentGuid ~= nil then
+        playerRemoved = playerRemoved + DeleteAllFromInventory(
+            actor.inventory,
+            legacyDocumentGuid
+        )
+    end
     local chestRemoved =
         DeleteAllFromInventory(
             chest.inventory,
-            DarkPassengerBelongings.DOCUMENT_GUID
-        ) +
-        DeleteAllFromInventory(
-            chest.inventory,
-            DarkPassengerBelongings.LEGACY_DOCUMENT_GUID
+            documentGuid
         )
+    if legacyDocumentGuid ~= nil then
+        chestRemoved = chestRemoved + DeleteAllFromInventory(
+            chest.inventory,
+            legacyDocumentGuid
+        )
+    end
 
     if not PersistState(DefaultState()) then return false end
     if DarkPassengerEvidenceReaction ~= nil and
        DarkPassengerEvidenceReaction.Reset ~= nil then
         DarkPassengerEvidenceReaction.Reset(
-            DarkPassengerBelongings.EVIDENCE_ID
+            resolved.evidence.id
         )
     end
     if not EnsurePlaced(generation) then return false end
@@ -470,14 +516,15 @@ function DarkPassengerBelongings.ResetCanary(generation)
     Schedule(generation, serial)
     Log(
         "canary reset generation=" .. tostring(generation) ..
-        " confidence=20 playerRemoved=" .. tostring(playerRemoved) ..
+        " confidence=" .. tostring(openerConfidence) ..
+        " playerRemoved=" .. tostring(playerRemoved) ..
         " chestRemoved=" .. tostring(chestRemoved) ..
         " playerHas=" .. tostring(PlayerInventoryHas(
-            DarkPassengerBelongings.DOCUMENT_GUID
+            documentGuid
         )) ..
         " chestHas=" .. tostring(InventoryHas(
             chest.inventory,
-            DarkPassengerBelongings.DOCUMENT_GUID
+            documentGuid
         ))
     )
     return true

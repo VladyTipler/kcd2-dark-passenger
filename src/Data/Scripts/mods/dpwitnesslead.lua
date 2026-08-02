@@ -1,11 +1,6 @@
 DarkPassengerWitnessLead = DarkPassengerWitnessLead or {}
 
 DarkPassengerWitnessLead.SCHEMA_VERSION = 1
-DarkPassengerWitnessLead.WITNESS_ENTITY_NAME = "kpri_woman_10"
-DarkPassengerWitnessLead.SOURCE_REGION = "kutnohorsko"
-DarkPassengerWitnessLead.SOURCE_SETTLEMENT = "pritoky"
-DarkPassengerWitnessLead.EVIDENCE_ID = "tavern_witness"
-DarkPassengerWitnessLead.CONFIDENCE_REWARD = 20
 DarkPassengerWitnessLead.AVAILABLE_BUFF_GUID = "a823ebb8-f3e3-4437-b885-9fafea591858"
 
 local KEYS = {
@@ -147,13 +142,21 @@ local function InvestigationContext()
         DarkPassengerInvestigation.GetCandidate()
 end
 
+local function ResolveWitness()
+    if DarkPassengerCaseEvidence == nil or
+       DarkPassengerCaseEvidence.ResolveActive == nil then
+        return nil
+    end
+    return DarkPassengerCaseEvidence.ResolveActive("witness")
+end
+
 local function MatchesActiveCanary(generation)
     local investigation, candidate = InvestigationContext()
+    local resolved = ResolveWitness()
     return investigation ~= nil and investigation.active == true and
         tonumber(investigation.generation) == tonumber(generation) and
-        candidate ~= nil and
-        candidate.gameRegion == DarkPassengerWitnessLead.SOURCE_REGION and
-        candidate.settlement == DarkPassengerWitnessLead.SOURCE_SETTLEMENT
+        candidate ~= nil and resolved ~= nil and
+        tonumber(resolved.generation) == tonumber(generation)
 end
 
 function DarkPassengerWitnessLead.Transition(state, event)
@@ -233,7 +236,12 @@ function DarkPassengerWitnessLead.Restore(generation)
 end
 
 function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
-    if gameRegion ~= DarkPassengerWitnessLead.SOURCE_REGION then return false end
+    local resolved = ResolveWitness()
+    if resolved == nil or resolved.caseTemplate == nil or
+       resolved.caseTemplate.constraints == nil or
+       gameRegion ~= resolved.caseTemplate.constraints.region then
+        return false
+    end
     local investigation = DarkPassengerInvestigation ~= nil and
         DarkPassengerInvestigation.GetState ~= nil and
         DarkPassengerInvestigation.GetState() or nil
@@ -256,8 +264,8 @@ function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
     end
 
     local evidenceResult = DarkPassengerInvestigation.AddEvidence(
-        DarkPassengerWitnessLead.CONFIDENCE_REWARD,
-        DarkPassengerWitnessLead.EVIDENCE_ID,
+        resolved.evidence.confidence,
+        resolved.evidence.id,
         generation
     )
     if evidenceResult == nil or evidenceResult.accepted ~= true then

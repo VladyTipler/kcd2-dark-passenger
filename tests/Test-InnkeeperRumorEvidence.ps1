@@ -91,9 +91,10 @@ foreach ($export in
         "evidence module exports $export"
 }
 foreach ($token in
-    'SOURCE_ENTITY_NAME = "kpri_innkeeper"',
-    'SOURCE_REGION = "kutnohorsko"',
-    'SOURCE_SETTLEMENT = "pritoky"',
+    'DarkPassengerCaseEvidence.ResolveActive("innkeeper")',
+    'resolved.binding.entityName',
+    'context.expectedRegion',
+    'context.expectedSettlement',
     'dp_evidence_schema_version',
     'dp_evidence_awarded_generation',
     'dp_evidence_signal_dispatched',

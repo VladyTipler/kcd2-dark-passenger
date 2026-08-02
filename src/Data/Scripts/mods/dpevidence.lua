@@ -1,9 +1,6 @@
 DarkPassengerEvidence = DarkPassengerEvidence or {}
 
 DarkPassengerEvidence.SCHEMA_VERSION = 1
-DarkPassengerEvidence.SOURCE_ENTITY_NAME = "kpri_innkeeper"
-DarkPassengerEvidence.SOURCE_REGION = "kutnohorsko"
-DarkPassengerEvidence.SOURCE_SETTLEMENT = "pritoky"
 DarkPassengerEvidence.DEBUG_ACTION_ENABLED = false
 DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID =
     "6e532a34-ce2b-47ae-9427-c67a4a1b94b1"
@@ -158,11 +155,18 @@ end
 
 local function MatchesSource(entity)
     if entity == nil or entity.id == nil or
-       System == nil or System.GetEntityByName == nil then
+       System == nil or System.GetEntityByName == nil or
+       DarkPassengerCaseEvidence == nil or
+       DarkPassengerCaseEvidence.ResolveActive == nil then
+        return false
+    end
+    local resolved = DarkPassengerCaseEvidence.ResolveActive("innkeeper")
+    if resolved == nil or resolved.binding == nil or
+       resolved.binding.entityName == nil then
         return false
     end
     local expected = System.GetEntityByName(
-        DarkPassengerEvidence.SOURCE_ENTITY_NAME
+        resolved.binding.entityName
     )
     return expected ~= nil and expected.id ~= nil and
         expected.id == entity.id
@@ -232,8 +236,11 @@ function DarkPassengerEvidence.IsEligible(context, evidenceState)
     if generation == nil or generation <= 0 then
         return false, "invalid_generation"
     end
-    if context.gameRegion ~= DarkPassengerEvidence.SOURCE_REGION or
-       context.settlement ~= DarkPassengerEvidence.SOURCE_SETTLEMENT then
+    if context.caseResolved ~= true then
+        return false, "content_unavailable"
+    end
+    if context.gameRegion ~= context.expectedRegion or
+       context.settlement ~= context.expectedSettlement then
         return false, "unsupported_settlement"
     end
     if context.sourceMatches ~= true then
@@ -257,12 +264,23 @@ local function InvestigationContext(source)
     end
     local investigation = DarkPassengerInvestigation.GetState()
     local candidate = DarkPassengerInvestigation.GetCandidate()
+    local resolved =
+        DarkPassengerCaseEvidence ~= nil and
+        DarkPassengerCaseEvidence.ResolveActive ~= nil and
+        DarkPassengerCaseEvidence.ResolveActive("innkeeper") or nil
+    local constraints = resolved ~= nil and
+        resolved.caseTemplate ~= nil and
+        resolved.caseTemplate.constraints or nil
     return {
         active = investigation ~= nil and investigation.active == true,
         generation =
             investigation ~= nil and investigation.generation or 0,
         gameRegion = candidate ~= nil and candidate.gameRegion or nil,
         settlement = candidate ~= nil and candidate.settlement or nil,
+        caseResolved = resolved ~= nil,
+        expectedRegion = constraints ~= nil and constraints.region or nil,
+        expectedSettlement =
+            constraints ~= nil and constraints.settlement or nil,
         sourceMatches = MatchesSource(source),
         sourceAlive = IsAlive(source),
     }
@@ -503,9 +521,15 @@ end
 
 function DarkPassengerEvidence.Status()
     local state = ReadState()
+    local resolved =
+        DarkPassengerCaseEvidence ~= nil and
+        DarkPassengerCaseEvidence.ResolveActive ~= nil and
+        DarkPassengerCaseEvidence.ResolveActive("innkeeper") or nil
+    local sourceName = resolved ~= nil and resolved.binding ~= nil and
+        resolved.binding.entityName or nil
     local context = InvestigationContext(
         System ~= nil and System.GetEntityByName ~= nil and
-        System.GetEntityByName(DarkPassengerEvidence.SOURCE_ENTITY_NAME) or nil
+        sourceName ~= nil and System.GetEntityByName(sourceName) or nil
     )
     local eligible, reason = DarkPassengerEvidence.IsEligible(context, state)
     Log(
@@ -531,6 +555,9 @@ function DarkPassengerEvidence.RunSelfTest()
         generation = 4,
         gameRegion = "kutnohorsko",
         settlement = "pritoky",
+        caseResolved = true,
+        expectedRegion = "kutnohorsko",
+        expectedSettlement = "pritoky",
         sourceMatches = true,
         sourceAlive = true,
     }

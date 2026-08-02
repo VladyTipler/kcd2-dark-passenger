@@ -163,9 +163,9 @@ Add-Result (
 
 foreach ($token in
     'SCHEMA_VERSION',
-    'WITNESS_ENTITY_NAME = "kpri_woman_10"',
-    'EVIDENCE_ID = "tavern_witness"',
-    'CONFIDENCE_REWARD = 20',
+    'DarkPassengerCaseEvidence.ResolveActive("witness")',
+    'resolved.evidence.id',
+    'resolved.evidence.confidence',
     'AVAILABLE_BUFF_GUID = "a823ebb8-f3e3-4437-b885-9fafea591858"',
     'function DarkPassengerWitnessLead.Transition',
     'function DarkPassengerWitnessLead.Start',
