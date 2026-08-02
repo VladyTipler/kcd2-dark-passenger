@@ -66,6 +66,11 @@ Unsupported settlements expose no action and only produce diagnostic logs.
 The later worldwide layer will generate an evidence-source catalogue from
 innkeeper/editor-layer/faction metadata with explicit fallbacks.
 
+The pilot uses the native secondary-action mapping `use_other` with
+`AHT_RELEASE`, shown as a short **F** press. It must not reuse `talk`: the
+vanilla dialogue already owns **E**, and sharing that mapping makes the two
+actions visually ambiguous.
+
 ### Evidence and journal bridge
 
 The action calls the existing authoritative

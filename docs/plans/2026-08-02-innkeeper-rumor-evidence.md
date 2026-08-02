@@ -41,7 +41,7 @@
 
 1. Add pure eligibility/transition logic for `kutnohorsko/pritoky`, `kpri_innkeeper`, current generation, living source, and not-yet-awarded state.
 2. Persist awarded generation and journal-signal state. Award through `DarkPassengerInvestigation.AddEvidence(30, "innkeeper_rumor", generation)` before signalling.
-3. Resolve rumor copy at action time, register the action provider, expose status/self-test commands, and make reload replace behavior without stacking hooks.
+3. Resolve rumor copy at action time, register a short-F `use_other` provider, expose status/self-test commands, and make reload replace behavior without stacking hooks.
 4. Reset the signal on a new case and retry only journal dispatch after partial failure.
 
 ### Task 4: Bridge the first lead into both quest graphs
