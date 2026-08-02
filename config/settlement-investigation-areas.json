@@ -12,6 +12,7 @@
             "english": "Bohunowitz",
             "russian": "Богуновице"
           },
+          "legacyAliases": [],
           "primaryGuid": "596616a5-a2b1-137d",
           "areaGuids": [
             "596616a5-a2b1-137d",
@@ -38,6 +39,7 @@
             "english": "Bylany",
             "russian": "Биланы"
           },
+          "legacyAliases": [],
           "primaryGuid": "2b422aa1-4576-1d96",
           "areaGuids": [
             "2b422aa1-4576-1d96"
@@ -74,6 +76,7 @@
             "english": "Devil's Den",
             "russian": "«Чертово место»"
           },
+          "legacyAliases": [],
           "primaryGuid": "488fe0e2-0690-1e5f",
           "areaGuids": [
             "488fe0e2-0690-1e5f"
@@ -95,6 +98,7 @@
             "english": "Grund",
             "russian": "Грунта"
           },
+          "legacyAliases": [],
           "primaryGuid": "ccc44d56-353e-1e21",
           "areaGuids": [
             "ccc44d56-353e-1e21"
@@ -166,6 +170,7 @@
             "english": "Horschan",
             "russian": "Горжаны"
           },
+          "legacyAliases": [],
           "primaryGuid": "5e3dade8-5e23-19b3",
           "areaGuids": [
             "5e3dade8-5e23-19b3",
@@ -213,6 +218,7 @@
             "english": "Kuklitz",
             "russian": "Куклице"
           },
+          "legacyAliases": [],
           "primaryGuid": "90673de6-80c6-4ff9",
           "areaGuids": [
             "90673de6-80c6-4ff9",
@@ -244,6 +250,7 @@
             "english": "Kuttenberg",
             "russian": "Кутна-Гора"
           },
+          "legacyAliases": [],
           "primaryGuid": "b38a0f58-b308-1e1d",
           "areaGuids": [
             "b38a0f58-b308-1e1d"
@@ -773,6 +780,7 @@
             "english": "Loretz",
             "russian": "Лорец"
           },
+          "legacyAliases": [],
           "primaryGuid": "33715ea8-96e5-1814",
           "areaGuids": [
             "33715ea8-96e5-1814",
@@ -821,6 +829,7 @@
             "english": "Maleshov",
             "russian": "Малешов"
           },
+          "legacyAliases": [],
           "primaryGuid": "8b1e4114-c678-4f7e",
           "areaGuids": [
             "8b1e4114-c678-4f7e",
@@ -844,6 +853,7 @@
             "english": "Mesoles",
             "russian": "Межолезы"
           },
+          "legacyAliases": [],
           "primaryGuid": "f75a13df-772f-433a",
           "areaGuids": [
             "f75a13df-772f-433a"
@@ -867,6 +877,7 @@
             "english": "Miskowitz",
             "russian": "Мышковицы"
           },
+          "legacyAliases": [],
           "primaryGuid": "33aeea76-ad9b-1f33",
           "areaGuids": [
             "33aeea76-ad9b-1f33"
@@ -910,6 +921,7 @@
             "english": "Bylanka Valley",
             "russian": "Долина Биланки"
           },
+          "legacyAliases": [],
           "primaryGuid": "b16ea403-308a-4e84",
           "areaGuids": [
             "b16ea403-308a-4e84"
@@ -935,6 +947,7 @@
             "english": "Opatowitz",
             "russian": "Опатовицы"
           },
+          "legacyAliases": [],
           "primaryGuid": "0030e286-3a48-159f",
           "areaGuids": [
             "0030e286-3a48-159f"
@@ -955,6 +968,9 @@
             "english": "Pschitoky",
             "russian": "Пржитоки"
           },
+          "legacyAliases": [
+            "DP_PritokySearchArea"
+          ],
           "primaryGuid": "d0fa0ece-6af5-19f6",
           "areaGuids": [
             "d0fa0ece-6af5-19f6",
@@ -1015,6 +1031,7 @@
             "english": "Rabstein",
             "russian": "Рабштейн"
           },
+          "legacyAliases": [],
           "primaryGuid": "0acda29d-96bd-14dd",
           "areaGuids": [
             "0acda29d-96bd-14dd",
@@ -1053,6 +1070,7 @@
             "english": "Raborsch",
             "russian": "Ратборж"
           },
+          "legacyAliases": [],
           "primaryGuid": "7eb21d9b-bf33-1144",
           "areaGuids": [
             "7eb21d9b-bf33-1144"
@@ -1082,6 +1100,7 @@
             "english": "Sedletz",
             "russian": "Седлец"
           },
+          "legacyAliases": [],
           "primaryGuid": "cda2e04f-3c27-4c02",
           "areaGuids": [
             "cda2e04f-3c27-4c02"
@@ -1103,6 +1122,7 @@
             "english": "Old Kutna",
             "russian": "Стара-Кутна"
           },
+          "legacyAliases": [],
           "primaryGuid": "e11bb439-c568-107d",
           "areaGuids": [
             "e11bb439-c568-107d",
@@ -1152,6 +1172,7 @@
             "english": "Suchdol",
             "russian": "Сухдол"
           },
+          "legacyAliases": [],
           "primaryGuid": "f71fc93e-346e-1cd6",
           "areaGuids": [
             "f71fc93e-346e-1cd6",
@@ -1179,6 +1200,7 @@
             "english": "Sukov",
             "russian": "Суков"
           },
+          "legacyAliases": [],
           "primaryGuid": "7123ed66-563a-4dd2",
           "areaGuids": [
             "7123ed66-563a-4dd2"
@@ -1200,6 +1222,7 @@
             "english": "Wolf Mountains",
             "russian": "Волчьи горы"
           },
+          "legacyAliases": [],
           "primaryGuid": "70bde9bb-90af-433c",
           "areaGuids": [
             "70bde9bb-90af-433c"
@@ -1221,6 +1244,7 @@
             "english": "Vrchlitz",
             "russian": "Врхлица"
           },
+          "legacyAliases": [],
           "primaryGuid": "646e71d5-edb4-4dbc",
           "areaGuids": [
             "646e71d5-edb4-4dbc",
@@ -1274,6 +1298,7 @@
             "english": "Wysoka",
             "russian": "Висока"
           },
+          "legacyAliases": [],
           "primaryGuid": "296b3800-d828-13c0",
           "areaGuids": [
             "296b3800-d828-13c0"
@@ -1304,6 +1329,7 @@
             "english": "Bukovina",
             "russian": "Буковина"
           },
+          "legacyAliases": [],
           "primaryGuid": "ebd4fe42-ec8b-41ad",
           "areaGuids": [
             "ebd4fe42-ec8b-41ad"
@@ -1328,6 +1354,7 @@
             "english": "Kopanina",
             "russian": "Копанина"
           },
+          "legacyAliases": [],
           "primaryGuid": "ecedaa30-f828-4cd3",
           "areaGuids": [
             "ecedaa30-f828-4cd3"
@@ -1349,6 +1376,7 @@
             "english": "Kerchak Pond",
             "russian": "Керчакский пруд"
           },
+          "legacyAliases": [],
           "primaryGuid": "49c77477-dd6b-49d1",
           "areaGuids": [
             "49c77477-dd6b-49d1"
@@ -1370,6 +1398,7 @@
             "english": "Nebakov",
             "russian": "Небаков"
           },
+          "legacyAliases": [],
           "primaryGuid": "4ebced12-f9d9-1874",
           "areaGuids": [
             "4ebced12-f9d9-1874",
@@ -1396,6 +1425,7 @@
             "english": "Lower Semine Region",
             "russian": "Регион Нижнего Семина"
           },
+          "legacyAliases": [],
           "primaryGuid": "d5c6425f-e64b-10fa",
           "areaGuids": [
             "d5c6425f-e64b-10fa",
@@ -1442,6 +1472,7 @@
             "english": "Semine",
             "russian": "Семин"
           },
+          "legacyAliases": [],
           "primaryGuid": "38fc6442-ecb1-1438",
           "areaGuids": [
             "38fc6442-ecb1-1438"
@@ -1470,6 +1501,7 @@
             "english": "Slatego",
             "russian": "Слатейово"
           },
+          "legacyAliases": [],
           "primaryGuid": "a66ec79f-76cd-1a8b",
           "areaGuids": [
             "a66ec79f-76cd-1a8b"
@@ -1492,6 +1524,7 @@
             "english": "Tachov",
             "russian": "Тахов"
           },
+          "legacyAliases": [],
           "primaryGuid": "38ded23c-14c3-1223",
           "areaGuids": [
             "38ded23c-14c3-1223",
@@ -1523,6 +1556,7 @@
             "english": "Troskowitz",
             "russian": "Тросковице"
           },
+          "legacyAliases": [],
           "primaryGuid": "2bc8a0bf-b978-105a",
           "areaGuids": [
             "2bc8a0bf-b978-105a"
@@ -1568,6 +1602,7 @@
             "english": "Rocktower Region",
             "russian": "Вежицкие земли"
           },
+          "legacyAliases": [],
           "primaryGuid": "fe95446a-1a59-105a",
           "areaGuids": [
             "fe95446a-1a59-105a",
@@ -1614,6 +1649,7 @@
             "english": "Vidlak Pond",
             "russian": "Видлакский пруд"
           },
+          "legacyAliases": [],
           "primaryGuid": "a27bf15d-ba18-43e4",
           "areaGuids": [
             "a27bf15d-ba18-43e4",
@@ -1643,6 +1679,7 @@
             "english": "Schdiar Valley",
             "russian": "Ждярская долина"
           },
+          "legacyAliases": [],
           "primaryGuid": "e7404e6c-c7b8-141c",
           "areaGuids": [
             "e7404e6c-c7b8-141c",
@@ -1680,6 +1717,7 @@
             "english": "Zhelejov",
             "russian": "Желеев"
           },
+          "legacyAliases": [],
           "primaryGuid": "3fb7d6e2-5407-167a",
           "areaGuids": [
             "3fb7d6e2-5407-167a",

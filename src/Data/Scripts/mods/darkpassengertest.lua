@@ -51,8 +51,13 @@ end
 DarkPassengerTarget = DarkPassengerTarget or {}
 DarkPassengerTarget.TARGET_BUFF_GUID = "a6046bb4-57c1-4a95-b743-880aba11f5ba"
 DarkPassengerTarget.ACTIVE_TARGET_SLOT_KEY = "dp_active_target_slot"
+DarkPassengerTarget.QUEST_SELECTION_SCHEMA_KEY =
+    "dp_quest_selection_schema"
+DarkPassengerTarget.QUEST_SELECTION_SCHEMA_VERSION = 1
 DarkPassengerTarget.MAX_SELECTION_ATTEMPTS = 3
 DarkPassengerTarget.cases = DarkPassengerTarget.cases or {}
+DarkPassengerTarget.questSelectionMigrationScheduled =
+    DarkPassengerTarget.questSelectionMigrationScheduled or false
 
 local function TargetLog(message)
     System.LogAlways("[DarkPassengerTarget] " .. tostring(message))
@@ -178,6 +183,41 @@ local function ForgetPersistedTarget()
     return ok
 end
 
+local function ReadQuestSelectionSchema()
+    if Variables == nil or Variables.GetGlobal == nil then return 0 end
+    local ok, versionOrError = pcall(function()
+        return Variables.GetGlobal(
+            DarkPassengerTarget.QUEST_SELECTION_SCHEMA_KEY
+        )
+    end)
+    return ok and (tonumber(versionOrError) or 0) or 0
+end
+
+local function MarkQuestSelectionSchemaCurrent()
+    if Variables == nil or Variables.SetGlobal == nil then return false end
+    local ok, errorOrResult = pcall(function()
+        return Variables.SetGlobal(
+            DarkPassengerTarget.QUEST_SELECTION_SCHEMA_KEY,
+            DarkPassengerTarget.QUEST_SELECTION_SCHEMA_VERSION
+        )
+    end)
+    if not ok then
+        TargetLog(
+            "quest selection migration persistence failed: " ..
+            tostring(errorOrResult)
+        )
+    end
+    return ok
+end
+
+local function NeedsQuestSelectionMigration(candidate)
+    return candidate ~= nil and
+        candidate.gameRegion == "kutnohorsko" and
+        candidate.settlement == "pritoky" and
+        ReadQuestSelectionSchema() <
+            DarkPassengerTarget.QUEST_SELECTION_SCHEMA_VERSION
+end
+
 local function HasTargetBuff(entity)
     if entity == nil or entity.soul == nil or
        entity.soul.HasBuffDebug == nil then
@@ -189,6 +229,133 @@ local function HasTargetBuff(entity)
         )
     end)
     return ok and (hasBuffOrError == true or hasBuffOrError == 1)
+end
+
+function DarkPassengerTarget.ReapplyTargetBuffForQuestMigration(
+    userData,
+    timerId
+)
+    DarkPassengerTarget.questSelectionMigrationScheduled = false
+    local expectedSlot =
+        userData ~= nil and tonumber(userData.slot) or nil
+    local candidate = FindCandidateBySlot(expectedSlot)
+    local currentCandidate = DarkPassengerTarget.targetCandidate
+    if candidate == nil or currentCandidate == nil or
+       tonumber(currentCandidate.slot) ~= expectedSlot or
+       not NeedsQuestSelectionMigration(candidate) then
+        return false
+    end
+
+    local entity = System.GetEntityByName(candidate.entityName)
+    if entity == nil or entity.soul == nil or
+       entity.soul.AddBuff == nil then
+        TargetLog(
+            "quest selection migration deferred slot=" ..
+            tostring(expectedSlot)
+        )
+        return false
+    end
+
+    local ok, handleOrError = pcall(function()
+        return entity.soul:AddBuff(DarkPassengerTarget.TARGET_BUFF_GUID)
+    end)
+    if not ok or handleOrError == nil then
+        TargetLog(
+            "quest selection migration reapply failed slot=" ..
+            tostring(expectedSlot) .. " error=" ..
+            tostring(handleOrError)
+        )
+        return false
+    end
+
+    DarkPassengerTarget.targetBuffHandle = handleOrError
+    if not MarkQuestSelectionSchemaCurrent() then return false end
+    if DarkPassengerAreaBridge ~= nil and
+       DarkPassengerAreaBridge.StartPolling ~= nil then
+        DarkPassengerAreaBridge.StartPolling(
+            "quest_selection_migration",
+            candidate.gameRegion,
+            candidate.settlement
+        )
+    end
+    TargetLog(
+        "quest selection migration complete slot=" ..
+        tostring(expectedSlot)
+    )
+    return true
+end
+
+local function ScheduleQuestSelectionMigration(candidate, entity)
+    if not NeedsQuestSelectionMigration(candidate) or
+       DarkPassengerTarget.questSelectionMigrationScheduled then
+        return false
+    end
+    if entity == nil or entity.soul == nil or
+       entity.soul.RemoveAllBuffsByGuid == nil or
+       Script == nil or Script.SetTimerForFunction == nil then
+        return false
+    end
+
+    local removed, removeError = pcall(function()
+        entity.soul:RemoveAllBuffsByGuid(
+            DarkPassengerTarget.TARGET_BUFF_GUID
+        )
+    end)
+    if not removed then
+        TargetLog(
+            "quest selection migration remove failed slot=" ..
+            tostring(candidate.slot) .. " error=" ..
+            tostring(removeError)
+        )
+        return false
+    end
+
+    DarkPassengerTarget.questSelectionMigrationScheduled = true
+    local scheduled, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            1000,
+            "DarkPassengerTarget.ReapplyTargetBuffForQuestMigration",
+            { slot = tonumber(candidate.slot) }
+        )
+    end)
+    if not scheduled then
+        DarkPassengerTarget.questSelectionMigrationScheduled = false
+        pcall(function()
+            entity.soul:AddBuff(DarkPassengerTarget.TARGET_BUFF_GUID)
+        end)
+        TargetLog(
+            "quest selection migration scheduling failed slot=" ..
+            tostring(candidate.slot) .. " error=" ..
+            tostring(timerOrError)
+        )
+        return false
+    end
+
+    TargetLog(
+        "quest selection migration scheduled slot=" ..
+        tostring(candidate.slot)
+    )
+    return true
+end
+
+local function IsRecoveredTargetBound(candidate, entity)
+    if candidate == nil or entity == nil then return false end
+    local currentCandidate = DarkPassengerTarget.targetCandidate
+    local currentCase =
+        DarkPassengerTarget.cases[candidate.gameRegion]
+    local investigationCandidate =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.candidate or nil
+    return currentCandidate ~= nil and
+        tonumber(currentCandidate.slot) == tonumber(candidate.slot) and
+        DarkPassengerTarget.targetEntityId == entity.id and
+        DarkPassengerTarget.activeRegion == candidate.gameRegion and
+        currentCase ~= nil and
+        currentCase.settlement == candidate.settlement and
+        currentCase.status == "ACTIVE" and
+        investigationCandidate ~= nil and
+        tonumber(investigationCandidate.slot) == tonumber(candidate.slot) and
+        DarkPassengerInvestigation.entity == entity
 end
 
 local function BindRecoveredTarget(candidate, entity)
@@ -205,6 +372,7 @@ local function BindRecoveredTarget(candidate, entity)
     }
     RememberTarget(candidate)
     DarkPassengerInvestigation.Restore(candidate, entity)
+    ScheduleQuestSelectionMigration(candidate, entity)
     if DarkPassengerAreaBridge ~= nil and
        DarkPassengerAreaBridge.StartPolling ~= nil then
         DarkPassengerAreaBridge.StartPolling(
@@ -223,6 +391,13 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
         local runtimeEntity =
             System.GetEntityByName(runtimeCandidate.entityName)
         if HasTargetBuff(runtimeEntity) then
+            if IsRecoveredTargetBound(runtimeCandidate, runtimeEntity) then
+                ScheduleQuestSelectionMigration(
+                    runtimeCandidate,
+                    runtimeEntity
+                )
+                return true
+            end
             BindRecoveredTarget(runtimeCandidate, runtimeEntity)
             return true
         end
@@ -442,6 +617,7 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
         status = "ACTIVE",
     }
     RememberTarget(selectedCandidate)
+    MarkQuestSelectionSchemaCurrent()
     DarkPassengerInvestigation.Open(selectedCandidate, selected)
     if CaseReady() then
         DarkPassengerCase.Open(selected.id, displayName, settlement)
@@ -857,20 +1033,27 @@ function DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement)
         return false
     end
 
-    local linkName = "asset['" .. settlementEntry.alias .. "']"
-    for _, area in ipairs(settlementEntry.areas) do
-        local target = System.GetEntityByName(area.name)
-        if target == nil or target.id == nil then
-            return false
-        end
-        local areaLinked = DarkPassengerAreaBridge.EnsureNamedLink(
-            holder,
-            target,
-            linkName,
-            "Quest holder to area " .. tostring(area.name)
-        )
-        if not areaLinked then
-            return false
+    local aliases = { settlementEntry.alias }
+    for _, legacyAlias in ipairs(settlementEntry.legacyAliases or {}) do
+        table.insert(aliases, legacyAlias)
+    end
+    for _, alias in ipairs(aliases) do
+        local linkName = "asset['" .. alias .. "']"
+        for _, area in ipairs(settlementEntry.areas) do
+            local target = System.GetEntityByName(area.name)
+            if target == nil or target.id == nil then
+                return false
+            end
+            local areaLinked = DarkPassengerAreaBridge.EnsureNamedLink(
+                holder,
+                target,
+                linkName,
+                "Quest holder to area " .. tostring(area.name) ..
+                    " alias=" .. tostring(alias)
+            )
+            if not areaLinked then
+                return false
+            end
         end
     end
 

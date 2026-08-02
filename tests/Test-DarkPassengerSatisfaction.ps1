@@ -730,10 +730,14 @@ foreach ($bindingSpec in $areaBindingSpecs) {
         "$($bindingSpec.levelHolderGuid)|$($bindingSpec.questHolderGuid)|module"
     )
     foreach ($searchArea in $regionalAreas) {
+        $areaAliases = @([string]$searchArea.alias) +
+            @($searchArea.legacyAliases | ForEach-Object { [string]$_ })
         foreach ($areaGuid in @($searchArea.areaGuids)) {
-            $expectedLinks.Add(
-                "$($bindingSpec.questHolderGuid)|$areaGuid|asset['$($searchArea.alias)']"
-            )
+            foreach ($areaAlias in $areaAliases) {
+                $expectedLinks.Add(
+                    "$($bindingSpec.questHolderGuid)|$areaGuid|asset['$areaAlias']"
+                )
+            }
         }
     }
 
@@ -864,15 +868,19 @@ foreach ($bindingSpec in $areaBindingSpecs) {
         continue
     }
     foreach ($searchArea in $regionalAreas) {
+        $areaAliases = @([string]$searchArea.alias) +
+            @($searchArea.legacyAliases | ForEach-Object { [string]$_ })
         foreach ($areaGuid in @($searchArea.areaGuids)) {
             $targetEntityId = [string]$entityIdsByGuid[$areaGuid]
-            if (
-                [string]::IsNullOrWhiteSpace($targetEntityId) -or
-                -not $questHolderBlock.Contains(
-                    "TargetId=`"$targetEntityId`" TargetGuid=`"00000000-0000-0000`" Name=`"asset['$($searchArea.alias)']`""
-                )
-            ) {
-                $builtAreaBindingsComplete = $false
+            foreach ($areaAlias in $areaAliases) {
+                if (
+                    [string]::IsNullOrWhiteSpace($targetEntityId) -or
+                    -not $questHolderBlock.Contains(
+                        "TargetId=`"$targetEntityId`" TargetGuid=`"00000000-0000-0000`" Name=`"asset['$areaAlias']`""
+                    )
+                ) {
+                    $builtAreaBindingsComplete = $false
+                }
             }
         }
     }
@@ -958,7 +966,9 @@ if ($null -ne $questXml) {
     ).Count
     $allMarkerAliasesExist = (
         $markerAliases.Count -eq (
-            $enabledKuttenbergCandidateCount + $kuttenbergSearchAreaCount
+            $enabledKuttenbergCandidateCount +
+                $kuttenbergSearchAreaCount +
+                1 # Legacy Active save bridge reuses the Pritoky area alias.
         ) -and
         @(
             $markerAliases |
@@ -1759,8 +1769,12 @@ Add-Result (
         $investigationLuaText,
         '"pritoky"'
     ).Count -eq 1) -and
-    -not $runtimeLuaText.Contains('"pritoky"')
-) 'Pritoky slice override has one source of truth'
+    $runtimeLuaText -match (
+        '(?s)function NeedsQuestSelectionMigration\(candidate\).*?' +
+        'candidate\.gameRegion == "kutnohorsko".*?' +
+        'candidate\.settlement == "pritoky"'
+    )
+) 'Pritoky selection override and legacy migration remain separately scoped'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)function DarkPassengerTarget\.SelectNearest\(gameRegion\).*?' +
@@ -3018,15 +3032,20 @@ Add-Result (
 Add-Result (
     -not $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSET}}') -and
     -not $questTemplateText.Contains('{{DP_SEARCH_MARKER_ATTRIBUTE}}') -and
-    -not $questText.Contains('DP_PritokySearchArea') -and
     -not $troskyQuestText.Contains('DP_PritokySearchArea') -and
-    -not $questText.Contains(
+    ([regex]::Matches(
+        $questText,
+        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker="DP_PritokySearchArea">'
+    )).Count -eq 1 -and
+    ([regex]::Matches(
+        $questText,
+        '<EnumLog Type="Started" Name="DP_SearchArea_Kutnohorsko_Pritoky" IsTracked="true" Marker="DP_SearchArea_Kutnohorsko_Pritoky">'
+    )).Count -eq 1 -and
+    ([regex]::Matches(
+        $troskyQuestText,
         '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker='
-    ) -and
-    -not $troskyQuestText.Contains(
-        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker='
-    )
-) 'regional quests have no fixed Pritoky search marker default'
+    )).Count -eq 0
+) 'regional quests contain only the legacy Kuttenberg Active save bridge'
 Add-Result (
     @($searchLocalizationKeys | Where-Object {
         -not $englishText.Contains("<Cell>$_</Cell>") -or
@@ -3176,7 +3195,13 @@ Add-Result (
     ) -and
     $areaBridgeText.Contains('System.GetEntityByName(area.name)') -and
     $areaBridgeText.Contains(
-        'local linkName = "asset[''" .. settlementEntry.alias .. "'']"'
+        'local aliases = { settlementEntry.alias }'
+    ) -and
+    $areaBridgeText.Contains(
+        'ipairs(settlementEntry.legacyAliases or {})'
+    ) -and
+    $areaBridgeText.Contains(
+        'local linkName = "asset[''" .. alias .. "'']"'
     ) -and
     $areaBridgeText.Contains(
         'function DarkPassengerAreaBridge.EnsureModuleLink(source, target, label)'
@@ -3184,7 +3209,7 @@ Add-Result (
     $areaBridgeText.Contains('return source:CountLinks()') -and
     $areaBridgeText.Contains('return source:GetLink(index)') -and
     $areaBridgeText.Contains('linkName == expectedName')
-) 'area bridge repairs only the requested settlement module and same-alias links'
+) 'area bridge repairs only the requested settlement current and legacy aliases'
 Add-Result (
     $areaBridgeText.Contains(
         'DarkPassengerAreaBridge.EnsureSettlementLinked(gameRegion, settlement)'

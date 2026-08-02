@@ -196,6 +196,25 @@ foreach ($specification in $regionSpecifications) {
         if ($alias -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
             throw "Settlement '$($specification.region)/$($settlement.id)' has invalid alias '$alias'."
         }
+        $legacyAliases = @(
+            if (
+                $settlement.PSObject.Properties.Name -contains 'legacyAliases'
+            ) {
+                $settlement.legacyAliases |
+                    ForEach-Object { [string]$_ }
+            }
+        )
+        foreach ($legacyAlias in $legacyAliases) {
+            if (
+                $legacyAlias -notmatch '^[A-Za-z_][A-Za-z0-9_]*$' -or
+                $legacyAlias -eq $alias
+            ) {
+                throw "Settlement '$($specification.region)/$($settlement.id)' has invalid legacy alias '$legacyAlias'."
+            }
+        }
+        if (@($legacyAliases | Sort-Object -Unique).Count -ne $legacyAliases.Count) {
+            throw "Settlement '$($specification.region)/$($settlement.id)' has duplicate legacy aliases."
+        }
         $areaGuids = @($settlement.areaGuids | ForEach-Object { [string]$_ })
         if ($areaGuids.Count -eq 0) {
             throw "Settlement '$($specification.region)/$($settlement.id)' has no selected TriggerArea."
@@ -215,16 +234,17 @@ foreach ($specification in $regionSpecifications) {
         $luaSettlementLines.Add(
             "                    alias = `"$(Escape-LuaString $alias)`","
         )
+        $luaSettlementLines.Add('                    legacyAliases = {')
+        foreach ($legacyAlias in $legacyAliases) {
+            $luaSettlementLines.Add(
+                "                        `"$(Escape-LuaString $legacyAlias)`","
+            )
+        }
+        $luaSettlementLines.Add('                    },')
         $luaSettlementLines.Add('                    areas = {')
         foreach ($areaGuid in $areaGuids) {
             if ($areaGuid -notmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$') {
                 throw "Settlement '$($specification.region)/$($settlement.id)' has invalid short GUID '$areaGuid'."
-            }
-            $definition = "asset['$alias']"
-            $signature =
-                "$($specification.questHolderGuid)|$areaGuid|$definition"
-            if (-not $linkSignatures.Add($signature)) {
-                throw "Duplicate settlement area link '$signature'."
             }
             $inventoryKey = "$($specification.region)|$areaGuid"
             if (-not $areasByRegionAndGuid.ContainsKey($inventoryKey)) {
@@ -238,13 +258,21 @@ foreach ($specification in $regionSpecifications) {
                 $luaSettlementLines.Add($luaAreaLine)
             }
             $totalCatalogAreas++
-            $waitingLinkLines.Add(
-                "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$areaGuid`">"
-            )
-            $waitingLinkLines.Add(
-                "      <LinkDefinition>asset[&apos;$alias&apos;]</LinkDefinition>"
-            )
-            $waitingLinkLines.Add('    </WaitingLink>')
+            foreach ($linkAlias in @($alias) + $legacyAliases) {
+                $definition = "asset['$linkAlias']"
+                $signature =
+                    "$($specification.questHolderGuid)|$areaGuid|$definition"
+                if (-not $linkSignatures.Add($signature)) {
+                    throw "Duplicate settlement area link '$signature'."
+                }
+                $waitingLinkLines.Add(
+                    "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$areaGuid`">"
+                )
+                $waitingLinkLines.Add(
+                    "      <LinkDefinition>asset[&apos;$linkAlias&apos;]</LinkDefinition>"
+                )
+                $waitingLinkLines.Add('    </WaitingLink>')
+            }
         }
         $luaSettlementLines.Add('                    },')
         $luaSettlementLines.Add('                },')

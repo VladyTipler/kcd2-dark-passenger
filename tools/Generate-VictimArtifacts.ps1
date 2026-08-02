@@ -145,6 +145,48 @@ function New-RegionalQuest {
         throw "Region '$RegionId' search-area candidate slots do not match the enabled candidate pool."
     }
 
+    if ($RegionId -eq 'kutnohorsko') {
+        $legacySearchAreas = @(
+            $SearchAreas | Where-Object { [string]$_.id -eq 'pritoky' }
+        )
+        if ($legacySearchAreas.Count -ne 1) {
+            throw 'Legacy Pritoky save compatibility requires one Pritoky search area.'
+        }
+        $legacySearchArea = $legacySearchAreas[0]
+        $legacyAliases = @($legacySearchArea.legacyAliases)
+        if ($legacyAliases.Count -ne 1) {
+            throw 'Legacy Pritoky save compatibility requires one marker alias.'
+        }
+        $legacyMarkerAlias = [string]$legacyAliases[0]
+        if ($legacyMarkerAlias -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Legacy Pritoky marker alias '$legacyMarkerAlias' is invalid."
+        }
+        $legacyDisplayName = [string]$legacySearchArea.displayName.english
+        $legacyLocalizationKey = Get-SearchLocalizationKey `
+            -RegionId $RegionId `
+            -SettlementId ([string]$legacySearchArea.id)
+        $legacyFallbackText = ConvertTo-XmlText (
+            "The trail leads to $legacyDisplayName. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain."
+        )
+        $searchTypeEnumerations.Add(
+            '          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />'
+        )
+        $searchAreaAssets.Add(
+            "        <TriggerAreaAsset Name=`"$legacyMarkerAlias`" />"
+        )
+        $searchLogs.Add(
+            "            <EnumLog Type=`"Started`" Name=`"Active`" IsTracked=`"true`" Marker=`"$legacyMarkerAlias`">"
+        )
+        $searchLogs.Add(
+            "              <Log StringName=`"$legacyLocalizationKey`" Text=`"$legacyFallbackText`">"
+        )
+        $searchLogs.Add(
+            "                <Localization Text=`"$legacyFallbackText`" Language=`"WHS`" />"
+        )
+        $searchLogs.Add('              </Log>')
+        $searchLogs.Add('            </EnumLog>')
+    }
+
     foreach ($searchArea in $SearchAreas) {
         $stateName = [string]$searchArea.alias
         if ($stateName -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {

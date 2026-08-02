@@ -209,6 +209,15 @@ foreach ($candidateGroup in $candidateGroups) {
     }
 
     $displayNameOverride = Get-PropertyValue $override 'displayName' $null
+    $legacyAliases = @(
+        Get-PropertyValue $override 'legacyAliases' @() |
+            ForEach-Object { [string]$_ }
+    )
+    foreach ($legacyAlias in $legacyAliases) {
+        if ($legacyAlias -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
+            throw "Settlement '$key' has invalid legacy alias '$legacyAlias'."
+        }
+    }
     $fallbackName = [string](
         Get-PropertyValue $settlement 'displayName' $settlementId
     )
@@ -232,6 +241,7 @@ foreach ($candidateGroup in $candidateGroups) {
                 Get-PropertyValue $displayNameOverride 'russian' $fallbackName
             )
         }
+        legacyAliases = @($legacyAliases)
         primaryGuid = [string]$selection.primaryGuid
         areaGuids = @($selection.areaGuids)
         evidenceTerritoryGuids = @($selection.areaGuids)

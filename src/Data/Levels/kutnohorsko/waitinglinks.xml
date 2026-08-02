@@ -64,11 +64,20 @@
     <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">
       <LinkDefinition>asset[&apos;DP_SearchArea_Kutnohorsko_Pritoky&apos;]</LinkDefinition>
     </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d0fa0ece-6af5-19f6">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
+    </WaitingLink>
     <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">
       <LinkDefinition>asset[&apos;DP_SearchArea_Kutnohorsko_Pritoky&apos;]</LinkDefinition>
     </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="d2fc29a3-6787-141c">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
+    </WaitingLink>
     <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">
       <LinkDefinition>asset[&apos;DP_SearchArea_Kutnohorsko_Pritoky&apos;]</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="1b6b6d4e-905c-4f9e">
+      <LinkDefinition>asset[&apos;DP_PritokySearchArea&apos;]</LinkDefinition>
     </WaitingLink>
     <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="0acda29d-96bd-14dd">
       <LinkDefinition>asset[&apos;DP_SearchArea_Kutnohorsko_Rabstejnsko&apos;]</LinkDefinition>

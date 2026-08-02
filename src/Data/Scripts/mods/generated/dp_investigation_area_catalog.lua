@@ -12,6 +12,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "bohounovice",
                     alias = "DP_SearchArea_Kutnohorsko_Bohounovice",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kboh_publicEnemiesRepulsionZoneVillageArea_1",
@@ -73,6 +75,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "bylansko",
                     alias = "DP_SearchArea_Kutnohorsko_Bylansko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kbyl_publicEnemiesRepulsionZoneVillageArea_1",
@@ -109,6 +113,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "certovka",
                     alias = "DP_SearchArea_Kutnohorsko_Certovka",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kcer_publicEnemiesRepulsionZoneInnArea_1",
@@ -140,6 +146,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "grunta",
                     alias = "DP_SearchArea_Kutnohorsko_Grunta",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kgru_publicEnemiesRepulsionZoneArea_1",
@@ -176,6 +184,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "horansko",
                     alias = "DP_SearchArea_Kutnohorsko_Horansko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "khor_publicEnemiesRepulsionZoneVillageArea_1",
@@ -268,6 +278,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "kuklicko",
                     alias = "DP_SearchArea_Kutnohorsko_Kuklicko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kradeneZasilky_banditCamp2_area",
@@ -344,6 +356,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "kutnaHora",
                     alias = "DP_SearchArea_Kutnohorsko_Kutnahora",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kkut_publicEnemiesRepulsionZoneCityArea_1",
@@ -385,6 +399,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "lorec",
                     alias = "DP_SearchArea_Kutnohorsko_Lorec",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "klor_publicEnemiesRepulsionZoneVineyardArea_1",
@@ -449,6 +465,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "malesov",
                     alias = "DP_SearchArea_Kutnohorsko_Malesov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kmal_publicEnemiesRepulsionZoneVillageArea_1",
@@ -510,6 +528,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "mezholezsko",
                     alias = "DP_SearchArea_Kutnohorsko_Mezholezsko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kmez_campBanditCampWithHorseArea_1",
@@ -545,6 +565,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "miskovicko",
                     alias = "DP_SearchArea_Kutnohorsko_Miskovicko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kmis_publicEnemiesRepulsionZoneVillageArea_1",
@@ -581,6 +603,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "naBylance",
                     alias = "DP_SearchArea_Kutnohorsko_Nabylance",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "nobodyWantsArchery_duelArea",
@@ -615,6 +639,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "opatovicko",
                     alias = "DP_SearchArea_Kutnohorsko_Opatovicko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kopa_publicEnemiesRepulsionZoneHuntsmanArea_1",
@@ -646,6 +672,9 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "pritoky",
                     alias = "DP_SearchArea_Kutnohorsko_Pritoky",
+                    legacyAliases = {
+                        "DP_PritokySearchArea",
+                    },
                     areas = {
                         {
                             name = "kpri_publicEnemiesRepulsionZoneVillageArea_1",
@@ -740,6 +769,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "rabstejnsko",
                     alias = "DP_SearchArea_Kutnohorsko_Rabstejnsko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "krab_publicEnemiesRepulsionZoneMillRabstejnkaArea_1",
@@ -846,6 +877,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "ratboricko",
                     alias = "DP_SearchArea_Kutnohorsko_Ratboricko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "krat_publicEnemiesRepulsionZoneVillageArea_1",
@@ -882,6 +915,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "sedlcko",
                     alias = "DP_SearchArea_Kutnohorsko_Sedlcko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "stareKosti_area_findingMorticius",
@@ -915,6 +950,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "staraKutna",
                     alias = "DP_SearchArea_Kutnohorsko_Starakutna",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "ksta_publicEnemiesRepulsionZoneInnArea_1",
@@ -1007,6 +1044,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "suchdol",
                     alias = "DP_SearchArea_Kutnohorsko_Suchdol",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "ksuc_publicEnemiesRepulsionZoneArea_1",
@@ -1102,6 +1141,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "sukov",
                     alias = "DP_SearchArea_Kutnohorsko_Sukov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "ksus_courtAreaSecretMines_1",
@@ -1145,6 +1186,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "vlciHory",
                     alias = "DP_SearchArea_Kutnohorsko_Vlcihory",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "crime_districtOrigin_vlciHory",
@@ -1179,6 +1222,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "vrchlicko",
                     alias = "DP_SearchArea_Kutnohorsko_Vrchlicko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kvrc_pulblicEnemiesRepulsionZone_1",
@@ -1305,6 +1350,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "kutnohorsko",
                     settlement = "vysoka",
                     alias = "DP_SearchArea_Kutnohorsko_Vysoka",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "kvys_publicEnemiesRepulsionZoneVillageArea_1",
@@ -1347,6 +1394,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "bukovina",
                     alias = "DP_SearchArea_Trosecko_Bukovina",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "zranenyLovci_ta_banditCamp",
@@ -1381,6 +1430,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "kopanina",
                     alias = "DP_SearchArea_Trosecko_Kopanina",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tkop_trespassBanditArea_1",
@@ -1419,6 +1470,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "krcak",
                     alias = "DP_SearchArea_Trosecko_Krcak",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tkrc_smallBanditCampArea_1",
@@ -1455,6 +1508,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "nebakov",
                     alias = "DP_SearchArea_Trosecko_Nebakov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tneb_publicEnemiesRepulsionZoneMillArea_1",
@@ -1515,6 +1570,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "podseminsko",
                     alias = "DP_SearchArea_Trosecko_Podseminsko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tpod_publicEnemiesRepulsionZoneMillArea_1",
@@ -1666,6 +1723,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "semin",
                     alias = "DP_SearchArea_Trosecko_Semin",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tsem_publicEnemiesRepulsionZoneSeminArea_1",
@@ -1702,6 +1761,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "slatejov",
                     alias = "DP_SearchArea_Trosecko_Slatejov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tsla_publicEnemiesRepulsionZoneFarmKrenovyArea_1",
@@ -1733,6 +1794,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "tachov",
                     alias = "DP_SearchArea_Trosecko_Tachov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tsem_publicEnemiesRepulsionZoneArea_1",
@@ -1798,6 +1861,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "troskovice",
                     alias = "DP_SearchArea_Trosecko_Troskovice",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "ttkc_publicEnemiesRepulsionZoneVillageArea_1",
@@ -1834,6 +1899,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "vezicko",
                     alias = "DP_SearchArea_Trosecko_Vezicko",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tvez_publicEnemiesRepulsionZoneNomadCampArea_1",
@@ -1984,6 +2051,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "vidlak",
                     alias = "DP_SearchArea_Trosecko_Vidlak",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tvid_publicEnemiesRepulsionZoneTannerFishermanArea_1",
@@ -2063,6 +2132,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "zdar",
                     alias = "DP_SearchArea_Trosecko_Zdar",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tzda_publicEnemiesRepulsionZoneFarmWestArea_1",
@@ -2168,6 +2239,8 @@ DarkPassengerInvestigationAreaCatalog = {
                     region = "trosecko",
                     settlement = "zelejov",
                     alias = "DP_SearchArea_Trosecko_Zelejov",
+                    legacyAliases = {
+                    },
                     areas = {
                         {
                             name = "tzel_publicEnemiesRepulsionZoneVillageArea_1",

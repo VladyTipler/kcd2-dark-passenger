@@ -82,6 +82,7 @@
       "gameRegion": "kutnohorsko",
       "settlement": "pritoky",
       "displayName": { "english": "Pschitoky", "russian": "Пржитоки" },
+      "legacyAliases": ["DP_PritokySearchArea"],
       "primaryGuid": "d0fa0ece-6af5-19f6",
       "forceIncludeGuids": [
         "d2fc29a3-6787-141c",

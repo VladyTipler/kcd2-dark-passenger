@@ -240,10 +240,34 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
         $waitingLinkEntries |
             Where-Object { [string]$_.LinkDefinition -ne 'module' }
     )
-    if (@($assetLinks | Where-Object {
-        [string]$_.SourceId -ne $questHolderGuid -or
-        [string]$_.LinkDefinition -notmatch "^asset\['DP_SearchArea_[A-Za-z0-9_]+'\]$"
-    }).Count -gt 0) {
+    $legacyPritokyDefinition = "asset['DP_PritokySearchArea']"
+    $legacyPritokyLinks = @(
+        $assetLinks |
+            Where-Object {
+                [string]$_.LinkDefinition -eq $legacyPritokyDefinition
+            }
+    )
+    $expectedLegacyPritokyLinks = if ($region -eq 'kutnohorsko') {
+        3
+    }
+    else {
+        0
+    }
+    if (
+        @($assetLinks | Where-Object {
+            $definition = [string]$_.LinkDefinition
+            [string]$_.SourceId -ne $questHolderGuid -or
+            (
+                $definition -notmatch
+                    "^asset\['DP_SearchArea_[A-Za-z0-9_]+'\]$" -and
+                -not (
+                    $region -eq 'kutnohorsko' -and
+                    $definition -eq $legacyPritokyDefinition
+                )
+            )
+        }).Count -gt 0 -or
+        $legacyPritokyLinks.Count -ne $expectedLegacyPritokyLinks
+    ) {
         throw "Dark Passenger $region waitinglinks patch has an invalid settlement area link."
     }
 
