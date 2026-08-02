@@ -120,6 +120,7 @@ function ConvertTo-DpRuntimeEvidence {
 
     return [ordered]@{
         id = [string]$Evidence.id
+        code = [int]$Evidence.code
         kind = [string]$Evidence.kind
         role = [string]$Evidence.role
         weight = if ($null -ne $Evidence.PSObject.Properties['weight']) {
@@ -224,6 +225,7 @@ function ConvertTo-DpCaseCompatibilityReport {
                 [string]$_.constraints.region + '/' +
                 [string]$_.constraints.settlement
             evidenceIds = @($_.evidence | ForEach-Object { [string]$_.id })
+            evidenceCodes = @($_.evidence | ForEach-Object { [int]$_.code })
         }
     })
     return [ordered]@{
@@ -290,6 +292,7 @@ function Get-DpCaseSpecValidationErrors {
     $seenEvidence = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::Ordinal
     )
+    $seenEvidenceCodes = [System.Collections.Generic.HashSet[int]]::new()
     $confidenceTotal = 0
     foreach ($step in $evidence) {
         $evidenceId = [string]$step.id
@@ -298,6 +301,13 @@ function Get-DpCaseSpecValidationErrors {
         }
         elseif (-not $seenEvidence.Add($evidenceId)) {
             $errors.Add("$prefix evidence id '$evidenceId' is duplicated")
+        }
+        $evidenceCode = [int]$step.code
+        if ($evidenceCode -le 0) {
+            $errors.Add("$prefix evidence '$evidenceId' code must be positive")
+        }
+        elseif (-not $seenEvidenceCodes.Add($evidenceCode)) {
+            $errors.Add("$prefix evidence code '$evidenceCode' is duplicated")
         }
         if (-not (Test-DpTextValue $step.kind)) {
             $errors.Add("$prefix evidence '$evidenceId' kind is required")

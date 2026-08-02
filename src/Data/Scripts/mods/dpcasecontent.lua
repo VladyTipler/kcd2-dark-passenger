@@ -1,12 +1,20 @@
 DarkPassengerCaseContent = DarkPassengerCaseContent or {}
 
-DarkPassengerCaseContent.SCHEMA_VERSION = 1
+DarkPassengerCaseContent.SCHEMA_VERSION = 2
 
 local KEYS = {
     schema = "dp_case_content_schema_version",
     generation = "dp_case_content_generation",
-    templateSlot = "dp_case_content_template_slot",
-    rumorSlot = "dp_case_content_rumor_slot",
+    caseCode = "dp_case_content_case_code",
+    openerCode = "dp_case_content_opener_code",
+    legacyTemplateSlot = "dp_case_content_template_slot",
+    legacyRumorSlot = "dp_case_content_rumor_slot",
+}
+
+local LEGACY_V1_SELECTIONS = {
+    [1] = {
+        [1] = { caseCode = 1001, openerCode = 1101 },
+    },
 }
 
 local function Log(message)
@@ -44,30 +52,14 @@ local function WriteScalar(key, value)
 end
 
 local function DefaultState()
-    return {
-        generation = 0,
-        templateSlot = 0,
-        rumorSlot = 0,
-    }
+    return { generation = 0, caseCode = 0, openerCode = 0 }
 end
 
 local function CopyState(state)
     return {
         generation = tonumber(state ~= nil and state.generation) or 0,
-        templateSlot = tonumber(state ~= nil and state.templateSlot) or 0,
-        rumorSlot = tonumber(state ~= nil and state.rumorSlot) or 0,
-    }
-end
-
-local function ReadState()
-    if tonumber(ReadScalar(KEYS.schema)) ~=
-       DarkPassengerCaseContent.SCHEMA_VERSION then
-        return DefaultState()
-    end
-    return {
-        generation = tonumber(ReadScalar(KEYS.generation)) or 0,
-        templateSlot = tonumber(ReadScalar(KEYS.templateSlot)) or 0,
-        rumorSlot = tonumber(ReadScalar(KEYS.rumorSlot)) or 0,
+        caseCode = tonumber(state ~= nil and state.caseCode) or 0,
+        openerCode = tonumber(state ~= nil and state.openerCode) or 0,
     }
 end
 
@@ -75,13 +67,68 @@ local function PersistState(state)
     local writes = {
         WriteScalar(KEYS.schema, DarkPassengerCaseContent.SCHEMA_VERSION),
         WriteScalar(KEYS.generation, state.generation),
-        WriteScalar(KEYS.templateSlot, state.templateSlot),
-        WriteScalar(KEYS.rumorSlot, state.rumorSlot),
+        WriteScalar(KEYS.caseCode, state.caseCode),
+        WriteScalar(KEYS.openerCode, state.openerCode),
     }
     for _, succeeded in ipairs(writes) do
         if not succeeded then return false end
     end
     return true
+end
+
+function DarkPassengerCaseContent.MigrateLegacyState(legacy)
+    local templateSlot = tonumber(legacy ~= nil and legacy.templateSlot) or 0
+    local rumorSlot = tonumber(legacy ~= nil and legacy.rumorSlot) or 0
+    local template = LEGACY_V1_SELECTIONS[templateSlot]
+    local mapping = template ~= nil and template[rumorSlot] or nil
+    if mapping == nil then
+        return {
+            generation = tonumber(legacy ~= nil and legacy.generation) or 0,
+            caseCode = 0,
+            openerCode = 0,
+        }, { accepted = false, reason = "legacy_unknown" }
+    end
+    return {
+        generation = tonumber(legacy.generation) or 0,
+        caseCode = mapping.caseCode,
+        openerCode = mapping.openerCode,
+    }, { accepted = true, reason = "legacy_v1" }
+end
+
+local function ReadState()
+    local schema = tonumber(ReadScalar(KEYS.schema))
+    if schema == DarkPassengerCaseContent.SCHEMA_VERSION then
+        return {
+            generation = tonumber(ReadScalar(KEYS.generation)) or 0,
+            caseCode = tonumber(ReadScalar(KEYS.caseCode)) or 0,
+            openerCode = tonumber(ReadScalar(KEYS.openerCode)) or 0,
+        }
+    end
+    if schema == 1 then
+        local migratedState, result =
+            DarkPassengerCaseContent.MigrateLegacyState({
+                generation = tonumber(ReadScalar(KEYS.generation)) or 0,
+                templateSlot =
+                    tonumber(ReadScalar(KEYS.legacyTemplateSlot)) or 0,
+                rumorSlot = tonumber(ReadScalar(KEYS.legacyRumorSlot)) or 0,
+            })
+        if result.accepted then
+            if not PersistState(migratedState) then
+                Log("legacy migration persistence failed")
+            else
+                Log(
+                    "migrated legacy selection generation=" ..
+                    tostring(migratedState.generation) ..
+                    " caseCode=" .. tostring(migratedState.caseCode) ..
+                    " openerCode=" .. tostring(migratedState.openerCode)
+                )
+            end
+        else
+            Log("migration rejected reason=" .. tostring(result.reason))
+        end
+        return migratedState
+    end
+    return DefaultState()
 end
 
 local function Catalog()
@@ -95,11 +142,30 @@ local function Catalog()
     return result
 end
 
+local function CaseByCode(code, catalog)
+    if catalog == nil and DarkPassengerCaseCatalogByCode ~= nil then
+        local direct = DarkPassengerCaseCatalogByCode[tonumber(code)]
+        if direct ~= nil then return direct end
+    end
+    for _, caseTemplate in ipairs(catalog or Catalog()) do
+        if tonumber(caseTemplate.code) == tonumber(code) then
+            return caseTemplate
+        end
+    end
+    return nil
+end
+
+local function EvidenceByCode(entries, code)
+    for _, entry in ipairs(entries or {}) do
+        if tonumber(entry.code) == tonumber(code) then return entry end
+    end
+    return nil
+end
+
 local function MatchesConstraints(constraints, context)
     if constraints == nil then return true end
     if context == nil then return false end
-    if constraints.region ~= nil and
-       constraints.region ~= context.region then
+    if constraints.region ~= nil and constraints.region ~= context.region then
         return false
     end
     if constraints.settlement ~= nil and
@@ -134,56 +200,49 @@ end
 
 function DarkPassengerCaseContent.Select(catalog, context, roll)
     local eligibleCases = {}
-    for templateSlot, caseTemplate in ipairs(catalog or {}) do
+    for _, caseTemplate in ipairs(catalog or {}) do
         if MatchesConstraints(caseTemplate.constraints, context) then
-            table.insert(eligibleCases, {
-                slot = templateSlot,
-                value = caseTemplate,
-            })
+            table.insert(eligibleCases, { value = caseTemplate })
         end
     end
     local selectedCase = WeightedChoice(eligibleCases, roll)
     if selectedCase == nil then return nil, "no_case" end
 
-    local eligibleRumors = {}
-    for rumorSlot, rumor in ipairs(selectedCase.value.rumors or {}) do
-        if MatchesConstraints(rumor.constraints, context) then
-            table.insert(eligibleRumors, {
-                slot = rumorSlot,
-                value = rumor,
-            })
+    local eligibleOpeners = {}
+    for _, opener in ipairs(selectedCase.value.rumors or {}) do
+        if MatchesConstraints(opener.constraints, context) then
+            table.insert(eligibleOpeners, { value = opener })
         end
     end
-    local selectedRumor = WeightedChoice(eligibleRumors, roll)
-    if selectedRumor == nil then return nil, "no_rumor" end
+    local selectedOpener = WeightedChoice(eligibleOpeners, roll)
+    if selectedOpener == nil then return nil, "no_opener" end
 
     return {
-        templateSlot = selectedCase.slot,
-        rumorSlot = selectedRumor.slot,
+        caseCode = tonumber(selectedCase.value.code),
+        openerCode = tonumber(selectedOpener.value.code),
         caseTemplate = selectedCase.value,
-        rumor = selectedRumor.value,
+        rumor = selectedOpener.value,
     }, "selected"
 end
 
 function DarkPassengerCaseContent.Resolve(state, catalog)
-    local source = catalog or Catalog()
-    local templateSlot = tonumber(state ~= nil and state.templateSlot) or 0
-    local rumorSlot = tonumber(state ~= nil and state.rumorSlot) or 0
-    local caseTemplate = source[templateSlot]
-    local rumor = caseTemplate ~= nil and
-        (caseTemplate.rumors or {})[rumorSlot] or nil
-    if caseTemplate == nil or rumor == nil then return nil end
+    local caseCode = tonumber(state ~= nil and state.caseCode) or 0
+    local openerCode = tonumber(state ~= nil and state.openerCode) or 0
+    local caseTemplate = CaseByCode(caseCode, catalog)
+    local opener = caseTemplate ~= nil and
+        EvidenceByCode(caseTemplate.rumors, openerCode) or nil
+    if caseTemplate == nil or opener == nil then return nil end
     return {
         generation = tonumber(state.generation) or 0,
-        templateSlot = templateSlot,
-        rumorSlot = rumorSlot,
+        caseCode = caseCode,
+        openerCode = openerCode,
         caseTemplate = caseTemplate,
-        rumor = rumor,
+        rumor = opener,
     }
 end
 
 -- Content is selected once per investigation generation. Repeated opens,
--- save/load and Lua hot reload resolve the persisted slots without rerolling.
+-- save/load and Lua hot reload resolve stable codes without rerolling.
 function DarkPassengerCaseContent.Transition(state, event, catalog)
     local nextState = CopyState(state)
     local generation = tonumber(event ~= nil and event.generation)
@@ -191,9 +250,14 @@ function DarkPassengerCaseContent.Transition(state, event, catalog)
         return nextState, { accepted = false, reason = "invalid_generation" }
     end
 
-    if nextState.generation == generation and
-       DarkPassengerCaseContent.Resolve(nextState, catalog) ~= nil then
-        return nextState, { accepted = true, reason = "restored" }
+    if nextState.generation == generation then
+        if DarkPassengerCaseContent.Resolve(nextState, catalog) ~= nil then
+            return nextState, { accepted = true, reason = "restored" }
+        end
+        return nextState, {
+            accepted = false,
+            reason = "invalid_saved_selection",
+        }
     end
 
     local selection, reason = DarkPassengerCaseContent.Select(
@@ -205,8 +269,8 @@ function DarkPassengerCaseContent.Transition(state, event, catalog)
         return nextState, { accepted = false, reason = reason }
     end
     nextState.generation = generation
-    nextState.templateSlot = selection.templateSlot
-    nextState.rumorSlot = selection.rumorSlot
+    nextState.caseCode = selection.caseCode
+    nextState.openerCode = selection.openerCode
     return nextState, { accepted = true, reason = "selected" }
 end
 
@@ -243,7 +307,7 @@ function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
         " case=" .. tostring(
             selected ~= nil and selected.caseTemplate.id or nil
         ) ..
-        " rumor=" .. tostring(selected ~= nil and selected.rumor.id or nil) ..
+        " opener=" .. tostring(selected ~= nil and selected.rumor.id or nil) ..
         " reason=" .. tostring(result.reason)
     )
     return selected
@@ -254,7 +318,7 @@ function DarkPassengerCaseContent.GetSelected(generation)
     if generation ~= nil and state.generation ~= tonumber(generation) then
         return nil
     end
-    return DarkPassengerCaseContent.Resolve(state, Catalog())
+    return DarkPassengerCaseContent.Resolve(state, nil)
 end
 
 function DarkPassengerCaseContent.Restore(investigationState, candidate)
@@ -282,7 +346,8 @@ function DarkPassengerCaseContent.RunSelfTest()
     local selected = DarkPassengerCaseContent.Resolve(state, catalog)
     Expect(first.accepted and first.reason == "selected", "select")
     Expect(
-        selected ~= nil and
+        selected ~= nil and state.caseCode == 1001 and
+        state.openerCode == 1101 and
         selected.caseTemplate.id == "convenient_accident" and
         selected.rumor.id == "pritoky_innkeeper_strong_suspicion",
         "identity"
@@ -294,9 +359,20 @@ function DarkPassengerCaseContent.RunSelfTest()
     )
     Expect(
         restored.accepted and restored.reason == "restored" and
-        restoredState.templateSlot == state.templateSlot and
-        restoredState.rumorSlot == state.rumorSlot,
+        restoredState.caseCode == state.caseCode and
+        restoredState.openerCode == state.openerCode,
         "stable restore"
+    )
+    local migrated, migration = DarkPassengerCaseContent.MigrateLegacyState({
+        generation = 4,
+        templateSlot = 1,
+        rumorSlot = 1,
+    })
+    Expect(
+        migration.accepted and migration.reason == "legacy_v1" and
+        migrated.generation == 4 and migrated.caseCode == 1001 and
+        migrated.openerCode == 1101,
+        "legacy migration"
     )
     local missing, unavailable = DarkPassengerCaseContent.Transition(
         DefaultState(),
@@ -330,4 +406,3 @@ pcall(function()
 end)
 
 Log("module loaded")
-

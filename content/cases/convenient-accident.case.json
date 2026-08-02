@@ -22,6 +22,7 @@
   "evidence": [
     {
       "id": "pritoky_innkeeper_strong_suspicion",
+      "code": 1101,
       "kind": "dialogue",
       "role": "innkeeper",
       "purpose": "strong_suspicion",
@@ -32,6 +33,7 @@
     },
     {
       "id": "vojtech_belongings",
+      "code": 1102,
       "kind": "document",
       "role": "document",
       "confidence": 30,
@@ -39,6 +41,7 @@
     },
     {
       "id": "tavern_witness",
+      "code": 1103,
       "kind": "dialogue",
       "role": "witness",
       "confidence": 20,

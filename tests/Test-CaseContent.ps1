@@ -8,8 +8,10 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $caseRuntimePath = Join-Path $scriptRoot 'dpcasecontent.lua'
-$caseDefinitionPath = Join-Path $scriptRoot `
-    'content\dp_case_convenient_accident.lua'
+$caseDefinitionPath = Join-Path $repoRoot `
+    'content\cases\convenient-accident.case.json'
+$generatedCatalogPath = Join-Path $repoRoot `
+    'build\mod\Data\Scripts\mods\generated\dp_case_catalog.lua'
 $evidencePath = Join-Path $scriptRoot 'dpevidence.lua'
 
 $script:checks = 0
@@ -35,12 +37,15 @@ function Add-Result {
 $runtime = Read-OptionalText $runtimePath
 $caseRuntime = Read-OptionalText $caseRuntimePath
 $caseDefinition = Read-OptionalText $caseDefinitionPath
+$generatedCatalog = Read-OptionalText $generatedCatalogPath
 $evidence = Read-OptionalText $evidencePath
 
 Add-Result (Test-Path -LiteralPath $caseRuntimePath) `
     'persistent case-content runtime exists'
 Add-Result (Test-Path -LiteralPath $caseDefinitionPath) `
-    'convenient-accident content definition exists'
+    'convenient-accident CaseSpec exists'
+Add-Result (Test-Path -LiteralPath $generatedCatalogPath) `
+    'compiled case catalog exists'
 
 foreach ($export in
     'Select',
@@ -58,32 +63,36 @@ foreach ($export in
 foreach ($token in
     'dp_case_content_schema_version',
     'dp_case_content_generation',
-    'dp_case_content_template_slot',
-    'dp_case_content_rumor_slot',
+    'dp_case_content_case_code',
+    'dp_case_content_opener_code',
     'selected once per investigation generation',
     'source_stance',
     'next_lead'
 ) {
     Add-Result (
-        $caseRuntime.Contains($token) -or $caseDefinition.Contains($token)
+        $caseRuntime.Contains($token) -or
+        $caseDefinition.Contains($token) -or
+        $generatedCatalog.Contains($token)
     ) "case-content contract contains $token"
 }
 
 foreach ($token in
     'id = "convenient_accident"',
+    'code = 1001',
     'id = "pritoky_innkeeper_strong_suspicion"',
+    'code = 1101',
     'source_stance = "afraid"',
     'confidence = 20',
     'next_lead = "vojtech_belongings"',
     'region = "kutnohorsko"',
     'settlement = "pritoky"'
 ) {
-    Add-Result ($caseDefinition.Contains($token)) `
-        "canary content contains $token"
+    Add-Result ($generatedCatalog.Contains($token)) `
+        "compiled canary content contains $token"
 }
 
 $contentReload =
-    'Script.ReloadScript("Scripts/mods/content/dp_case_convenient_accident.lua")'
+    'Script.ReloadScript("Scripts/mods/generated/dp_case_catalog.lua")'
 $caseRuntimeReload =
     'Script.ReloadScript("Scripts/mods/dpcasecontent.lua")'
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
@@ -108,7 +117,7 @@ if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
     Add-Result (Test-Path -LiteralPath $compiler) 'LuaCompiler is available'
-    foreach ($path in $caseDefinitionPath, $caseRuntimePath, $evidencePath) {
+    foreach ($path in $generatedCatalogPath, $caseRuntimePath, $evidencePath) {
         if ((Test-Path -LiteralPath $compiler) -and
             (Test-Path -LiteralPath $path)) {
             & $compiler -p $path *> $null
