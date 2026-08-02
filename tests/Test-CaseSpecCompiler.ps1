@@ -40,7 +40,11 @@ $requiredCommands = @(
     'Read-DpCaseSpec',
     'Read-DpCaseSettlementBindings',
     'Get-DpCaseSpecValidationErrors',
-    'Get-DpValidatedCaseSpecs'
+    'Get-DpValidatedCaseSpecs',
+    'ConvertTo-DpLocalizationXml',
+    'ConvertTo-DpStormRoleXml',
+    'ConvertTo-DpScriptContextXml',
+    'ConvertTo-DpItemTableXml'
 )
 foreach ($command in $requiredCommands) {
     Add-Result ($null -ne (Get-Command $command -ErrorAction SilentlyContinue)) `

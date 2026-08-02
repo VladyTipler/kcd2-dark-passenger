@@ -1188,6 +1188,8 @@ DarkPassengerQuestBridge.REQUESTS = {
         region = "trosecko",
         context = "dp_select_victim_trosecko",
         deathContext = "dp_target_dead_trosecko",
+        rumorContext = "dp_rumor_heard_trosecko",
+        witnessContext = "dp_witness_heard_trosecko",
     },
 }
 DarkPassengerQuestBridge.KILL_CONTEXT = "dp_ordinary_human_kill"

@@ -240,6 +240,216 @@ function ConvertTo-DpXmlText {
     return [System.Security.SecurityElement]::Escape($Value)
 }
 
+function ConvertTo-DpLocalizationXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseLiteralPath,
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)][ValidateSet('ru', 'en')][string]$Language
+    )
+
+    [xml]$base = [System.IO.File]::ReadAllText($BaseLiteralPath)
+    $rows = [System.Collections.Generic.List[object]]::new()
+    $values = [ordered]@{}
+    foreach ($row in @($base.Table.Row)) {
+        $cells = @($row.Cell)
+        if ($cells.Count -lt 2) { continue }
+        $key = [string]$cells[0]
+        $value = [string]$cells[1]
+        if ($values.Contains($key)) {
+            throw "Duplicate localization key '$key' in $BaseLiteralPath"
+        }
+        $values[$key] = $value
+        $rows.Add([ordered]@{ key = $key; value = $value })
+    }
+
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        if ($null -eq $case.PSObject.Properties['localization']) {
+            continue
+        }
+        $languageRows = $case.localization.$Language
+        if ($null -eq $languageRows) { continue }
+        foreach ($property in $languageRows.PSObject.Properties) {
+            $key = [string]$property.Name
+            $value = [string]$property.Value
+            if ($values.Contains($key)) {
+                if ([string]$values[$key] -ne $value) {
+                    throw (
+                        "Localization key '$key' conflicts with existing " +
+                        "$Language text."
+                    )
+                }
+                continue
+            }
+            $values[$key] = $value
+            $rows.Add([ordered]@{ key = $key; value = $value })
+        }
+    }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('<?xml version="1.0" encoding="utf-8"?>')
+    $lines.Add('<Table>')
+    foreach ($row in $rows) {
+        $key = ConvertTo-DpXmlText ([string]$row.key)
+        $value = ConvertTo-DpXmlText ([string]$row.value)
+        $lines.Add("`t<Row><Cell>$key</Cell><Cell>$value</Cell></Row>")
+    }
+    $lines.Add('</Table>')
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-DpStormRoleXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)]$Bindings
+    )
+
+    $rules = @([regex]::Matches($BaseXml, '(?s)<rule\b.*?</rule>'))
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $binding = @($Bindings.settlements | Where-Object {
+            [string]$_.region -eq [string]$case.constraints.region -and
+            [string]$_.settlement -eq [string]$case.constraints.settlement
+        })[0]
+        foreach ($role in 'innkeeper', 'witness') {
+            $roleBinding = $binding.roles.PSObject.Properties[$role].Value
+            $entityName = [string]$roleBinding.entityName
+            $dialogueRole = [string]$roleBinding.dialogueRole
+            $existing = @($rules | Where-Object {
+                $_.Value.Contains("<hasName name=`"$entityName`" />") -and
+                $_.Value.Contains("<addRole name=`"$dialogueRole`" />")
+            })
+            if ($existing.Count -gt 0) { continue }
+
+            $ruleName = 'darkpassenger_' +
+                ([string]$case.constraints.settlement -replace '[^A-Za-z0-9_]', '_') +
+                '_' + $role
+            if ($BaseXml.Contains("<rule name=`"$ruleName`">") -or
+                @($additions | Where-Object {
+                    $_.Contains("<rule name=`"$ruleName`">")
+                }).Count -gt 0) {
+                throw "Storm rule name collision: $ruleName"
+            }
+            $entityXml = ConvertTo-DpXmlText $entityName
+            $roleXml = ConvertTo-DpXmlText $dialogueRole
+            $additions.Add(@"
+    <rule name="$ruleName">
+      <selectors>
+        <hasName name="$entityXml" />
+      </selectors>
+      <operations>
+        <addRole name="$roleXml" />
+      </operations>
+    </rule>
+"@.TrimEnd())
+        }
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = '  </rules>'
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Storm role table has no rules terminator.' }
+    return $BaseXml.Insert(
+        $index,
+        ($additions -join "`n") + "`n"
+    )
+}
+
+function ConvertTo-DpScriptContextXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $names = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($match in [regex]::Matches(
+        $BaseXml,
+        '<ScriptContextDatabaseNode\s+Name="([^"]+)"'
+    )) {
+        [void]$names.Add([string]$match.Groups[1].Value)
+    }
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        foreach ($context in @(
+            [string]$case.native.contexts.rumorHeard,
+            [string]$case.native.contexts.witnessHeard
+        )) {
+            if ($names.Add($context)) {
+                $contextXml = ConvertTo-DpXmlText $context
+                $additions.Add(
+                    "    <ScriptContextDatabaseNode Name=`"$contextXml`" Class=`"Entity`" />"
+                )
+            }
+        }
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = '  </ScriptContexts>'
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'ScriptContext table has no terminator.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpItemTableXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)]$Bindings
+    )
+
+    $knownIds = [ordered]@{}
+    $knownNames = [ordered]@{}
+    foreach ($match in [regex]::Matches(
+        $BaseXml,
+        '<Document\b[^>]*\bId="([^"]+)"[^>]*\bName="([^"]+)"'
+    )) {
+        $knownIds[[string]$match.Groups[1].Value] =
+            [string]$match.Groups[2].Value
+        $knownNames[[string]$match.Groups[2].Value] =
+            [string]$match.Groups[1].Value
+    }
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $documentSteps = @($case.evidence | Where-Object kind -eq 'document')
+        if ($documentSteps.Count -eq 0) { continue }
+        $binding = @($Bindings.settlements | Where-Object {
+            [string]$_.region -eq [string]$case.constraints.region -and
+            [string]$_.settlement -eq [string]$case.constraints.settlement
+        })[0]
+        foreach ($step in $documentSteps) {
+            $id = [string]$binding.roles.document.documentGuid
+            $name = [string]$step.item.name
+            if ($knownIds.Contains($id)) {
+                if ([string]$knownIds[$id] -ne $name) {
+                    throw "Document GUID collision: $id"
+                }
+                continue
+            }
+            if ($knownNames.Contains($name)) {
+                throw "Document item name collision: $name"
+            }
+            $knownIds[$id] = $name
+            $knownNames[$name] = $id
+            $idXml = ConvertTo-DpXmlText $id
+            $nameXml = ConvertTo-DpXmlText $name
+            $nameKeyXml = ConvertTo-DpXmlText ([string]$step.item.nameKey)
+            $infoKeyXml = ConvertTo-DpXmlText ([string]$step.item.infoKey)
+            $contentKeyXml = ConvertTo-DpXmlText ([string]$step.item.contentKey)
+            $additions.Add(@"
+        <Document Type="5" IconId="letter_simple" UIInfo="$infoKeyXml" UIName="$nameKeyXml" PickpocketInPouch="true" Model="characters/assets/parchment_folded/parchment_folded.cdf" EntityScript="Book" Weight="0" Price="0" FadeCoef="1.333333" VisibilityCoef="1" Id="$idXml" Name="$nameXml">
+            <DocumentContent Parts="$contentKeyXml" />
+        </Document>
+"@.TrimEnd())
+        }
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</ItemClasses>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Item table has no ItemClasses terminator.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
 function ConvertTo-DpDialogueXml {
     param(
         [Parameter(Mandatory)]$Dialogue,
@@ -750,5 +960,9 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpCaseCatalogLua',
     'ConvertTo-DpCaseCompatibilityReport',
     'ConvertTo-DpDialogueXml',
-    'ConvertTo-DpNativeRegionWiring'
+    'ConvertTo-DpNativeRegionWiring',
+    'ConvertTo-DpLocalizationXml',
+    'ConvertTo-DpStormRoleXml',
+    'ConvertTo-DpScriptContextXml',
+    'ConvertTo-DpItemTableXml'
 )

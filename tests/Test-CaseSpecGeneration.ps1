@@ -49,10 +49,18 @@ try {
         'mod\Data\Scripts\mods\generated\dp_case_catalog.lua'
     $reportPath = Join-Path $testRoot `
         'generated\cases\case-compatibility.json'
+    $englishPath = Join-Path $testRoot `
+        'generated\localization\English\text__darkpassengertest.xml'
+    $russianPath = Join-Path $testRoot `
+        'generated\localization\Russian\text__darkpassengertest.xml'
     Add-Result (Test-Path -LiteralPath $catalogPath) `
         'compiler emits Lua runtime catalog'
     Add-Result (Test-Path -LiteralPath $reportPath) `
         'compiler emits compatibility report'
+    Add-Result (Test-Path -LiteralPath $englishPath) `
+        'compiler emits English localization'
+    Add-Result (Test-Path -LiteralPath $russianPath) `
+        'compiler emits Russian localization'
 
     $catalog = if (Test-Path -LiteralPath $catalogPath) {
         [System.IO.File]::ReadAllText($catalogPath)
@@ -138,16 +146,20 @@ try {
 
     $firstCatalogHash = Get-Hash $catalogPath
     $firstReportHash = Get-Hash $reportPath
+    $firstEnglishHash = Get-Hash $englishPath
+    $firstRussianHash = Get-Hash $russianPath
     & $compilerPath `
         -CaseRoot $caseRoot `
         -BindingPath $bindingPath `
         -BuildRoot $testRoot
     Add-Result (
         $firstCatalogHash -eq (Get-Hash $catalogPath) -and
-        $firstReportHash -eq (Get-Hash $reportPath)
+        $firstReportHash -eq (Get-Hash $reportPath) -and
+        $firstEnglishHash -eq (Get-Hash $englishPath) -and
+        $firstRussianHash -eq (Get-Hash $russianPath)
     ) 'repeated compilation is byte-identical'
 
-    foreach ($path in $catalogPath, $reportPath) {
+    foreach ($path in $catalogPath, $reportPath, $englishPath, $russianPath) {
         $bytes = [System.IO.File]::ReadAllBytes($path)
         Add-Result (
             $bytes.Length -lt 3 -or

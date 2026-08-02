@@ -18,7 +18,7 @@ $areaBindingGeneratorPath =
 $levelRegistryMergeModulePath =
     Join-Path $PSScriptRoot 'LevelRegistryMerge.psm1'
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
-$localizationRoot = Join-Path $repoRoot 'localization'
+$generatedLocalizationRoot = Join-Path $buildParent 'generated\localization'
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
 
 $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot)
@@ -503,7 +503,8 @@ foreach ($regionalLevelRoot in $regionalLevelRoots) {
 }
 
 foreach ($language in @('English', 'Russian')) {
-    $sourceFile = Join-Path $localizationRoot "$language\text__darkpassengertest.xml"
+    $sourceFile = Join-Path $generatedLocalizationRoot `
+        "$language\text__darkpassengertest.xml"
     $outputPak = Join-Path $localizationOutput "${language}_xml.pak"
     Push-Location (Split-Path -Parent $sourceFile)
     try {
