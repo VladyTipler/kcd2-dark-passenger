@@ -1,0 +1,156 @@
+param()
+
+$ErrorActionPreference = 'Stop'
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
+$casePath = Join-Path $repoRoot `
+    'content\cases\convenient-accident.case.json'
+$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+
+$script:checks = 0
+$script:failures = [System.Collections.Generic.List[string]]::new()
+
+function Add-Result {
+    param([bool]$Condition, [string]$Label)
+    $script:checks++
+    if ($Condition) {
+        Write-Host "PASS: $Label"
+        return
+    }
+    $script:failures.Add($Label)
+    Write-Host "FAIL: $Label"
+}
+
+Add-Result (Test-Path -LiteralPath $modulePath) 'CaseSpec compiler module exists'
+Add-Result (Test-Path -LiteralPath $casePath) `
+    'convenient-accident CaseSpec exists'
+Add-Result (Test-Path -LiteralPath $bindingPath) `
+    'settlement binding source exists'
+
+if (Test-Path -LiteralPath $modulePath) {
+    Import-Module $modulePath -Force
+}
+
+$requiredCommands = @(
+    'Read-DpCaseSpec',
+    'Read-DpCaseSettlementBindings',
+    'Get-DpCaseSpecValidationErrors',
+    'Get-DpValidatedCaseSpecs'
+)
+foreach ($command in $requiredCommands) {
+    Add-Result ($null -ne (Get-Command $command -ErrorAction SilentlyContinue)) `
+        "compiler exports $command"
+}
+
+if ((Test-Path -LiteralPath $modulePath) -and
+    (Test-Path -LiteralPath $casePath) -and
+    (Test-Path -LiteralPath $bindingPath)) {
+    $case = Read-DpCaseSpec -LiteralPath $casePath
+    $bindings = Read-DpCaseSettlementBindings -LiteralPath $bindingPath
+    $errors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $case `
+        -Bindings $bindings `
+        -SourceName (Split-Path -Leaf $casePath))
+
+    Add-Result ($errors.Count -eq 0) 'authored Pritoky CaseSpec validates'
+    Add-Result ($case.id -eq 'convenient_accident') `
+        'CaseSpec preserves stable case id'
+    Add-Result ([int]$case.code -eq 1001) `
+        'CaseSpec has stable numeric code'
+    Add-Result (
+        $case.constraints.region -eq 'kutnohorsko' -and
+        $case.constraints.settlement -eq 'pritoky'
+    ) 'CaseSpec is constrained to Pritoky'
+    Add-Result (@($case.evidence).Count -eq 3) `
+        'CaseSpec contains three evidence steps'
+    Add-Result (
+        (@($case.evidence | ForEach-Object { [int]$_.confidence }) |
+            Measure-Object -Sum).Sum -eq 70
+    ) 'CaseSpec evidence reaches reveal threshold'
+    Add-Result (
+        -not [string]::IsNullOrWhiteSpace([string]$case.text.ru.title) -and
+        -not [string]::IsNullOrWhiteSpace([string]$case.text.en.title)
+    ) 'CaseSpec contains Russian and English text'
+
+    $binding = @($bindings.settlements | Where-Object {
+        $_.region -eq 'kutnohorsko' -and $_.settlement -eq 'pritoky'
+    })
+    Add-Result ($binding.Count -eq 1) 'Pritoky has one binding record'
+    Add-Result (
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$binding[0].roles.innkeeper.entityName
+        ) -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$binding[0].roles.document.containerGuid
+        ) -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$binding[0].roles.witness.entityName
+        )
+    ) 'Pritoky resolves all semantic roles'
+
+    function Copy-JsonObject($Value) {
+        return $Value | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    }
+
+    $withoutId = Copy-JsonObject $case
+    $withoutId.id = ''
+    $idErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $withoutId -Bindings $bindings -SourceName 'missing-id.json')
+    Add-Result (
+        $idErrors -contains 'missing-id.json: id is required'
+    ) 'missing identity error is deterministic'
+
+    $duplicateEvidence = Copy-JsonObject $case
+    $duplicateEvidence.evidence[1].id = $duplicateEvidence.evidence[0].id
+    $duplicateErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $duplicateEvidence `
+        -Bindings $bindings `
+        -SourceName 'duplicate-evidence.json')
+    Add-Result (
+        $duplicateErrors -contains (
+            'duplicate-evidence.json: evidence id ' +
+            "'$($duplicateEvidence.evidence[0].id)' is duplicated"
+        )
+    ) 'duplicate evidence IDs are rejected'
+
+    $missingEnglish = Copy-JsonObject $case
+    $missingEnglish.text.en.title = ''
+    $languageErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $missingEnglish `
+        -Bindings $bindings `
+        -SourceName 'missing-english.json')
+    Add-Result (
+        $languageErrors -contains `
+            'missing-english.json: text.en.title is required'
+    ) 'missing bilingual text is rejected'
+
+    $unknownSettlement = Copy-JsonObject $case
+    $unknownSettlement.constraints.settlement = 'unknown_village'
+    $settlementErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $unknownSettlement `
+        -Bindings $bindings `
+        -SourceName 'unknown-settlement.json')
+    Add-Result (
+        $settlementErrors -contains (
+            "unknown-settlement.json: no settlement binding for " +
+            "'kutnohorsko/unknown_village'"
+        )
+    ) 'unsupported settlement is rejected'
+
+    $validated = @(Get-DpValidatedCaseSpecs `
+        -CaseRoot (Split-Path -Parent $casePath) `
+        -BindingPath $bindingPath)
+    Add-Result (
+        $validated.Count -eq 1 -and
+        $validated[0].id -eq 'convenient_accident'
+    ) 'validated loader returns authored cases'
+}
+
+if ($script:failures.Count -gt 0) {
+    Write-Host "RESULT: FAIL ($($script:failures.Count)/$($script:checks))"
+    $script:failures | ForEach-Object { Write-Host " - $_" }
+    exit 1
+}
+
+Write-Host "RESULT: PASS ($($script:checks) checks)"

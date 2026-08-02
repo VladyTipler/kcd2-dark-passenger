@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "convenient_accident",
+  "code": 1001,
+  "weight": 1,
+  "constraints": {
+    "region": "kutnohorsko",
+    "settlement": "pritoky"
+  },
+  "targetPolicy": {
+    "sex": "any",
+    "allowStoryCharacters": false,
+    "requireKillable": true,
+    "requireAlive": true
+  },
+  "crimeProfile": {
+    "innocentVictim": "vojtech",
+    "method": "murder_disguised_as_fall",
+    "coverStory": "drunken_accident"
+  },
+  "revealThreshold": 70,
+  "evidence": [
+    {
+      "id": "pritoky_innkeeper_strong_suspicion",
+      "kind": "dialogue",
+      "role": "innkeeper",
+      "purpose": "strong_suspicion",
+      "sourceStance": "afraid",
+      "confidence": 20,
+      "nextLead": "vojtech_belongings",
+      "promptKey": "dp_evidence_ask_unease"
+    },
+    {
+      "id": "vojtech_belongings",
+      "kind": "document",
+      "role": "document",
+      "confidence": 30,
+      "nextLead": "tavern_witness"
+    },
+    {
+      "id": "tavern_witness",
+      "kind": "dialogue",
+      "role": "witness",
+      "confidence": 20,
+      "nextLead": "reveal_target"
+    }
+  ],
+  "text": {
+    "ru": {
+      "title": "Удобная случайность",
+      "description": "Смерть батрака Войтеха слишком поспешно признали несчастным случаем. Нужно восстановить то, что здешние предпочли забыть."
+    },
+    "en": {
+      "title": "A Convenient Accident",
+      "description": "The farmhand Vojtech's death was too quickly dismissed as an accident. I must uncover what the locals chose to forget."
+    }
+  }
+}

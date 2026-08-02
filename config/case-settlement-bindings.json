@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "settlements": [
+    {
+      "region": "kutnohorsko",
+      "settlement": "pritoky",
+      "roles": {
+        "innkeeper": {
+          "entityName": "kpri_innkeeper",
+          "dialogueRole": "DP_INNKEEPER_RUMOR"
+        },
+        "document": {
+          "containerGuid": "277db45d-28ac-0286",
+          "documentGuid": "73762008-de9b-4c42-b509-235e63e60840",
+          "legacyDocumentGuid": "08a31823-a5c6-43f9-9b4b-27b8230a352f"
+        },
+        "witness": {
+          "entityName": "kpri_woman_10",
+          "dialogueRole": "DP_TAVERN_WITNESS"
+        }
+      }
+    }
+  ]
+}
