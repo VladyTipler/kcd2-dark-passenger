@@ -54,24 +54,38 @@
 6. Keep `AddRumorAction` only behind an explicit debug flag until the new dialogue passes live proof.
 7. Run XML parse, focused tests and LuaCompiler; commit `feat: add authored innkeeper rumor dialogue`.
 
-## Task 3: Add Vojtech's belongings and readable clue
+## Task 3: Prove Vojtech's belongings through live Lua
 
 **Files:**
 
-- Create: `src/Data/Libs/Tables/item/item__darkpassengertest.xml`
-- Modify: `src/Data/Quests/darkpassengertest/kutnohorsko/dark_within_k.xml.template`
-- Modify: `src/Data/Libs/Tables/ai/ScriptContext__darkpassengertest.xml`
-- Modify: `src/Data/Scripts/mods/dpcasecontent.lua`
-- Modify: `src/Data/Scripts/mods/dpevidence.lua`
-- Modify: `localization/English/text__darkpassengertest.xml`
-- Modify: `localization/Russian/text__darkpassengertest.xml`
+- Create: `src/Data/Scripts/mods/dpbelongings.lua`
 - Create: `tests/Test-VojtechBelongingsEvidence.ps1`
+- Modify: `src/Data/Scripts/mods/darkpassengertest.lua`
+- Modify: `src/Data/Scripts/mods/dpevidence.lua`
 
-1. Extract one proven vanilla/reference contract for `Document`, placement/reward and read detection; record exact IDs/API in the test fixture before production edits.
-2. Add failing checks for the accessible belongings objective, the authored document, read-only award `30`, one-shot persistence and transition to the witness lead.
-3. Register the document using the vanilla `Book` model/metadata and place it in one verified accessible Pritoky container or quest-created reward location.
-4. Bridge the actual read event, not inventory possession, into `DarkPassengerEvidence.AddEvidenceStep("vojtech_belongings")`.
-5. Save/load-test before and after reading; commit `feat: add Vojtech belongings clue`.
+1. Add failing contract tests for chest GUID
+   `43e3efd7-6727-0f88`, vanilla document GUID
+   `08a31823-a5c6-43f9-9b4b-27b8230a352f`, reward `30`, generation guards,
+   one-shot persistence, `Stash.inventory:CreateItem` and
+   `Minigame.WasBookOpened(documentGuid)`.
+2. Run `C:\Program Files\PowerShell\7\pwsh.exe -ExecutionPolicy Bypass -File tests\Test-VojtechBelongingsEvidence.ps1`; expect RED because
+   `dpbelongings.lua` does not exist.
+3. Implement the minimal pure transition plus runtime adapter in
+   `dpbelongings.lua`: place once, poll the native opened flag, call
+   `DarkPassengerInvestigation.AddEvidence(30, "vojtech_belongings", generation)`
+   once and stop stale timers by generation/serial.
+4. Load the module from `darkpassengertest.lua` and start it only after the
+   persisted innkeeper rumor is awarded. Preserve vanilla lock, ownership and
+   trespass state.
+5. Run the focused test until GREEN, then LuaCompiler and the full static suite.
+6. Copy only the loose Lua changes into the running dev mod, execute
+   `lua_reload_script Scripts/mods/dpbelongings.lua` and start the current
+   generation through the HTTP bridge. Do not rebuild quest XML or restart.
+7. Verify in `kcd.log`: chest resolved, exactly one document inserted, opened
+   baseline false, reading changes it to true, confidence moves `20 -> 50`, and
+   a second poll/read awards nothing.
+8. Save/load after reading and verify the persisted generation suppresses both
+   reinsertion and duplicate confidence; commit `feat: add Vojtech belongings clue`.
 
 ## Task 4: Add and persist the tavern witness
 
@@ -120,6 +134,5 @@
 
 ## Unresolved questions
 
-- Exact Pritoky container/location for Vojtech's belongings: discover from live/reference data in Task 3.
-- Exact native document-read signal: prove from reference quest before implementation.
 - Exact tavern witness pool: choose from live eligible residents after the first two steps work.
+- Production exact-container marker alias: defer until the no-restart Lua canary passes.
