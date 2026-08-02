@@ -2,7 +2,7 @@ param(
     [string]$CatalogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\victim-candidates.json'),
     [string]$AreaManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
     [string]$TemplatePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'),
-    [string]$KuttenbergRumorDialogSourcePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\innkeeper_rumor_dialog_k.xml'),
+    [string]$NativeWiringPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\generated\cases\native-wiring.json'),
     [string]$EnglishLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\English\text__darkpassengertest.xml'),
     [string]$RussianLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\Russian\text__darkpassengertest.xml'),
     [string]$KuttenbergQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'),
@@ -100,7 +100,8 @@ function New-RegionalQuest {
         [string]$RequestContext,
         [string]$TargetDeathContext,
         [string]$OutputPath,
-        [string]$Template
+        [string]$Template,
+        $NativeWiring
     )
 
     if ($Candidates.Count -gt $MaxCandidatesPerRegion) {
@@ -135,128 +136,14 @@ function New-RegionalQuest {
     $witnessType = ''
     $witnessObjective = ''
 
-    if ($RegionId -eq 'kutnohorsko') {
-        $rumorDialogDefinition = @'
-      <Definitions>
-        <Definition File="dark_within_k/innkeeper_rumor_dialog_k.xml" />
-        <Definition File="dark_within_k/tavern_witness_dialog_k.xml" />
-      </Definitions>
-'@
-        $rumorDialogNodes = @'
-        <MakeArray Name="rumorAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
-          <Constant Name="A" Value="32" />
-        </MakeArray>
-        <BuffTagTrigger Name="rumorAvailableTrigger">
-          <Asset Name="Souls" Alias="player" />
-          <Edge From="rumorAvailableTags.Array" To="BuffTags" />
-          <Edge From="questProgress.Active" To="IsActive" />
-        </BuffTagTrigger>
-        <State Name="rumorDialogueAvailable" TypeT="bool">
-          <Edge From="rumorAvailableTrigger.OnAdded" To="SetTrue" />
-          <Edge From="rumorAvailableTrigger.OnRemoved" To="SetFalse" />
-          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
-          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
-          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
-        </State>
-        <innkeeper_rumor_dialog_k Name="innkeeperRumorDialog">
-          <Edge From="rumorDialogueAvailable.State" To="available" />
-        </innkeeper_rumor_dialog_k>
-        <State Name="rumorDialogueRequestActive" TypeT="bool">
-          <Edge From="questProgress.OnActive" To="SetFalse" />
-          <Edge From="innkeeperRumorDialog.heard" To="SetTrue" />
-          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
-          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
-          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
-        </State>
-        <SetEntityContext Name="rumorDialogueRequest">
-          <Constant Name="Context" Value="dp_rumor_heard_kutnohorsko" />
-          <Asset Name="Souls" Alias="player" />
-          <Edge From="rumorDialogueRequestActive.State" To="IsActive" />
-        </SetEntityContext>
-'@
-        $witnessNodes = @'
-        <MakeArray Name="witnessAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
-          <Constant Name="A" Value="36" />
-        </MakeArray>
-        <BuffTagTrigger Name="witnessAvailableTrigger">
-          <Asset Name="Souls" Alias="player" />
-          <Edge From="witnessAvailableTags.Array" To="BuffTags" />
-          <Edge From="questProgress.Active" To="IsActive" />
-        </BuffTagTrigger>
-        <State Name="witnessDialogueAvailable" TypeT="bool">
-          <Edge From="witnessAvailableTrigger.OnAdded" To="SetTrue" />
-          <Edge From="witnessAvailableTrigger.OnRemoved" To="SetFalse" />
-          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
-          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
-          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
-        </State>
-        <tavern_witness_dialog_k Name="tavernWitnessDialog">
-          <Edge From="witnessDialogueAvailable.State" To="available" />
-        </tavern_witness_dialog_k>
-        <State Name="witnessDialogueRequestActive" TypeT="bool">
-          <Edge From="questProgress.OnActive" To="SetFalse" />
-          <Edge From="tavernWitnessDialog.heard" To="SetTrue" />
-          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
-          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
-          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
-          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
-        </State>
-        <SetEntityContext Name="witnessDialogueRequest">
-          <Constant Name="Context" Value="dp_witness_heard_kutnohorsko" />
-          <Asset Name="Souls" Alias="player" />
-          <Edge From="witnessDialogueRequestActive.State" To="IsActive" />
-        </SetEntityContext>
-'@
-        $evidenceWitnessEdge = '          <Edge From="witnessAvailableTrigger.OnAdded" To="SetDone" />'
-        $witnessObjectiveNodes = @'
-        <State Name="witnessObjectiveProgress" TypeT="DP_WitnessProgress">
-          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
-          <Edge From="questProgress.OnActive" To="SetNone" />
-          <Edge From="witnessAvailableTrigger.OnAdded" To="SetActive" />
-          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
-        </State>
-        <DarkWithinWitnessObjective_k Name="witnessVisual">
-          <Edge From="witnessObjectiveProgress.State" To="Progress" />
-        </DarkWithinWitnessObjective_k>
-'@
-        $witnessType = @'
-        <Type TypeName="DP_WitnessProgress">
-          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
-          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
-          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
-        </Type>
-'@
-        $witnessObjective = @'
-        <Objective TypeT="DP_WitnessProgress" Name="DarkWithinWitnessObjective_k">
-          <LocalizedName StringName="dark_within_witness_name" Text="Question the inn workers">
-            <Localization Text="Question the inn workers" Language="WHS" />
-          </LocalizedName>
-          <Logs>
-            <EnumLog Type="None" Name="None" />
-            <EnumLog Type="Started" Name="Active" IsTracked="true">
-              <Log StringName="dark_within_witness_active" Text="Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.">
-                <Localization Text="Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man." Language="WHS" />
-              </Log>
-            </EnumLog>
-            <EnumLog Type="Completed" Name="Done">
-              <Log StringName="dark_within_witness_done" Text="The maid confirmed that Vojtech had been threatened and identified the suspect.">
-                <Localization Text="The maid confirmed that Vojtech had been threatened and identified the suspect." Language="WHS" />
-              </Log>
-            </EnumLog>
-          </Logs>
-        </Objective>
-'@
+    if ($null -ne $NativeWiring) {
+        $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
+        $rumorDialogNodes = [string]$NativeWiring.rumorNodes
+        $witnessNodes = [string]$NativeWiring.witnessNodes
+        $evidenceWitnessEdge = [string]$NativeWiring.evidenceWitnessEdge
+        $witnessObjectiveNodes = [string]$NativeWiring.witnessObjectiveNodes
+        $witnessType = [string]$NativeWiring.witnessType
+        $witnessObjective = [string]$NativeWiring.witnessObjective
     }
 
     $candidateSlots = @($Candidates | ForEach-Object { [int]$_.slot })
@@ -491,25 +378,30 @@ function New-RegionalQuest {
 
     [xml]$null = $questXml
     Write-Utf8NoBom -LiteralPath $OutputPath -Content $questXml
-    if ($RegionId -eq 'kutnohorsko') {
-        if (-not (Test-Path -LiteralPath $KuttenbergRumorDialogSourcePath)) {
-            throw "Innkeeper rumor dialogue not found: $KuttenbergRumorDialogSourcePath"
+    if ($null -ne $NativeWiring) {
+        $dialogSourceRoot = Join-Path (
+            Split-Path -Parent (
+                Split-Path -Parent (
+                    Split-Path -Parent (
+                        Split-Path -Parent $OutputPath
+                    )
+                )
+            )
+        ) (
+            'darkpassengertest\' + $RegionId + '\' +
+            [string]$NativeWiring.dialogFolder
+        )
+        $dialogOutputRoot = Join-Path (Split-Path -Parent $OutputPath) `
+            ([string]$NativeWiring.dialogFolder)
+        foreach ($fileName in @($NativeWiring.dialogueFiles)) {
+            $dialogSourcePath = Join-Path $dialogSourceRoot ([string]$fileName)
+            if (-not (Test-Path -LiteralPath $dialogSourcePath)) {
+                throw "Compiled dialogue not found: $dialogSourcePath"
+            }
+            Write-Utf8NoBom `
+                -LiteralPath (Join-Path $dialogOutputRoot ([string]$fileName)) `
+                -Content ([System.IO.File]::ReadAllText($dialogSourcePath))
         }
-        $dialogOutputPath = Join-Path `
-            (Split-Path -Parent $OutputPath) `
-            'dark_within_k\innkeeper_rumor_dialog_k.xml'
-        Write-Utf8NoBom `
-            -LiteralPath $dialogOutputPath `
-            -Content (Get-Content -Raw -LiteralPath $KuttenbergRumorDialogSourcePath)
-        $witnessSourcePath = Join-Path `
-            (Split-Path -Parent $KuttenbergRumorDialogSourcePath) `
-            'tavern_witness_dialog_k.xml'
-        if (-not (Test-Path -LiteralPath $witnessSourcePath)) {
-            throw "Tavern witness dialogue not found: $witnessSourcePath"
-        }
-        Write-Utf8NoBom `
-            -LiteralPath (Join-Path (Split-Path -Parent $dialogOutputPath) 'tavern_witness_dialog_k.xml') `
-            -Content (Get-Content -Raw -LiteralPath $witnessSourcePath)
     }
     Write-Host "Generated $RegionId graph: $($Candidates.Count) candidates, $questBytes bytes."
 }
@@ -523,12 +415,20 @@ if (-not (Test-Path -LiteralPath $TemplatePath)) {
 if (-not (Test-Path -LiteralPath $AreaManifestPath)) {
     throw "Settlement investigation area manifest not found: $AreaManifestPath"
 }
+if (-not (Test-Path -LiteralPath $NativeWiringPath)) {
+    throw "Compiled native wiring not found: $NativeWiringPath"
+}
 
 $catalog = Get-Content -Raw -LiteralPath $CatalogPath | ConvertFrom-Json
 if ($catalog.schemaVersion -ne 2) {
     throw "Unsupported candidate catalogue schemaVersion '$($catalog.schemaVersion)'."
 }
 $areaManifest = Get-Content -Raw -LiteralPath $AreaManifestPath | ConvertFrom-Json
+$nativeWiringManifest = Get-Content -Raw -LiteralPath $NativeWiringPath |
+    ConvertFrom-Json -Depth 100
+if ([int]$nativeWiringManifest.schemaVersion -ne 1) {
+    throw "Unsupported native wiring schemaVersion '$($nativeWiringManifest.schemaVersion)'."
+}
 if ($areaManifest.schemaVersion -ne 1) {
     throw "Unsupported settlement area manifest schemaVersion '$($areaManifest.schemaVersion)'."
 }
@@ -623,6 +523,13 @@ foreach ($specification in $regionSpecifications) {
         $allSearchAreas |
             Where-Object { $_.gameRegion -eq $specification.region }
     )
+    $regionalNativeWiring = @(
+        $nativeWiringManifest.regions |
+            Where-Object { $_.region -eq $specification.region }
+    )
+    if ($regionalNativeWiring.Count -gt 1) {
+        throw "Region '$($specification.region)' has multiple native case wirings."
+    }
     New-RegionalQuest `
         -Candidates $regionalCandidates `
         -SearchAreas $regionalSearchAreas `
@@ -636,7 +543,13 @@ foreach ($specification in $regionSpecifications) {
         -RequestContext $specification.requestContext `
         -TargetDeathContext $specification.targetDeathContext `
         -OutputPath $specification.output `
-        -Template $template
+        -Template $template `
+        -NativeWiring $(
+            if ($regionalNativeWiring.Count -eq 1) {
+                $regionalNativeWiring[0]
+            }
+            else { $null }
+        )
 }
 
 $luaRecords = [System.Collections.Generic.List[string]]::new()

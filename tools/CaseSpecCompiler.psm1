@@ -234,6 +234,241 @@ function ConvertTo-DpCaseCompatibilityReport {
     }
 }
 
+function ConvertTo-DpXmlText {
+    param([AllowNull()][string]$Value)
+    if ($null -eq $Value) { return '' }
+    return [System.Security.SecurityElement]::Escape($Value)
+}
+
+function ConvertTo-DpDialogueXml {
+    param(
+        [Parameter(Mandatory)]$Dialogue,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('<?xml version="1.0" encoding="utf-8"?>')
+    $lines.Add('<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">')
+    $lines.Add('  <Skald>')
+    $lines.Add("    <FaderDialog Name=`"$($Dialogue.graphName)`">")
+    $lines.Add('      <Ports>')
+    $lines.Add('        <Port Name="available" Direction="In" Type="bool">')
+    $lines.Add(
+        "          <DesignName Text=`"$(ConvertTo-DpXmlText $Dialogue.availableLabel)`" />"
+    )
+    $lines.Add('        </Port>')
+    $lines.Add('        <Port Name="heard" Direction="Out" Type="trigger">')
+    $lines.Add(
+        "          <DesignName Text=`"$(ConvertTo-DpXmlText $Dialogue.heardLabel)`" />"
+    )
+    $lines.Add('        </Port>')
+    $lines.Add('      </Ports>')
+    $lines.Add("      <Text StringName=`"$($Dialogue.rootKey)`" />")
+    $lines.Add('      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false">')
+    $lines.Add("        <Decision Name=`"$($Dialogue.kind)_root`" Priority=`"General`">")
+    $lines.Add('          <Sequences>')
+    $lines.Add(
+        "            <Sequence EndType=`"EndDialogue`" EntryCondition=`"Port('available')`" Name=`"$($Dialogue.sequenceName)`">"
+    )
+    $lines.Add("              <UiPrompt StringName=`"$($Dialogue.promptKey)`" />")
+    $lines.Add('              <Triggers>')
+    $lines.Add('                <Port Name="heard" />')
+    $lines.Add('              </Triggers>')
+    $lines.Add('              <Elements>')
+    foreach ($response in @($Dialogue.responses)) {
+        $role = [string]$response.role
+        if ($role -ne 'HENRY') {
+            $roleBinding = $Binding.roles.PSObject.Properties[$role]
+            if ($null -eq $roleBinding) {
+                throw "Dialogue '$($Dialogue.graphName)' uses unbound role '$role'."
+            }
+            $role = [string]$roleBinding.Value.dialogueRole
+        }
+        $lines.Add("                <Response Role=`"$role`">")
+        $lines.Add("                  <Text StringName=`"$($response.key)`" />")
+        $lines.Add('                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>')
+        $lines.Add('                </Response>')
+    }
+    $lines.Add('              </Elements>')
+    $lines.Add('            </Sequence>')
+    $lines.Add('          </Sequences>')
+    $lines.Add('        </Decision>')
+    $lines.Add('      </Dialogue>')
+    $lines.Add('    </FaderDialog>')
+    $lines.Add('  </Skald>')
+    $lines.Add('</Database>')
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-DpNativeRegionWiring {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $native = $CaseSpec.native
+    $rumor = @($native.dialogues | Where-Object kind -eq 'rumor')
+    $witness = @($native.dialogues | Where-Object kind -eq 'witness')
+    if ($rumor.Count -ne 1 -or $witness.Count -ne 1) {
+        throw "Case '$($CaseSpec.id)' requires one rumor and one witness dialogue."
+    }
+    $rumor = $rumor[0]
+    $witness = $witness[0]
+    $folder = [string]$native.dialogFolder
+    $rumorTag = [int]$native.signals.rumorAvailableTag
+    $witnessTag = [int]$native.signals.witnessAvailableTag
+    $rumorContext = [string]$native.contexts.rumorHeard
+    $witnessContext = [string]$native.contexts.witnessHeard
+    $objective = $native.witnessObjective
+    $objectiveAssetName = [string]$objective.assetName
+
+    $definitions = @"
+      <Definitions>
+        <Definition File="$folder/$($rumor.fileName)" />
+        <Definition File="$folder/$($witness.fileName)" />
+      </Definitions>
+"@
+    $rumorNodes = @"
+        <MakeArray Name="rumorAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="$rumorTag" />
+        </MakeArray>
+        <BuffTagTrigger Name="rumorAvailableTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="rumorAvailableTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="rumorDialogueAvailable" TypeT="bool">
+          <Edge From="rumorAvailableTrigger.OnAdded" To="SetTrue" />
+          <Edge From="rumorAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <$($rumor.graphName) Name="innkeeperRumorDialog">
+          <Edge From="rumorDialogueAvailable.State" To="available" />
+        </$($rumor.graphName)>
+        <State Name="rumorDialogueRequestActive" TypeT="bool">
+          <Edge From="questProgress.OnActive" To="SetFalse" />
+          <Edge From="innkeeperRumorDialog.heard" To="SetTrue" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <SetEntityContext Name="rumorDialogueRequest">
+          <Constant Name="Context" Value="$rumorContext" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="rumorDialogueRequestActive.State" To="IsActive" />
+        </SetEntityContext>
+"@
+    $witnessNodes = @"
+        <MakeArray Name="witnessAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="$witnessTag" />
+        </MakeArray>
+        <BuffTagTrigger Name="witnessAvailableTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="witnessAvailableTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="witnessDialogueAvailable" TypeT="bool">
+          <Edge From="witnessAvailableTrigger.OnAdded" To="SetTrue" />
+          <Edge From="witnessAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <$($witness.graphName) Name="tavernWitnessDialog">
+          <Edge From="witnessDialogueAvailable.State" To="available" />
+        </$($witness.graphName)>
+        <State Name="witnessDialogueRequestActive" TypeT="bool">
+          <Edge From="questProgress.OnActive" To="SetFalse" />
+          <Edge From="tavernWitnessDialog.heard" To="SetTrue" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <SetEntityContext Name="witnessDialogueRequest">
+          <Constant Name="Context" Value="$witnessContext" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="witnessDialogueRequestActive.State" To="IsActive" />
+        </SetEntityContext>
+"@
+    $witnessObjectiveNodes = @"
+        <State Name="witnessObjectiveProgress" TypeT="DP_WitnessProgress">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+          <Edge From="witnessAvailableTrigger.OnAdded" To="SetActive" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
+        </State>
+        <$objectiveAssetName Name="witnessVisual">
+          <Edge From="witnessObjectiveProgress.State" To="Progress" />
+        </$objectiveAssetName>
+"@
+    $witnessType = @"
+        <Type TypeName="DP_WitnessProgress">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+"@
+    $fallbackName = ConvertTo-DpXmlText $objective.fallbackName
+    $fallbackActive = ConvertTo-DpXmlText $objective.fallbackActive
+    $fallbackDone = ConvertTo-DpXmlText $objective.fallbackDone
+    $witnessObjective = @"
+        <Objective TypeT="DP_WitnessProgress" Name="$objectiveAssetName">
+          <LocalizedName StringName="$($objective.nameKey)" Text="$fallbackName">
+            <Localization Text="$fallbackName" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+            <EnumLog Type="Started" Name="Active" IsTracked="true">
+              <Log StringName="$($objective.activeKey)" Text="$fallbackActive">
+                <Localization Text="$fallbackActive" Language="WHS" />
+              </Log>
+            </EnumLog>
+            <EnumLog Type="Completed" Name="Done">
+              <Log StringName="$($objective.doneKey)" Text="$fallbackDone">
+                <Localization Text="$fallbackDone" Language="WHS" />
+              </Log>
+            </EnumLog>
+          </Logs>
+        </Objective>
+"@
+
+    return [ordered]@{
+        caseId = [string]$CaseSpec.id
+        region = [string]$CaseSpec.constraints.region
+        settlement = [string]$CaseSpec.constraints.settlement
+        questName = [string]$native.questName
+        dialogFolder = $folder
+        dialogDefinitions = $definitions.TrimEnd()
+        rumorNodes = $rumorNodes.TrimEnd()
+        witnessNodes = $witnessNodes.TrimEnd()
+        evidenceWitnessEdge =
+            '          <Edge From="witnessAvailableTrigger.OnAdded" To="SetDone" />'
+        witnessObjectiveNodes = $witnessObjectiveNodes.TrimEnd()
+        witnessType = $witnessType.TrimEnd()
+        witnessObjective = $witnessObjective.TrimEnd()
+        dialogues = @($native.dialogues | ForEach-Object {
+            [ordered]@{
+                fileName = [string]$_.fileName
+                xml = ConvertTo-DpDialogueXml -Dialogue $_ -Binding $Binding
+            }
+        })
+    }
+}
+
 function Get-DpCaseSpecValidationErrors {
     param(
         [Parameter(Mandatory)]$CaseSpec,
@@ -283,6 +518,58 @@ function Get-DpCaseSpecValidationErrors {
                 $errors.Add("$prefix text.$language.$field is required")
             }
         }
+    }
+
+    if (-not (Test-DpTextValue $CaseSpec.native.questName)) {
+        $errors.Add("$prefix native.questName is required")
+    }
+    if (-not (Test-DpTextValue $CaseSpec.native.dialogFolder)) {
+        $errors.Add("$prefix native.dialogFolder is required")
+    }
+    foreach ($dialogueKind in 'rumor', 'witness') {
+        $dialogues = @($CaseSpec.native.dialogues | Where-Object {
+            [string]$_.kind -eq $dialogueKind
+        })
+        if ($dialogues.Count -ne 1) {
+            $errors.Add(
+                "$prefix native.dialogues requires one '$dialogueKind' entry"
+            )
+            continue
+        }
+        $dialogue = $dialogues[0]
+        foreach ($field in 'graphName', 'fileName', 'rootKey',
+            'sequenceName', 'promptKey') {
+            if (-not (Test-DpTextValue $dialogue.$field)) {
+                $errors.Add(
+                    "$prefix native dialogue '$dialogueKind' $field is required"
+                )
+            }
+        }
+        foreach ($response in @($dialogue.responses)) {
+            $role = [string]$response.role
+            if (-not (Test-DpTextValue $response.key)) {
+                $errors.Add(
+                    "$prefix native dialogue '$dialogueKind' response key is required"
+                )
+            }
+            if ($role -ne 'HENRY' -and $binding.Count -eq 1 -and
+                $null -eq $binding[0].roles.PSObject.Properties[$role]) {
+                $errors.Add(
+                    "$prefix native dialogue '$dialogueKind' role '$role' is not bound"
+                )
+            }
+        }
+    }
+    if ([int]$CaseSpec.native.signals.rumorAvailableTag -le 0 -or
+        [int]$CaseSpec.native.signals.witnessAvailableTag -le 0) {
+        $errors.Add("$prefix native signal tags must be positive")
+    }
+    if (-not (Test-DpTextValue $CaseSpec.native.contexts.rumorHeard) -or
+        -not (Test-DpTextValue $CaseSpec.native.contexts.witnessHeard)) {
+        $errors.Add("$prefix native dialogue contexts are required")
+    }
+    if (-not (Test-DpTextValue $CaseSpec.native.witnessObjective.assetName)) {
+        $errors.Add("$prefix native.witnessObjective.assetName is required")
     }
 
     $evidence = @($CaseSpec.evidence)
@@ -416,5 +703,7 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpLuaString',
     'ConvertTo-DpLuaValue',
     'ConvertTo-DpCaseCatalogLua',
-    'ConvertTo-DpCaseCompatibilityReport'
+    'ConvertTo-DpCaseCompatibilityReport',
+    'ConvertTo-DpDialogueXml',
+    'ConvertTo-DpNativeRegionWiring'
 )

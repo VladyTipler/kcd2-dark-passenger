@@ -19,6 +19,73 @@
     "coverStory": "drunken_accident"
   },
   "revealThreshold": 70,
+  "native": {
+    "questName": "dark_within_k",
+    "dialogFolder": "dark_within_k",
+    "signals": {
+      "rumorAvailableTag": 32,
+      "witnessAvailableTag": 36
+    },
+    "contexts": {
+      "rumorHeard": "dp_rumor_heard_kutnohorsko",
+      "witnessHeard": "dp_witness_heard_kutnohorsko"
+    },
+    "dialogues": [
+      {
+        "kind": "rumor",
+        "graphName": "innkeeper_rumor_dialog_k",
+        "fileName": "innkeeper_rumor_dialog_k.xml",
+        "rootKey": "dp_evidence_dialog_root",
+        "sequenceName": "convenient_accident_rumor",
+        "promptKey": "dp_evidence_ask_unease",
+        "availableLabel": "Rumor available",
+        "heardLabel": "Rumor heard",
+        "responses": [
+          { "role": "HENRY", "key": "dp_rumor_henry_unease" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_fear" },
+          { "role": "HENRY", "key": "dp_rumor_henry_why" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_vojtech" },
+          { "role": "HENRY", "key": "dp_rumor_henry_threat" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_refusal" },
+          { "role": "HENRY", "key": "dp_rumor_henry_what_to_seek" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_belongings" }
+        ]
+      },
+      {
+        "kind": "witness",
+        "graphName": "tavern_witness_dialog_k",
+        "fileName": "tavern_witness_dialog_k.xml",
+        "rootKey": "dp_witness_dialog_root",
+        "sequenceName": "vojtech_tavern_witness",
+        "promptKey": "dp_witness_ask_vojtech",
+        "availableLabel": "Witness lead available",
+        "heardLabel": "Witness heard",
+        "responses": [
+          { "role": "HENRY", "key": "dp_witness_henry_working" },
+          { "role": "witness", "key": "dp_witness_maid_many_nights" },
+          { "role": "HENRY", "key": "dp_witness_henry_letter" },
+          { "role": "witness", "key": "dp_witness_maid_fool" },
+          { "role": "HENRY", "key": "dp_witness_henry_dead" },
+          { "role": "witness", "key": "dp_witness_maid_stream" },
+          { "role": "HENRY", "key": "dp_witness_henry_heard" },
+          { "role": "witness", "key": "dp_witness_maid_threat" },
+          { "role": "HENRY", "key": "dp_witness_henry_who" },
+          { "role": "witness", "key": "dp_witness_maid_name" },
+          { "role": "HENRY", "key": "dp_witness_henry_where" },
+          { "role": "witness", "key": "dp_witness_maid_location" }
+        ]
+      }
+    ],
+    "witnessObjective": {
+      "assetName": "DarkWithinWitnessObjective_k",
+      "nameKey": "dark_within_witness_name",
+      "activeKey": "dark_within_witness_active",
+      "doneKey": "dark_within_witness_done",
+      "fallbackName": "Question the inn workers",
+      "fallbackActive": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.",
+      "fallbackDone": "The maid confirmed that Vojtech had been threatened and identified the suspect."
+    }
+  },
   "evidence": [
     {
       "id": "pritoky_innkeeper_strong_suspicion",

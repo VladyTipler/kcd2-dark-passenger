@@ -6,7 +6,9 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $dialogPath = Join-Path $repoRoot `
-    'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\tavern_witness_dialog_k.xml'
+    'build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\tavern_witness_dialog_k.xml'
+$generatedQuestPath = Join-Path $repoRoot `
+    'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'
 $runtimePath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dpwitnesslead.lua'
 $initPath = Join-Path $repoRoot `
@@ -52,6 +54,7 @@ function Add-Result {
 }
 
 $dialog = Read-OptionalText $dialogPath
+$generatedQuest = Read-OptionalText $generatedQuestPath
 $runtime = Read-OptionalText $runtimePath
 $init = Read-OptionalText $initPath
 $belongings = Read-OptionalText $belongingsPath
@@ -215,8 +218,8 @@ foreach ($fragment in
     'TypeT="DP_WitnessProgress"',
     'StringName="dark_within_witness_name"'
 ) {
-    Add-Result ($generator.Contains($fragment)) `
-        "generator emits witness boundary: $fragment"
+    Add-Result ($generatedQuest.Contains($fragment)) `
+        "generated quest contains witness boundary: $fragment"
 }
 
 foreach ($xmlPath in

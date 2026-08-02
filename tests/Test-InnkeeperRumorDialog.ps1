@@ -6,7 +6,9 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $dialogPath = Join-Path $repoRoot `
-    'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\innkeeper_rumor_dialog_k.xml'
+    'build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\innkeeper_rumor_dialog_k.xml'
+$generatedQuestPath = Join-Path $repoRoot `
+    'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'
 $questTemplatePath = Join-Path $repoRoot `
     'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'
 $generatorPath = Join-Path $repoRoot 'tools\Generate-VictimArtifacts.ps1'
@@ -52,6 +54,7 @@ function Add-Result {
 }
 
 $dialog = Read-OptionalText $dialogPath
+$generatedQuest = Read-OptionalText $generatedQuestPath
 $questTemplate = Read-OptionalText $questTemplatePath
 $generator = Read-OptionalText $generatorPath
 $stormIndex = Read-OptionalText $stormIndexPath
@@ -119,9 +122,10 @@ foreach ($fragment in
         "quest generator resolves regional dialogue slot $fragment"
 }
 Add-Result (
-    $generator.Contains("`$RegionId -eq 'kutnohorsko'") -and
-    $generator.Contains('innkeeper_rumor_dialog_k.xml')
-) 'generator emits and copies the dialogue only for Kutnohorsko'
+    $generator.Contains('NativeWiringPath') -and
+    $generator.Contains('NativeWiring.dialogueFiles') -and
+    -not $generator.Contains('KuttenbergRumorDialogSourcePath')
+) 'quest generator consumes compiled native dialogue wiring'
 
 foreach ($fragment in
     '<Constant Name="A" Value="32" />',
@@ -132,7 +136,7 @@ foreach ($fragment in
     '<Constant Name="Context" Value="dp_rumor_heard_kutnohorsko" />'
 ) {
     Add-Result (
-        $questTemplate.Contains($fragment) -or $generator.Contains($fragment)
+        $generatedQuest.Contains($fragment)
     ) "quest graph contains native rumor boundary: $fragment"
 }
 
