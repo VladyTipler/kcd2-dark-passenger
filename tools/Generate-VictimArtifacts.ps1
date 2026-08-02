@@ -2,6 +2,7 @@ param(
     [string]$CatalogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\victim-candidates.json'),
     [string]$AreaManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
     [string]$TemplatePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'),
+    [string]$KuttenbergRumorDialogSourcePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\innkeeper_rumor_dialog_k.xml'),
     [string]$EnglishLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\English\text__darkpassengertest.xml'),
     [string]$RussianLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\Russian\text__darkpassengertest.xml'),
     [string]$KuttenbergQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'),
@@ -126,6 +127,54 @@ function New-RegionalQuest {
     $assets = [System.Collections.Generic.List[string]]::new()
     $logs = [System.Collections.Generic.List[string]]::new()
     $presentationSignal = 'Revealed'
+    $rumorDialogDefinition = ''
+    $rumorDialogNodes = ''
+
+    if ($RegionId -eq 'kutnohorsko') {
+        $rumorDialogDefinition = @'
+      <Definitions>
+        <Definition File="dark_within_k/innkeeper_rumor_dialog_k.xml" />
+      </Definitions>
+'@
+        $rumorDialogNodes = @'
+        <MakeArray Name="rumorAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="32" />
+        </MakeArray>
+        <BuffTagTrigger Name="rumorAvailableTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="rumorAvailableTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="rumorDialogueAvailable" TypeT="bool">
+          <Edge From="rumorAvailableTrigger.OnAdded" To="SetTrue" />
+          <Edge From="rumorAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <innkeeper_rumor_dialog_k Name="innkeeperRumorDialog">
+          <Edge From="rumorDialogueAvailable.State" To="available" />
+        </innkeeper_rumor_dialog_k>
+        <State Name="rumorDialogueRequestActive" TypeT="bool">
+          <Edge From="questProgress.OnActive" To="SetFalse" />
+          <Edge From="innkeeperRumorDialog.heard" To="SetTrue" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <SetEntityContext Name="rumorDialogueRequest">
+          <Constant Name="Context" Value="dp_rumor_heard_kutnohorsko" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="rumorDialogueRequestActive.State" To="IsActive" />
+        </SetEntityContext>
+'@
+    }
 
     $candidateSlots = @($Candidates | ForEach-Object { [int]$_.slot })
     $mappedSlots = @(
@@ -309,6 +358,8 @@ function New-RegionalQuest {
         '{{DP_REGION_ID}}' = $RegionId
         '{{DP_REQUEST_CONTEXT}}' = $RequestContext
         '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
+        '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
+        '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
         '{{DP_SEARCH_OBJECTIVE_NAME}}' = $SearchObjectiveName
         '{{DP_EVIDENCE_OBJECTIVE_NAME}}' = $EvidenceObjectiveName
         '{{DP_TARGET_OBJECTIVE_NAME}}' = $TargetObjectiveName
@@ -352,6 +403,17 @@ function New-RegionalQuest {
 
     [xml]$null = $questXml
     Write-Utf8NoBom -LiteralPath $OutputPath -Content $questXml
+    if ($RegionId -eq 'kutnohorsko') {
+        if (-not (Test-Path -LiteralPath $KuttenbergRumorDialogSourcePath)) {
+            throw "Innkeeper rumor dialogue not found: $KuttenbergRumorDialogSourcePath"
+        }
+        $dialogOutputPath = Join-Path `
+            (Split-Path -Parent $OutputPath) `
+            'dark_within_k\innkeeper_rumor_dialog_k.xml'
+        Write-Utf8NoBom `
+            -LiteralPath $dialogOutputPath `
+            -Content (Get-Content -Raw -LiteralPath $KuttenbergRumorDialogSourcePath)
+    }
     Write-Host "Generated $RegionId graph: $($Candidates.Count) candidates, $questBytes bytes."
 }
 

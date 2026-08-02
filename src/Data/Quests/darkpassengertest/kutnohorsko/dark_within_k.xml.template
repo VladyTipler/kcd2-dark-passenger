@@ -7,7 +7,9 @@
           <DesignName Text="Arm satisfaction lifecycle" />
         </Port>
       </Ports>
+{{DP_RUMOR_DIALOG_DEFINITION}}
       <Nodes>
+{{DP_RUMOR_DIALOG_NODES}}
         <State Name="watcherActive" TypeT="bool">
           <Edge From="arm" To="SetTrue" />
         </State>

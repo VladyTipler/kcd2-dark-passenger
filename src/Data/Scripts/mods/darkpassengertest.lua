@@ -1177,6 +1177,7 @@ DarkPassengerQuestBridge.REQUESTS = {
         region = "kutnohorsko",
         context = "dp_select_victim_kutnohorsko",
         deathContext = "dp_target_dead_kutnohorsko",
+        rumorContext = "dp_rumor_heard_kutnohorsko",
     },
     {
         region = "trosecko",
@@ -1246,6 +1247,7 @@ function DarkPassengerQuestBridge.StartPolling(reason)
     DarkPassengerQuestBridge.pollAliveLoggedGeneration = nil
     DarkPassengerQuestBridge.lastRequestStates = {}
     DarkPassengerQuestBridge.lastDeathStates = {}
+    DarkPassengerQuestBridge.lastRumorStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
         " generation=" .. tostring(DarkPassengerQuestBridge.pollGeneration)
@@ -1359,6 +1361,38 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
             )
         end
 
+        local hasRumorRequest = false
+        if request.rumorContext ~= nil and
+           playerEntity ~= nil and
+           playerEntity.soul ~= nil and
+           playerEntity.soul.HasScriptContext ~= nil then
+            local ok, contextOrError = pcall(function()
+                return playerEntity.soul:HasScriptContext(
+                    request.rumorContext
+                )
+            end)
+            if ok then
+                hasRumorRequest =
+                    contextOrError == true or contextOrError == 1
+            else
+                TargetLog(
+                    "rumor context check failed region=" ..
+                    tostring(request.region) ..
+                    " error=" .. tostring(contextOrError)
+                )
+            end
+        end
+        local previousRumorState =
+            DarkPassengerQuestBridge.lastRumorStates[request.region]
+        if previousRumorState ~= hasRumorRequest then
+            DarkPassengerQuestBridge.lastRumorStates[request.region] =
+                hasRumorRequest
+            TargetLog(
+                "rumor context region=" .. tostring(request.region) ..
+                " active=" .. tostring(hasRumorRequest)
+            )
+        end
+
         if hasRequest then
             local existingTargetPreserved =
                 DarkPassengerTarget.RestoreExisting(request.region)
@@ -1393,6 +1427,12 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
                    request.region
                ) then
             DarkPassengerTarget.ResetCase(request.region)
+        end
+
+        if hasRumorRequest and
+           DarkPassengerEvidence ~= nil and
+           DarkPassengerEvidence.OnRumorCompleted ~= nil then
+            DarkPassengerEvidence.OnRumorCompleted(request.region)
         end
     end
 

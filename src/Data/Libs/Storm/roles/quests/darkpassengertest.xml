@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE storm SYSTEM "!storm.dtd">
+<storm>
+  <rules>
+    <rule name="darkpassenger_pritoky_innkeeper_rumor">
+      <selectors>
+        <hasName name="kpri_innkeeper" />
+      </selectors>
+      <operations>
+        <addRole name="DP_INNKEEPER_RUMOR" />
+      </operations>
+    </rule>
+  </rules>
+</storm>
+

@@ -46,6 +46,16 @@
 	<Row><Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
 	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Ask about local rumors</Cell></Row>
+	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Unease in the area</Cell></Row>
+	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Ask about the unease in the area</Cell></Row>
+	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>People here seem afraid of something. Has something happened?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_fear</Cell><Cell>Afraid? Everyone here is afraid of someone: one of the tax collector, another of his own wife. But there is someone whose presence makes even drunks lower their voices.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_why</Cell><Cell>Why?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_vojtech</Cell><Cell>A month ago they found a farmhand named Vojtech by the stream. The bailiff decided he had tumbled down the slope while drunk. A convenient explanation - the dead do not argue.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_threat</Cell><Cell>Who threatened him?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_refusal</Cell><Cell>Someone local. Do not expect a name from me - I have no wish to tumble down a slope while drunk myself one day.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_what_to_seek</Cell><Cell>Then what should I look for?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_belongings</Cell><Cell>Vojtech slept in the hayloft behind the inn. His chest is still there. The bailiff did not even bother to look inside. If the lad knew what was coming, perhaps he left something. Hurry, before the mice learn to read.</Cell></Row>
 	<Row><Cell>dark_within_evidence_name</Cell><Cell>Gather proof of guilt</Cell></Row>
 	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>

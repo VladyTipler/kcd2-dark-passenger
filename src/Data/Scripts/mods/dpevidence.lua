@@ -4,8 +4,11 @@ DarkPassengerEvidence.SCHEMA_VERSION = 1
 DarkPassengerEvidence.SOURCE_ENTITY_NAME = "kpri_innkeeper"
 DarkPassengerEvidence.SOURCE_REGION = "kutnohorsko"
 DarkPassengerEvidence.SOURCE_SETTLEMENT = "pritoky"
+DarkPassengerEvidence.DEBUG_ACTION_ENABLED = true
 DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID =
     "6e532a34-ce2b-47ae-9427-c67a4a1b94b1"
+DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID =
+    "8043886b-d0bc-4a3b-9c89-07c8f60bf7d8"
 
 local KEYS = {
     schema = "dp_evidence_schema_version",
@@ -111,18 +114,35 @@ local function HasBuff(entity, buffGuid)
     return ok and (result == true or result == 1)
 end
 
-local function RemoveSignalBuff()
+local function RemoveBuff(buffGuid)
     local actor = PlayerEntity()
     if actor == nil or actor.soul == nil or
        actor.soul.RemoveAllBuffsByGuid == nil then
         return false
     end
     local ok = pcall(function()
-        actor.soul:RemoveAllBuffsByGuid(
-            DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID
-        )
+        actor.soul:RemoveAllBuffsByGuid(buffGuid)
     end)
     return ok
+end
+
+local function AddBuff(buffGuid)
+    local actor = PlayerEntity()
+    if actor == nil or actor.soul == nil or actor.soul.AddBuff == nil then
+        return false
+    end
+    if HasBuff(actor, buffGuid) then return true end
+    local ok, handle = pcall(function()
+        return actor.soul:AddBuff(buffGuid)
+    end)
+    return ok and handle ~= nil
+end
+
+local function SetRumorAvailability(available)
+    if available then
+        return AddBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
+    end
+    return RemoveBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
 end
 
 local function IsAlive(entity)
@@ -295,13 +315,14 @@ local function DispatchJournalSignal(generation)
 end
 
 function DarkPassengerEvidence.OnInvestigationOpened(generation)
+    local selected = nil
     if DarkPassengerCaseContent ~= nil and
        DarkPassengerCaseContent.OnInvestigationOpened ~= nil then
         local candidate =
             DarkPassengerInvestigation ~= nil and
             DarkPassengerInvestigation.GetCandidate ~= nil and
             DarkPassengerInvestigation.GetCandidate() or nil
-        DarkPassengerCaseContent.OnInvestigationOpened(
+        selected = DarkPassengerCaseContent.OnInvestigationOpened(
             generation,
             candidate
         )
@@ -312,19 +333,26 @@ function DarkPassengerEvidence.OnInvestigationOpened(generation)
         { type = "open", generation = generation }
     )
     if not result.accepted then return false end
-    RemoveSignalBuff()
+    RemoveBuff(DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID)
     PersistState(nextState)
+    SetRumorAvailability(
+        selected ~= nil and nextState.awardedGeneration ~= generation
+    )
     return true
 end
 
 function DarkPassengerEvidence.Restore(investigationState)
+    local selected = nil
     if DarkPassengerCaseContent ~= nil and
        DarkPassengerCaseContent.Restore ~= nil then
         local candidate =
             DarkPassengerInvestigation ~= nil and
             DarkPassengerInvestigation.GetCandidate ~= nil and
             DarkPassengerInvestigation.GetCandidate() or nil
-        DarkPassengerCaseContent.Restore(investigationState, candidate)
+        selected = DarkPassengerCaseContent.Restore(
+            investigationState,
+            candidate
+        )
     end
     local state = ReadState()
     local generation = tonumber(
@@ -332,8 +360,12 @@ function DarkPassengerEvidence.Restore(investigationState)
     )
     if investigationState == nil or investigationState.active ~= true or
        generation == nil or generation <= 0 then
+        SetRumorAvailability(false)
         return false
     end
+    SetRumorAvailability(
+        selected ~= nil and state.awardedGeneration ~= generation
+    )
     if state.awardedGeneration == generation and
        (not state.signalDispatched or
         not HasBuff(
@@ -351,7 +383,8 @@ function DarkPassengerEvidence.AddRumorAction(
     firstFast,
     output
 )
-    if type(output) ~= "table" or not MatchesSource(source) then
+    if not DarkPassengerEvidence.DEBUG_ACTION_ENABLED or
+       type(output) ~= "table" or not MatchesSource(source) then
         return false
     end
     local context = InvestigationContext(source)
@@ -375,20 +408,13 @@ function DarkPassengerEvidence.AddRumorAction(
     )
 end
 
-function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
-    if not IsLocalPlayer(user) then return false end
+local function AwardSelectedRumor(generation, showNotification)
     local state = ReadState()
-    local context = InvestigationContext(source)
-    local eligible, reason = DarkPassengerEvidence.IsEligible(
-        context,
-        state
-    )
-    if not eligible then
-        Log("rumor rejected reason=" .. tostring(reason))
-        return false
+    if state.awardedGeneration == generation then
+        SetRumorAvailability(false)
+        DispatchJournalSignal(generation)
+        return true
     end
-
-    local generation = tonumber(context.generation)
     local selectedRumor = ResolveRumor(generation)
     if selectedRumor == nil then
         Log("rumor rejected: content unavailable")
@@ -413,9 +439,10 @@ function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
     )
     if not transitionResult.accepted then return false end
     PersistState(nextState)
+    SetRumorAvailability(false)
     DispatchJournalSignal(generation)
 
-    if Game ~= nil and Game.ShowNotification ~= nil then
+    if showNotification and Game ~= nil and Game.ShowNotification ~= nil then
         pcall(function()
             Game.ShowNotification(selectedRumor.notification)
         end)
@@ -425,6 +452,40 @@ function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
         " confidence=" .. tostring(evidenceResult.current)
     )
     return true
+end
+
+function DarkPassengerEvidence.OnRumorCompleted(gameRegion)
+    if DarkPassengerInvestigation == nil or
+       DarkPassengerInvestigation.GetState == nil or
+       DarkPassengerInvestigation.GetCandidate == nil then
+        return false
+    end
+    local investigation = DarkPassengerInvestigation.GetState()
+    local candidate = DarkPassengerInvestigation.GetCandidate()
+    if investigation == nil or investigation.active ~= true or
+       candidate == nil or candidate.gameRegion ~= gameRegion then
+        Log("native rumor rejected: active case mismatch")
+        return false
+    end
+    return AwardSelectedRumor(
+        tonumber(investigation.generation),
+        false
+    )
+end
+
+function DarkPassengerEvidence.OnAskRumors(source, user, slotId)
+    if not IsLocalPlayer(user) then return false end
+    local state = ReadState()
+    local context = InvestigationContext(source)
+    local eligible, reason = DarkPassengerEvidence.IsEligible(
+        context,
+        state
+    )
+    if not eligible then
+        Log("rumor rejected reason=" .. tostring(reason))
+        return false
+    end
+    return AwardSelectedRumor(tonumber(context.generation), true)
 end
 
 function DarkPassengerEvidence.Status()
