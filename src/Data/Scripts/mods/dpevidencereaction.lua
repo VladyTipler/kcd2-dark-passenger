@@ -1,7 +1,7 @@
 DarkPassengerEvidenceReaction = DarkPassengerEvidenceReaction or {}
 
 DarkPassengerEvidenceReaction.SCHEMA_VERSION = 2
-DarkPassengerEvidenceReaction.METAROLE = "HRAC_VYPNUL_PHOTOMODE"
+DarkPassengerEvidenceReaction.SAFE_METAROLE = nil
 
 local function Log(message)
     if System ~= nil and System.LogAlways ~= nil then
@@ -83,6 +83,11 @@ function DarkPassengerEvidenceReaction.Dispatch(evidenceId, generation)
         return { accepted = false, reason = "already_dispatched" }
     end
 
+    local metarole = DarkPassengerEvidenceReaction.SAFE_METAROLE
+    if metarole == nil or tostring(metarole) == "" then
+        return { accepted = false, reason = "no_safe_reaction" }
+    end
+
     if DialogUtils == nil or
        DialogUtils.RequestPlayerMonologByMetarole == nil then
         return { accepted = false, reason = "monologue_unavailable" }
@@ -90,7 +95,7 @@ function DarkPassengerEvidenceReaction.Dispatch(evidenceId, generation)
 
     local ok, errorMessage = pcall(function()
         DialogUtils.RequestPlayerMonologByMetarole(
-            DarkPassengerEvidenceReaction.METAROLE
+            metarole
         )
     end)
     if not ok then
@@ -105,13 +110,13 @@ function DarkPassengerEvidenceReaction.Dispatch(evidenceId, generation)
     Log(
         "dispatched evidenceId=" .. tostring(evidenceId) ..
         " generation=" .. tostring(generation) ..
-        " metarole=" .. tostring(DarkPassengerEvidenceReaction.METAROLE)
+        " metarole=" .. tostring(metarole)
     )
     return {
         accepted = true,
         reason = "dispatched",
         reaction = "vanilla_metarole",
-        metarole = DarkPassengerEvidenceReaction.METAROLE,
+        metarole = metarole,
     }
 end
 

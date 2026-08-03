@@ -98,6 +98,25 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         }).Count -eq 0
     ) 'all bilingual authored strings are non-empty'
 
+    Add-Result (
+        $case.localization.ru.dp_mt_witness_objective_active -eq (
+            'Лаврентий сказал, что конь Матея вернулся без всадника. ' +
+            'Конюх мог видеть, кто привёл его обратно.'
+        ) -and
+        $case.localization.en.dp_mt_witness_objective_active -eq (
+            "Lavrentiy said Matej's horse returned without its rider. " +
+            'The stablehand may have seen who brought it back.'
+        )
+    ) 'stablehand direction cites the riderless horse fact'
+    Add-Result (
+        -not $case.localization.ru.dp_mt_witness_objective_active.Contains(
+            'Записка Матея'
+        ) -and
+        -not $case.localization.en.dp_mt_witness_objective_active.Contains(
+            "Matej's note"
+        )
+    ) 'stablehand direction does not invent a clue from the note'
+
     $referencedKeys = [System.Collections.Generic.List[string]]::new()
     foreach ($dialogue in @($case.native.dialogues)) {
         $referencedKeys.Add([string]$dialogue.rootKey)

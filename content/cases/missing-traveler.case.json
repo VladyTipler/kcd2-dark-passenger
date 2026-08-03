@@ -85,7 +85,7 @@
       "activeKey": "dp_mt_witness_objective_active",
       "doneKey": "dp_mt_witness_objective_done",
       "fallbackName": "Question the stablehand",
-      "fallbackActive": "Matej's note and the altered ledger point to the inn stable. Someone there may have seen who returned his horse.",
+      "fallbackActive": "Lavrentiy said Matej's horse returned without its rider. The stablehand may have seen who brought it back.",
       "fallbackDone": "Bretislav saw a local man return Matej's horse alone and destroy evidence by the road. He identified the suspect."
     }
   },
@@ -167,7 +167,7 @@
       "dp_mt_witness_henry_point": "Покажешь мне этого человека.",
       "dp_mt_witness_bretislav_point": "Покажу. Но после этого мы с тобой никогда не говорили.",
       "dp_mt_witness_objective_name": "Расспросить конюха",
-      "dp_mt_witness_objective_active": "Записка Матея и исправленная гостевая книга ведут к стойлам. Тот, кто присматривает за лошадьми, мог видеть, кто вернул коня.",
+      "dp_mt_witness_objective_active": "Лаврентий сказал, что конь Матея вернулся без всадника. Конюх мог видеть, кто привёл его обратно.",
       "dp_mt_witness_objective_done": "Бретислав видел, как местный житель вернул коня Матея один, а затем сжёг что-то у дороги. Он указал на подозреваемого.",
       "dp_mt_ledger_name": "Вырванный лист гостевой книги",
       "dp_mt_ledger_info": "Лист из гостевой книги Желеёвского трактира. Строка об отъезде выведена другим почерком, а между страницами спрятана записка.",
@@ -201,7 +201,7 @@
       "dp_mt_witness_henry_point": "You will point this man out to me.",
       "dp_mt_witness_bretislav_point": "I will. But after that, you and I never spoke.",
       "dp_mt_witness_objective_name": "Question the stablehand",
-      "dp_mt_witness_objective_active": "Matej's note and the altered guest ledger point to the stables. Whoever tends the horses may have seen who returned his mount.",
+      "dp_mt_witness_objective_active": "Lavrentiy said Matej's horse returned without its rider. The stablehand may have seen who brought it back.",
       "dp_mt_witness_objective_done": "Bretislav saw a local man return Matej's horse alone, then burn something by the road. He identified the suspect.",
       "dp_mt_ledger_name": "Torn Guest-Ledger Page",
       "dp_mt_ledger_info": "A page from the Zhelejov inn ledger. The departure line is in another hand, and a note was hidden between the leaves.",

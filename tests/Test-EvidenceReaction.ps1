@@ -56,8 +56,7 @@ foreach ($token in @(
     'function DarkPassengerEvidenceReaction.Dispatch(',
     'function DarkPassengerEvidenceReaction.Restore(',
     'function DarkPassengerEvidenceReaction.Reset(',
-    'DarkPassengerEvidenceReaction.METAROLE = "HRAC_VYPNUL_PHOTOMODE"',
-    'DialogUtils.RequestPlayerMonologByMetarole(',
+    'reason = "no_safe_reaction"',
     'dispatchedGeneration'
 )) {
     Add-Result ($runtime.Contains($token)) `
@@ -76,8 +75,8 @@ $dispatchBody = if ($dispatchStart -ge 0 -and $restoreStart -gt $dispatchStart) 
     ''
 }
 Add-Result (
-    $dispatchBody.Contains('DialogUtils.RequestPlayerMonologByMetarole(')
-) 'reaction dispatch calls the live-proven vanilla metarole route'
+    -not $runtime.Contains('HRAC_VYPNUL_PHOTOMODE')
+) 'reaction runtime rejects the semantically unsafe photo-mode pool'
 Add-Result (
     -not $dispatchBody.Contains(':AddBuff(')
 ) 'reaction dispatch has no buff bridge'
