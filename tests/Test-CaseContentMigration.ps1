@@ -8,6 +8,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $caseRuntimePath = Join-Path $scriptRoot 'dpcasecontent.lua'
+$snapshotPath = Join-Path $scriptRoot 'dpcasesnapshot.lua'
+$seederPath = Join-Path $scriptRoot 'dpevidenceseeder.lua'
 $caseSpecPath = Join-Path $repoRoot `
     'content\cases\convenient-accident.case.json'
 $generatedCatalogPath = Join-Path $repoRoot `
@@ -29,6 +31,14 @@ function Add-Result {
 
 $runtime = [System.IO.File]::ReadAllText($runtimePath)
 $caseRuntime = [System.IO.File]::ReadAllText($caseRuntimePath)
+$snapshot = if (Test-Path -LiteralPath $snapshotPath) {
+    [System.IO.File]::ReadAllText($snapshotPath)
+}
+else { '' }
+$seeder = if (Test-Path -LiteralPath $seederPath) {
+    [System.IO.File]::ReadAllText($seederPath)
+}
+else { '' }
 $caseSpec = Get-Content -Raw -LiteralPath $caseSpecPath |
     ConvertFrom-Json -Depth 100
 $catalog = if (Test-Path -LiteralPath $generatedCatalogPath) {
@@ -93,10 +103,52 @@ Add-Result (
 Add-Result (-not $runtime.Contains($legacyReload)) `
     'runtime no longer loads authored Lua case duplicate'
 
+Add-Result (Test-Path -LiteralPath $snapshotPath -PathType Leaf) `
+    'immutable case snapshot runtime exists'
+foreach ($export in 'Transition', 'Capture', 'Get', 'Restore', 'RunSelfTest') {
+    Add-Result (
+        $snapshot.Contains("function DarkPassengerCaseSnapshot.$export")
+    ) "case snapshot exports $export"
+}
+foreach ($key in @(
+    'dp_case_snapshot_schema_version',
+    'dp_case_snapshot_generation',
+    'dp_case_snapshot_case_code',
+    'dp_case_snapshot_opener_code',
+    'dp_case_snapshot_target_slot'
+)) {
+    Add-Result ($snapshot.Contains($key)) "case snapshot persists $key"
+}
+Add-Result (
+    $snapshot.Contains('candidate.gameRegion') -and
+    $snapshot.Contains('candidate.settlement') -and
+    $snapshot.Contains('caseTemplate.bindings') -and
+    $snapshot.Contains('snapshot_conflict') -and
+    -not $snapshot.Contains('containerGuid = ReadScalar')
+) 'snapshot derives world bindings from stable numeric references'
+Add-Result (
+    $caseRuntime.IndexOf('PersistState(nextState)') -lt
+        $caseRuntime.IndexOf('DarkPassengerCaseSnapshot.Capture(') -and
+    $caseRuntime.IndexOf('DarkPassengerCaseSnapshot.Capture(') -lt
+        $caseRuntime.IndexOf('DarkPassengerEvidenceSeeder.Seed(')
+) 'case selection persists snapshot before evidence seeding'
+
+$snapshotReload = 'Script.ReloadScript("Scripts/mods/dpcasesnapshot.lua")'
+$seederReload = 'Script.ReloadScript("Scripts/mods/dpevidenceseeder.lua")'
+Add-Result (
+    $runtime.IndexOf($snapshotReload) -gt $runtime.IndexOf($caseRuntimeReload) -and
+    $runtime.IndexOf($seederReload) -gt $runtime.IndexOf($snapshotReload)
+) 'runtime loads case state, snapshot, then evidence seeder'
+
 if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $luaCompiler = Join-Path $DevGameRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
-    foreach ($path in $caseRuntimePath, $generatedCatalogPath) {
+    foreach ($path in @(
+        $caseRuntimePath,
+        $snapshotPath,
+        $seederPath,
+        $generatedCatalogPath
+    )) {
         if (Test-Path -LiteralPath $path) {
             & $luaCompiler -p $path *> $null
             Add-Result ($LASTEXITCODE -eq 0) `

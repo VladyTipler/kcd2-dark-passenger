@@ -273,6 +273,15 @@ local function EnsurePlaced(generation)
     return true
 end
 
+function DarkPassengerBelongings.EnsurePlaced(generation)
+    generation = tonumber(generation)
+    if generation == nil or generation <= 0 or
+       not CurrentGenerationMatches(generation) then
+        return false
+    end
+    return EnsurePlaced(generation)
+end
+
 local function Schedule(generation, timerSerial)
     if Script == nil or Script.SetTimerForFunction == nil then
         Log("poll unavailable")
@@ -373,7 +382,7 @@ function DarkPassengerBelongings.Poll(payload, timerId)
         end
         return true
     end
-    if not EnsurePlaced(generation) then
+    if not DarkPassengerBelongings.EnsurePlaced(generation) then
         return Schedule(generation, timerSerial)
     end
     if WasOpened(generation) == true then return AwardReadEvidence(generation) end
@@ -399,7 +408,7 @@ function DarkPassengerBelongings.Start(generation)
     DarkPassengerBelongings.timerSerial =
         DarkPassengerBelongings.timerSerial + 1
     local timerSerial = DarkPassengerBelongings.timerSerial
-    EnsurePlaced(generation)
+    DarkPassengerBelongings.EnsurePlaced(generation)
     Log(
         "poll started generation=" .. tostring(generation) ..
         " serial=" .. tostring(timerSerial) ..

@@ -9,6 +9,8 @@ $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $registryPath = Join-Path $scriptRoot 'dpevidenceregistry.lua'
 $investigationPath = Join-Path $scriptRoot 'dpinvestigation.lua'
 $initPath = Join-Path $scriptRoot 'darkpassengertest.lua'
+$snapshotPath = Join-Path $scriptRoot 'dpcasesnapshot.lua'
+$seederPath = Join-Path $scriptRoot 'dpevidenceseeder.lua'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -32,6 +34,8 @@ function Add-Result {
 $registry = Read-OptionalText $registryPath
 $investigation = Read-OptionalText $investigationPath
 $init = Read-OptionalText $initPath
+$snapshot = Read-OptionalText $snapshotPath
+$seeder = Read-OptionalText $seederPath
 
 Add-Result (Test-Path -LiteralPath $registryPath -PathType Leaf) `
     'central evidence registry exists'
@@ -119,13 +123,30 @@ Add-Result (
     $registryIndex -gt $investigationIndex -and
     $rumorIndex -gt $registryIndex
 ) 'runtime loads catalog and investigation before registry and consumers'
+Add-Result (
+    $snapshot.Contains('targetSlot') -and
+    $snapshot.Contains('caseCode') -and
+    $snapshot.Contains('openerCode') -and
+    $snapshot.Contains('bindings = caseTemplate.bindings')
+) 'case snapshot restores the finite selected package without reroll'
+Add-Result (
+    $seeder.Contains('DarkPassengerCaseSnapshot.Restore(') -and
+    $seeder.Contains('DarkPassengerEvidenceRegistry.MarkPlaced(') -and
+    $seeder.Contains('placement == "case_start"')
+) 'seeder projects snapshot case-start evidence into the registry'
 
 if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
     Add-Result (Test-Path -LiteralPath $compiler -PathType Leaf) `
         'LuaCompiler is available'
-    foreach ($path in $registryPath, $investigationPath, $initPath) {
+    foreach ($path in @(
+        $registryPath,
+        $investigationPath,
+        $snapshotPath,
+        $seederPath,
+        $initPath
+    )) {
         if ((Test-Path -LiteralPath $compiler) -and
             (Test-Path -LiteralPath $path)) {
             & $compiler -p $path *> $null

@@ -7,6 +7,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $belongingsPath = Join-Path $scriptRoot 'dpbelongings.lua'
+$seederPath = Join-Path $scriptRoot 'dpevidenceseeder.lua'
 $evidencePath = Join-Path $scriptRoot 'dpevidence.lua'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $itemPath = Join-Path $repoRoot `
@@ -42,6 +43,7 @@ function Add-Result {
 }
 
 $belongings = Read-OptionalText $belongingsPath
+$seeder = Read-OptionalText $seederPath
 $evidence = Read-OptionalText $evidencePath
 $runtime = Read-OptionalText $runtimePath
 $itemTable = Read-OptionalText $itemPath
@@ -60,7 +62,14 @@ $documentBinding = @($bindingManifest.settlements | Where-Object {
 Add-Result (Test-Path -LiteralPath $belongingsPath) `
     'Vojtech belongings runtime exists'
 
-foreach ($export in 'Transition', 'Start', 'Poll', 'Status', 'RunSelfTest') {
+foreach ($export in @(
+    'Transition',
+    'EnsurePlaced',
+    'Start',
+    'Poll',
+    'Status',
+    'RunSelfTest'
+)) {
     Add-Result (
         $belongings.Contains("function DarkPassengerBelongings.$export")
     ) "belongings runtime exports $export"
@@ -184,6 +193,10 @@ Add-Result (
     $belongings.Contains('state.placedGeneration == generation and exists') -and
     $belongings.Contains('document placement repaired generation=')
 ) 'persisted placement is repaired when the selected chest has no document'
+Add-Result (
+    $belongings.Contains('or PlayerInventoryHas(documentGuid)') -and
+    $belongings.Contains('if not exists then')
+) 'placement never duplicates a document already held by Henry'
 
 Add-Result (
     $belongings -match '(?s)AddEvidence\(\s*resolved\.evidence\.confidence,\s*resolved\.evidence\.id,\s*generation\s*\)'
@@ -204,6 +217,20 @@ Add-Result (
     $evidence.Contains('DarkPassengerBelongings.OnRumorAwarded(')
 ) 'successful rumor starts the belongings step'
 
+Add-Result (Test-Path -LiteralPath $seederPath -PathType Leaf) `
+    'generic case-start evidence seeder exists'
+Add-Result (
+    $seeder.Contains('evidence.placement == "case_start"') -and
+    $seeder.Contains('evidence.kind == "document"') -and
+    $seeder.Contains('DarkPassengerBelongings.EnsurePlaced(') -and
+    $seeder.Contains('DarkPassengerEvidenceRegistry.MarkPlaced(')
+) 'case-start seeder places and records compiled document evidence'
+Add-Result (
+    $seeder.Contains('Script.SetTimerForFunction(') -and
+    $seeder.Contains('payload.timerSerial') -and
+    $seeder.Contains('payload.generation')
+) 'missing streamed containers retry with stale-callback guards'
+
 $restoreMatch = [regex]::Match(
     $evidence,
     '(?s)function DarkPassengerEvidence\.Restore\(investigationState\)(.*?)function DarkPassengerEvidence\.AddRumorAction'
@@ -217,21 +244,27 @@ Add-Result (
 
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
 $belongingsReload = 'Script.ReloadScript("Scripts/mods/dpbelongings.lua")'
+$seederReload = 'Script.ReloadScript("Scripts/mods/dpevidenceseeder.lua")'
 $evidenceIndex = $runtime.IndexOf($evidenceReload)
 $belongingsIndex = $runtime.IndexOf($belongingsReload)
+$seederIndex = $runtime.IndexOf($seederReload)
 Add-Result (
-    $belongingsIndex -ge 0 -and $evidenceIndex -gt $belongingsIndex
-) 'runtime loads belongings before the rumor producer calls it'
+    $belongingsIndex -ge 0 -and
+    $seederIndex -gt $belongingsIndex -and
+    $evidenceIndex -gt $seederIndex
+) 'runtime loads document adapter before seeder and rumor producer'
 
 if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
     Add-Result (Test-Path -LiteralPath $compiler) 'LuaCompiler is available'
-    if ((Test-Path -LiteralPath $compiler) -and
-        (Test-Path -LiteralPath $belongingsPath)) {
-        & $compiler -p $belongingsPath *> $null
-        Add-Result ($LASTEXITCODE -eq 0) `
-            'Vojtech belongings runtime passes LuaCompiler'
+    foreach ($path in $belongingsPath, $seederPath) {
+        if ((Test-Path -LiteralPath $compiler) -and
+            (Test-Path -LiteralPath $path)) {
+            & $compiler -p $path *> $null
+            Add-Result ($LASTEXITCODE -eq 0) `
+                "LuaCompiler accepts $(Split-Path -Leaf $path)"
+        }
     }
 }
 

@@ -302,6 +302,19 @@ function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
     end
     if not PersistState(nextState) then return nil end
     local selected = DarkPassengerCaseContent.Resolve(nextState, catalog)
+    local snapshot = nil
+    if selected ~= nil and DarkPassengerCaseSnapshot ~= nil and
+       DarkPassengerCaseSnapshot.Capture ~= nil then
+        snapshot = DarkPassengerCaseSnapshot.Capture(
+            generation,
+            candidate,
+            selected
+        )
+    end
+    if snapshot ~= nil and DarkPassengerEvidenceSeeder ~= nil and
+       DarkPassengerEvidenceSeeder.Seed ~= nil then
+        DarkPassengerEvidenceSeeder.Seed(generation, snapshot)
+    end
     Log(
         "resolved generation=" .. tostring(generation) ..
         " case=" .. tostring(
