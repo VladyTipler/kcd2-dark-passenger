@@ -170,7 +170,7 @@
           <Constant Name="Buff" Value="b5c59e05-cc10-4bf8-b82e-d82b913c841f" />
           <Edge From="noisyResultTrigger.OnAdded" To="Exec" />
         </Function>
-        <State Name="objectiveProgress" TypeT="DP_SearchProgress">
+        <State Name="objectiveProgress" TypeT="{{DP_SEARCH_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_SEARCH_STATE_EDGES}}
@@ -190,12 +190,12 @@
           <Edge From="evidenceProgress.State" To="Progress" />
         </{{DP_EVIDENCE_OBJECTIVE_NAME}}>
 {{DP_WITNESS_OBJECTIVE_NODES}}
-        <State Name="selectedTarget" TypeT="DP_SelectedTarget">
+        <State Name="selectedTarget" TypeT="{{DP_SELECTED_TARGET_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_SELECTED_STATE_EDGES}}
         </State>
-        <State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">
+        <State Name="targetObjectiveProgress" TypeT="{{DP_TARGET_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_TARGET_STATE_EDGES}}
@@ -221,12 +221,12 @@
         </Output>
       </Nodes>
       <Types>
-        <Type TypeName="DP_SearchProgress">
+        <Type TypeName="{{DP_SEARCH_PROGRESS_TYPE}}">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_SEARCH_TYPE_ENUMS}}
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
-        <Type TypeName="DP_SelectedTarget">
+        <Type TypeName="{{DP_SELECTED_TARGET_TYPE}}">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_SELECTED_TYPE_ENUMS}}
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
@@ -237,7 +237,7 @@
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
 {{DP_WITNESS_TYPE}}
-        <Type TypeName="DP_TargetProgress">
+        <Type TypeName="{{DP_TARGET_PROGRESS_TYPE}}">
           <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
 {{DP_TARGET_TYPE_ENUMS}}
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
@@ -306,7 +306,7 @@
         <Localization Text="I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long." Language="WHS" />
       </QuestDescription>
       <Objectives>
-        <Objective TypeT="DP_SearchProgress" Name="{{DP_SEARCH_OBJECTIVE_NAME}}">
+        <Objective TypeT="{{DP_SEARCH_PROGRESS_TYPE}}" Name="{{DP_SEARCH_OBJECTIVE_NAME}}">
           <LocalizedName StringName="dark_within_obj_name" Text="Find someone who deserves the sentence">
             <Localization Text="Find someone who deserves the sentence" Language="WHS" />
           </LocalizedName>
@@ -316,7 +316,7 @@
             <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>
-        <Objective TypeT="DP_TargetProgress" Name="{{DP_TARGET_OBJECTIVE_NAME}}">
+        <Objective TypeT="{{DP_TARGET_PROGRESS_TYPE}}" Name="{{DP_TARGET_OBJECTIVE_NAME}}">
           <LocalizedName StringName="dark_within_target_name" Text="Hunt down the chosen victim">
             <Localization Text="Hunt down the chosen victim" Language="WHS" />
           </LocalizedName>

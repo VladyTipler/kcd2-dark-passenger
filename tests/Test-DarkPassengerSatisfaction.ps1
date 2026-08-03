@@ -561,7 +561,10 @@ foreach (
         '{{DP_TARGET_DEATH_CONTEXT_EDGES}}',
         '{{DP_TARGET_CLEANUP_EDGES}}',
         '{{DP_TARGET_ASSETS}}',
-        '{{DP_TARGET_LOGS}}'
+        '{{DP_TARGET_LOGS}}',
+        '{{DP_SEARCH_PROGRESS_TYPE}}',
+        '{{DP_SELECTED_TARGET_TYPE}}',
+        '{{DP_TARGET_PROGRESS_TYPE}}'
 ) {
     Add-Result ($questTemplateText.Contains($token)) "quest template contains $token"
 }
@@ -1469,6 +1472,17 @@ Add-Result ($luaText.Contains($satisfactionGateGuid)) 'Lua bridge uses hidden sa
 Add-Result ($luaText.Contains('dp_satisfaction_add')) 'Lua bridge registers add command'
 Add-Result ($luaText.Contains('dp_satisfaction_remove')) 'Lua bridge registers remove command'
 Add-Result ($luaText.Contains('dp_satisfaction_status')) 'Lua bridge registers status command'
+Add-Result (
+    $luaText -match (
+        '(?s)function DarkPassengerSatisfaction\.Add\(\).*?' +
+        'if HasBuff\(soul\) then.*?return true.*?end.*?' +
+        'DarkPassengerSatisfaction\.buffHandle = nil.*?' +
+        'soul:RemoveAllBuffsByGuid'
+    ) -and
+    -not $luaText.Contains(
+        'if DarkPassengerSatisfaction.buffHandle ~= nil then'
+    )
+) 'satisfaction add trusts the current player soul over a stale runtime handle'
 Add-Result (
     $luaText.Contains(
         'soul:RemoveAllBuffsByGuid(DarkPassengerSatisfaction.BUFF_GUID)'
@@ -3072,8 +3086,20 @@ foreach ($searchArea in $supportedInvestigationAreas) {
 Add-Result (
     $dynamicSearchGraphComplete -and
     $questText.Contains('<State Name="objectiveProgress" TypeT="DP_SearchProgress">') -and
-    $troskyQuestText.Contains('<State Name="objectiveProgress" TypeT="DP_SearchProgress">')
-) 'both regional quests declare every supported settlement search state, asset, and log'
+    $troskyQuestText.Contains('<State Name="objectiveProgress" TypeT="DP_TroseckoSearchProgress">')
+) 'both regional quests declare every supported settlement search state, asset, and log with region-safe types'
+Add-Result (
+    $questText.Contains('<State Name="selectedTarget" TypeT="DP_SelectedTarget">') -and
+    $questText.Contains('<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">') -and
+    $troskyQuestText.Contains('<State Name="selectedTarget" TypeT="DP_TroseckoSelectedTarget">') -and
+    $troskyQuestText.Contains('<State Name="targetObjectiveProgress" TypeT="DP_TroseckoTargetProgress">') -and
+    $troskyQuestText.Contains('<Type TypeName="DP_TroseckoSearchProgress">') -and
+    $troskyQuestText.Contains('<Type TypeName="DP_TroseckoSelectedTarget">') -and
+    $troskyQuestText.Contains('<Type TypeName="DP_TroseckoTargetProgress">') -and
+    -not $troskyQuestText.Contains('<Type TypeName="DP_SearchProgress">') -and
+    -not $troskyQuestText.Contains('<Type TypeName="DP_SelectedTarget">') -and
+    -not $troskyQuestText.Contains('<Type TypeName="DP_TargetProgress">')
+) 'regional candidate and marker enums cannot collide across Barbora graphs'
 Add-Result (
     $candidateSettlementMappingsComplete
 ) 'every candidate slot activates its settlement search state'
@@ -3109,7 +3135,7 @@ Add-Result (
         '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
     ) -and
     $troskyQuestText -match (
-        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">.*?' +
+        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TroseckoTargetProgress">.*?' +
         '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
     )
 ) 'both regions reveal the victim only after investigation confidence is met'

@@ -92,6 +92,9 @@ function New-RegionalQuest {
         [object[]]$SearchAreas,
         [string]$RegionId,
         [string]$QuestName,
+        [string]$SearchProgressTypeName,
+        [string]$SelectedTargetTypeName,
+        [string]$TargetProgressTypeName,
         [string]$SearchObjectiveName,
         [string]$EvidenceObjectiveName,
         [string]$TargetObjectiveName,
@@ -326,6 +329,9 @@ function New-RegionalQuest {
     $replacements = [ordered]@{
         '{{DP_QUEST_NAME}}' = $QuestName
         '{{DP_REGION_ID}}' = $RegionId
+        '{{DP_SEARCH_PROGRESS_TYPE}}' = $SearchProgressTypeName
+        '{{DP_SELECTED_TARGET_TYPE}}' = $SelectedTargetTypeName
+        '{{DP_TARGET_PROGRESS_TYPE}}' = $TargetProgressTypeName
         '{{DP_REQUEST_CONTEXT}}' = $RequestContext
         '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
         '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
@@ -491,6 +497,9 @@ $regionSpecifications = @(
     [ordered]@{
         region = 'kutnohorsko'
         quest = 'dark_within_k'
+        searchProgressType = 'DP_SearchProgress'
+        selectedTargetType = 'DP_SelectedTarget'
+        targetProgressType = 'DP_TargetProgress'
         searchObjective = 'dark_within_objk'
         evidenceObjective = 'dark_within_evidencek'
         targetObjective = 'dark_within_targetk'
@@ -503,6 +512,9 @@ $regionSpecifications = @(
     [ordered]@{
         region = 'trosecko'
         quest = 'dark_within_t'
+        searchProgressType = 'DP_TroseckoSearchProgress'
+        selectedTargetType = 'DP_TroseckoSelectedTarget'
+        targetProgressType = 'DP_TroseckoTargetProgress'
         searchObjective = 'dark_within_objt'
         evidenceObjective = 'dark_within_evidencet'
         targetObjective = 'dark_within_targett'
@@ -535,6 +547,9 @@ foreach ($specification in $regionSpecifications) {
         -SearchAreas $regionalSearchAreas `
         -RegionId $specification.region `
         -QuestName $specification.quest `
+        -SearchProgressTypeName $specification.searchProgressType `
+        -SelectedTargetTypeName $specification.selectedTargetType `
+        -TargetProgressTypeName $specification.targetProgressType `
         -SearchObjectiveName $specification.searchObjective `
         -EvidenceObjectiveName $specification.evidenceObjective `
         -TargetObjectiveName $specification.targetObjective `
