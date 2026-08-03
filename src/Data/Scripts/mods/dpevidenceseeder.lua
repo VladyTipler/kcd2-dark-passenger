@@ -50,6 +50,9 @@ local function PlaceEvidence(generation, evidence)
         if not DarkPassengerBelongings.EnsurePlaced(generation) then
             return false, "document_deferred"
         end
+        if DarkPassengerBelongings.Start ~= nil then
+            DarkPassengerBelongings.Start(generation)
+        end
         return true, "document_placed"
     end
     return false, "unsupported_kind"

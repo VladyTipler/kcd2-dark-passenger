@@ -1,6 +1,6 @@
 DarkPassengerEvidence = DarkPassengerEvidence or {}
 
-DarkPassengerEvidence.SCHEMA_VERSION = 1
+DarkPassengerEvidence.SCHEMA_VERSION = 2
 DarkPassengerEvidence.DEBUG_ACTION_ENABLED = false
 DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID =
     "6e532a34-ce2b-47ae-9427-c67a4a1b94b1"
@@ -9,7 +9,7 @@ DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID =
 
 local KEYS = {
     schema = "dp_evidence_schema_version",
-    awardedGeneration = "dp_evidence_awarded_generation",
+    legacyAwardedGeneration = "dp_evidence_awarded_generation",
     signalDispatched = "dp_evidence_signal_dispatched",
 }
 
@@ -49,40 +49,51 @@ end
 
 local function DefaultState()
     return {
-        awardedGeneration = 0,
-        signalDispatched = false,
+        legacyAwardedGeneration = 0,
+        signalGeneration = 0,
     }
 end
 
 local function CopyState(state)
     return {
-        awardedGeneration =
-            state ~= nil and tonumber(state.awardedGeneration) or 0,
-        signalDispatched =
-            state ~= nil and state.signalDispatched == true or false,
+        legacyAwardedGeneration = tonumber(
+            state ~= nil and state.legacyAwardedGeneration
+        ) or 0,
+        signalGeneration = tonumber(
+            state ~= nil and state.signalGeneration
+        ) or 0,
     }
 end
 
 local function ReadState()
-    if tonumber(ReadScalar(KEYS.schema)) ~=
-       DarkPassengerEvidence.SCHEMA_VERSION then
-        return DefaultState()
+    local schema = tonumber(ReadScalar(KEYS.schema))
+    if schema == DarkPassengerEvidence.SCHEMA_VERSION then
+        return {
+            legacyAwardedGeneration = 0,
+            signalGeneration =
+                tonumber(ReadScalar(KEYS.signalDispatched)) or 0,
+        }
     end
-    return {
-        awardedGeneration =
-            tonumber(ReadScalar(KEYS.awardedGeneration)) or 0,
-        signalDispatched =
-            tonumber(ReadScalar(KEYS.signalDispatched)) == 1,
-    }
+    if schema == 1 then
+        local legacyAwardedGeneration = tonumber(
+            ReadScalar(KEYS.legacyAwardedGeneration)
+        ) or 0
+        return {
+            legacyAwardedGeneration = legacyAwardedGeneration,
+            signalGeneration =
+                tonumber(ReadScalar(KEYS.signalDispatched)) == 1 and
+                legacyAwardedGeneration or 0,
+        }
+    end
+    return DefaultState()
 end
 
 local function PersistState(state)
     local results = {
         WriteScalar(KEYS.schema, DarkPassengerEvidence.SCHEMA_VERSION),
-        WriteScalar(KEYS.awardedGeneration, state.awardedGeneration),
         WriteScalar(
             KEYS.signalDispatched,
-            state.signalDispatched and 1 or 0
+            state.signalGeneration
         ),
     }
     for _, succeeded in ipairs(results) do
@@ -142,6 +153,12 @@ local function SetRumorAvailability(available)
     return RemoveBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
 end
 
+function DarkPassengerEvidence.ApplyAvailability(generation, available)
+    generation = tonumber(generation)
+    if generation == nil or generation <= 0 then return false end
+    return SetRumorAvailability(available == true)
+end
+
 local function IsAlive(entity)
     if entity == nil or entity.id == nil or
        entity.actor == nil or entity.actor.IsDead == nil then
@@ -190,30 +207,16 @@ function DarkPassengerEvidence.Transition(state, event)
     end
 
     if eventType == "open" then
-        nextState.signalDispatched = false
+        if nextState.signalGeneration ~= generation then
+            nextState.signalGeneration = 0
+        end
         result.accepted = true
         result.reason = "opened"
         return nextState, result
     end
 
-    if eventType == "award" then
-        if nextState.awardedGeneration == generation then
-            result.reason = "already_awarded"
-            return nextState, result
-        end
-        nextState.awardedGeneration = generation
-        nextState.signalDispatched = false
-        result.accepted = true
-        result.reason = "awarded"
-        return nextState, result
-    end
-
     if eventType == "signal" then
-        if nextState.awardedGeneration ~= generation then
-            result.reason = "not_awarded"
-            return nextState, result
-        end
-        nextState.signalDispatched = true
+        nextState.signalGeneration = generation
         result.accepted = true
         result.reason = "signal_dispatched"
         return nextState, result
@@ -249,8 +252,7 @@ function DarkPassengerEvidence.IsEligible(context, evidenceState)
     if context.sourceAlive ~= true then
         return false, "source_dead"
     end
-    if evidenceState ~= nil and
-       tonumber(evidenceState.awardedGeneration) == generation then
+    if context.evidenceDiscovered == true then
         return false, "already_awarded"
     end
     return true, "eligible"
@@ -271,6 +273,22 @@ local function InvestigationContext(source)
     local constraints = resolved ~= nil and
         resolved.caseTemplate ~= nil and
         resolved.caseTemplate.constraints or nil
+    local evidenceDiscovered = false
+    if resolved ~= nil and resolved.evidence ~= nil and
+       DarkPassengerEvidenceRegistry ~= nil and
+       DarkPassengerEvidenceRegistry.GetCaseState ~= nil then
+        local registryState = DarkPassengerEvidenceRegistry.GetCaseState(
+            investigation ~= nil and investigation.generation or 0
+        )
+        for _, entry in ipairs(
+            registryState ~= nil and registryState.evidence or {}
+        ) do
+            if tonumber(entry.code) == tonumber(resolved.evidence.code) and
+               entry.status == "discovered" then
+                evidenceDiscovered = true
+            end
+        end
+    end
     return {
         active = investigation ~= nil and investigation.active == true,
         generation =
@@ -283,6 +301,7 @@ local function InvestigationContext(source)
             constraints ~= nil and constraints.settlement or nil,
         sourceMatches = MatchesSource(source),
         sourceAlive = IsAlive(source),
+        evidenceDiscovered = evidenceDiscovered,
     }
 end
 
@@ -295,6 +314,47 @@ local function ResolveRumor(generation)
     return selected ~= nil and selected.rumor or nil
 end
 
+local function IsRumorDiscovered(generation, rumor)
+    rumor = rumor or ResolveRumor(generation)
+    if rumor == nil or DarkPassengerEvidenceRegistry == nil or
+       DarkPassengerEvidenceRegistry.GetCaseState == nil then
+        return false
+    end
+    local registryState =
+        DarkPassengerEvidenceRegistry.GetCaseState(generation)
+    for _, entry in ipairs(
+        registryState ~= nil and registryState.evidence or {}
+    ) do
+        if tonumber(entry.code) == tonumber(rumor.code) then
+            return entry.status == "discovered"
+        end
+    end
+    return false
+end
+
+local function MigrateLegacyDiscovery(generation, state)
+    if tonumber(state.legacyAwardedGeneration) ~= tonumber(generation) then
+        return true
+    end
+    local rumor = ResolveRumor(generation)
+    if rumor == nil or DarkPassengerEvidenceRegistry == nil or
+       DarkPassengerEvidenceRegistry.Discover == nil then
+        return false
+    end
+    local result = DarkPassengerEvidenceRegistry.Discover(
+        generation,
+        rumor.code,
+        { source = "legacy_rumor_award" }
+    )
+    if result == nil or (
+        result.accepted ~= true and result.reason ~= "already_discovered"
+    ) then
+        return false
+    end
+    state.legacyAwardedGeneration = 0
+    return PersistState(state)
+end
+
 local function DispatchJournalSignal(generation)
     local actor = PlayerEntity()
     if actor == nil or actor.soul == nil or actor.soul.AddBuff == nil then
@@ -303,8 +363,8 @@ local function DispatchJournalSignal(generation)
     end
 
     local state = ReadState()
-    if state.awardedGeneration ~= generation then return false end
-    if state.signalDispatched and
+    if not IsRumorDiscovered(generation) then return false end
+    if state.signalGeneration == generation and
        HasBuff(actor, DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID) then
         return true
     end
@@ -353,9 +413,10 @@ function DarkPassengerEvidence.OnInvestigationOpened(generation)
     if not result.accepted then return false end
     RemoveBuff(DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID)
     PersistState(nextState)
-    SetRumorAvailability(
-        selected ~= nil and nextState.awardedGeneration ~= generation
-    )
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    end
     return true
 end
 
@@ -381,15 +442,18 @@ function DarkPassengerEvidence.Restore(investigationState)
         SetRumorAvailability(false)
         return false
     end
-    SetRumorAvailability(
-        selected ~= nil and state.awardedGeneration ~= generation
-    )
-    if state.awardedGeneration == generation then
-        if DarkPassengerBelongings ~= nil and
-           DarkPassengerBelongings.OnRumorAwarded ~= nil then
-            DarkPassengerBelongings.OnRumorAwarded(generation)
-        end
-        if not state.signalDispatched or
+    if not MigrateLegacyDiscovery(generation, state) then return false end
+    state = ReadState()
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    else
+        SetRumorAvailability(
+            selected ~= nil and not IsRumorDiscovered(generation)
+        )
+    end
+    if IsRumorDiscovered(generation) then
+        if state.signalGeneration ~= generation or
            not HasBuff(
                PlayerEntity(),
                DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID
@@ -433,26 +497,20 @@ end
 
 local function AwardSelectedRumor(generation, showNotification)
     local state = ReadState()
-    if state.awardedGeneration == generation then
-        SetRumorAvailability(false)
-        DispatchJournalSignal(generation)
-        if DarkPassengerBelongings ~= nil and
-           DarkPassengerBelongings.OnRumorAwarded ~= nil then
-            DarkPassengerBelongings.OnRumorAwarded(generation)
-        end
-        return true
-    end
     local selectedRumor = ResolveRumor(generation)
     if selectedRumor == nil then
         Log("rumor rejected: content unavailable")
         return false
     end
-    local evidenceResult = DarkPassengerInvestigation.AddEvidence(
-        selectedRumor.confidence,
-        selectedRumor.id,
-        generation
+    local evidenceResult = DarkPassengerEvidenceRegistry.Discover(
+        generation,
+        selectedRumor.code,
+        { source = "innkeeper_rumor" }
     )
-    if evidenceResult == nil or evidenceResult.accepted ~= true then
+    if evidenceResult == nil or (
+        evidenceResult.accepted ~= true and
+        evidenceResult.reason ~= "already_discovered"
+    ) then
         Log(
             "rumor rejected by investigation reason=" ..
             tostring(evidenceResult ~= nil and evidenceResult.reason or nil)
@@ -460,13 +518,11 @@ local function AwardSelectedRumor(generation, showNotification)
         return false
     end
 
-    local nextState, transitionResult = DarkPassengerEvidence.Transition(
-        state,
-        { type = "award", generation = generation }
-    )
-    if not transitionResult.accepted then return false end
-    PersistState(nextState)
     SetRumorAvailability(false)
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    end
     DispatchJournalSignal(generation)
 
     if showNotification and Game ~= nil and Game.ShowNotification ~= nil then
@@ -478,10 +534,6 @@ local function AwardSelectedRumor(generation, showNotification)
         "rumor awarded generation=" .. tostring(generation) ..
         " confidence=" .. tostring(evidenceResult.current)
     )
-    if DarkPassengerBelongings ~= nil and
-       DarkPassengerBelongings.OnRumorAwarded ~= nil then
-        DarkPassengerBelongings.OnRumorAwarded(generation)
-    end
     return true
 end
 
@@ -535,8 +587,9 @@ function DarkPassengerEvidence.Status()
     Log(
         "status generation=" ..
         tostring(context ~= nil and context.generation or nil) ..
-        " awardedGeneration=" .. tostring(state.awardedGeneration) ..
-        " signalDispatched=" .. tostring(state.signalDispatched) ..
+        " legacyAwardedGeneration=" ..
+        tostring(state.legacyAwardedGeneration) ..
+        " signalGeneration=" .. tostring(state.signalGeneration) ..
         " eligible=" .. tostring(eligible) ..
         " reason=" .. tostring(reason)
     )
@@ -563,28 +616,16 @@ function DarkPassengerEvidence.RunSelfTest()
     }
     local eligible = DarkPassengerEvidence.IsEligible(context, state)
     Expect(eligible == true, "eligible")
-    state = DarkPassengerEvidence.Transition(
-        state,
-        { type = "award", generation = 4 }
-    )
+    context.evidenceDiscovered = true
     eligible = DarkPassengerEvidence.IsEligible(context, state)
     Expect(eligible == false, "one shot")
-    local duplicateState, duplicate = DarkPassengerEvidence.Transition(
-        state,
-        { type = "award", generation = 4 }
-    )
-    Expect(
-        duplicate.accepted == false and
-        duplicateState.awardedGeneration == 4,
-        "duplicate rejected"
-    )
     local signalState, signal = DarkPassengerEvidence.Transition(
         state,
         { type = "signal", generation = 4 }
     )
     Expect(
-        signal.accepted and signalState.signalDispatched,
-        "signal after award"
+        signal.accepted and signalState.signalGeneration == 4,
+        "signal generation"
     )
     context.gameRegion = "trosecko"
     context.generation = 5

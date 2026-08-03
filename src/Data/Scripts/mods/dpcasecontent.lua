@@ -315,6 +315,10 @@ function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
        DarkPassengerEvidenceSeeder.Seed ~= nil then
         DarkPassengerEvidenceSeeder.Seed(generation, snapshot)
     end
+    if snapshot ~= nil and DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    end
     Log(
         "resolved generation=" .. tostring(generation) ..
         " case=" .. tostring(

@@ -15,6 +15,8 @@ $initPath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\darkpassengertest.lua'
 $belongingsPath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dpbelongings.lua'
+$plannerPath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpleadplanner.lua'
 $stormRolesPath = Join-Path $repoRoot `
     'src\Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $roleTablePath = Join-Path $repoRoot `
@@ -58,6 +60,7 @@ $generatedQuest = Read-OptionalText $generatedQuestPath
 $runtime = Read-OptionalText $runtimePath
 $init = Read-OptionalText $initPath
 $belongings = Read-OptionalText $belongingsPath
+$planner = Read-OptionalText $plannerPath
 $stormRoles = Read-OptionalText $stormRolesPath
 $roles = Read-OptionalText $roleTablePath
 $contexts = Read-OptionalText $contextPath
@@ -164,23 +167,23 @@ Add-Result (
 foreach ($token in
     'SCHEMA_VERSION',
     'DarkPassengerCaseEvidence.ResolveActive("witness")',
-    'resolved.evidence.id',
+    'resolved.evidence.code',
     'resolved.evidence.confidence',
     'AVAILABLE_BUFF_GUID = "a823ebb8-f3e3-4437-b885-9fafea591858"',
     'function DarkPassengerWitnessLead.Transition',
     'function DarkPassengerWitnessLead.Start',
     'function DarkPassengerWitnessLead.Restore',
     'function DarkPassengerWitnessLead.OnDialogueCompleted',
-    'DarkPassengerInvestigation.AddEvidence('
+    'DarkPassengerEvidenceRegistry.Discover('
 ) {
     Add-Result ($runtime.Contains($token)) `
         "witness runtime contains $token"
 }
 Add-Result (
     $runtime.Contains('availableGeneration') -and
-    $runtime.Contains('awardedGeneration') -and
-    $runtime.Contains('already_awarded')
-) 'witness runtime persists generation-scoped one-shot state'
+    $runtime.Contains('legacyAwardedGeneration') -and
+    -not $runtime.Contains('DarkPassengerInvestigation.AddEvidence(')
+) 'witness runtime keeps only presentation state and legacy migration input'
 
 $leadReload = 'Script.ReloadScript("Scripts/mods/dpwitnesslead.lua")'
 $belongingsReload = 'Script.ReloadScript("Scripts/mods/dpbelongings.lua")'
@@ -189,9 +192,10 @@ Add-Result (
     $init.IndexOf($leadReload) -lt $init.IndexOf($belongingsReload)
 ) 'mod init loads witness lead before the document producer'
 Add-Result (
-    $belongings.Contains('DarkPassengerWitnessLead.Start(') -and
-    $belongings.Contains('DarkPassengerWitnessLead.Restore(')
-) 'accepted and restored document reads drive witness availability'
+    -not $belongings.Contains('DarkPassengerWitnessLead.Start(') -and
+    -not $belongings.Contains('DarkPassengerWitnessLead.Restore(') -and
+    $planner.Contains('DarkPassengerWitnessLead.ApplyAvailability(')
+) 'lead planner drives witness availability independently of document order'
 Add-Result (
     $init.Contains('witnessContext = "dp_witness_heard_kutnohorsko"') -and
     $init.Contains('DarkPassengerWitnessLead.OnDialogueCompleted(')

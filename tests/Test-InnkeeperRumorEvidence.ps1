@@ -11,6 +11,7 @@ $evidencePath = Join-Path $scriptRoot 'dpevidence.lua'
 $burialPath = Join-Path $scriptRoot 'dpburial.lua'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $investigationPath = Join-Path $scriptRoot 'dpinvestigation.lua'
+$plannerPath = Join-Path $scriptRoot 'dpleadplanner.lua'
 $tagPath = Join-Path $repoRoot `
     'src\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
 $buffPath = Join-Path $repoRoot `
@@ -47,6 +48,7 @@ $evidence = Read-OptionalText $evidencePath
 $burial = Read-OptionalText $burialPath
 $runtime = Read-OptionalText $runtimePath
 $investigation = Read-OptionalText $investigationPath
+$planner = Read-OptionalText $plannerPath
 $tags = Read-OptionalText $tagPath
 $buffs = Read-OptionalText $buffPath
 $questTemplate = Read-OptionalText $questTemplatePath
@@ -103,8 +105,13 @@ foreach ($token in
     Add-Result ($evidence.Contains($token)) "evidence contract contains $token"
 }
 Add-Result (
-    $evidence -match '(?s)AddEvidence\(.*?selectedRumor.confidence.*?selectedRumor.id.*?generation.*?\).*?DispatchJournalSignal'
-) 'confidence is accepted before the journal signal is dispatched'
+    $evidence -match '(?s)EvidenceRegistry\.Discover\(.*?generation.*?selectedRumor.code.*?\).*?DispatchJournalSignal' -and
+    -not $evidence.Contains('DarkPassengerInvestigation.AddEvidence(')
+) 'registry discovery is persisted before the journal signal is dispatched'
+Add-Result (
+    $evidence.Contains('DarkPassengerLeadPlanner.Apply(') -and
+    $planner.Contains('function DarkPassengerLeadPlanner.Evaluate')
+) 'rumor discovery reevaluates finite parallel leads'
 Add-Result (
     $evidence.Contains('Game.ShowNotification(selectedRumor.notification)') -and
     $evidence.Contains('DarkPassengerInteractions.RegisterProvider(')
@@ -123,12 +130,15 @@ Add-Result (
 
 $interactionReload = 'Script.ReloadScript("Scripts/mods/dpinteractions.lua")'
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
+$plannerReload = 'Script.ReloadScript("Scripts/mods/dpleadplanner.lua")'
 $burialReload = 'Script.ReloadScript("Scripts/mods/dpburial.lua")'
 $interactionIndex = $runtime.IndexOf($interactionReload)
 $evidenceIndex = $runtime.IndexOf($evidenceReload)
 $burialIndex = $runtime.IndexOf($burialReload)
 Add-Result (
     $interactionIndex -ge 0 -and
+    $runtime.IndexOf($plannerReload) -ge 0 -and
+    $runtime.IndexOf($plannerReload) -lt $evidenceIndex -and
     $evidenceIndex -gt $interactionIndex -and
     $burialIndex -gt $interactionIndex
 ) 'runtime loads registry before both interaction providers'

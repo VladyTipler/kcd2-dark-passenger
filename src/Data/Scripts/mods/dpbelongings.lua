@@ -301,27 +301,37 @@ local function Schedule(generation, timerSerial)
     return true
 end
 
+local function EnsureRegistryDiscovery(generation)
+    if DarkPassengerEvidenceRegistry == nil or
+       DarkPassengerEvidenceRegistry.Discover == nil then
+        return nil
+    end
+    local resolved = ResolveDocument(generation)
+    if resolved == nil then return nil end
+    local result = DarkPassengerEvidenceRegistry.Discover(
+        generation,
+        resolved.evidence.code,
+        { source = "document_read" }
+    )
+    if result ~= nil and (
+        result.accepted == true or result.reason == "already_discovered"
+    ) then
+        return result
+    end
+    Log(
+        "read evidence rejected reason=" ..
+        tostring(result ~= nil and result.reason or nil)
+    )
+    return nil
+end
+
 local function AwardReadEvidence(generation)
     local state = ReadState()
     if state.readGeneration == generation then return true end
-    if DarkPassengerInvestigation == nil or
-       DarkPassengerInvestigation.AddEvidence == nil then
-        return false
-    end
     local resolved = ResolveDocument(generation)
     if resolved == nil then return false end
-    local result = DarkPassengerInvestigation.AddEvidence(
-        resolved.evidence.confidence,
-        resolved.evidence.id,
-        generation
-    )
-    if result == nil or result.accepted ~= true then
-        Log(
-            "read evidence rejected reason=" ..
-            tostring(result ~= nil and result.reason or nil)
-        )
-        return false
-    end
+    local result = EnsureRegistryDiscovery(generation)
+    if result == nil then return false end
     local nextState, transition = DarkPassengerBelongings.Transition(
         state,
         { type = "read", generation = generation }
@@ -335,16 +345,16 @@ local function AwardReadEvidence(generation)
             generation
         )
     end
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    end
     Log(
         "document read generation=" .. tostring(generation) ..
         " confidence=" .. tostring(result.current) ..
         " reaction=" ..
         tostring(reaction ~= nil and reaction.reaction or nil)
     )
-    if DarkPassengerWitnessLead ~= nil and
-       DarkPassengerWitnessLead.Start ~= nil then
-        DarkPassengerWitnessLead.Start(generation)
-    end
     return true
 end
 
@@ -375,10 +385,11 @@ function DarkPassengerBelongings.Poll(payload, timerId)
     end
     local state = ReadState()
     if state.readGeneration == generation then
+        EnsureRegistryDiscovery(generation)
         EnsureReaction(generation)
-        if DarkPassengerWitnessLead ~= nil and
-           DarkPassengerWitnessLead.Restore ~= nil then
-            DarkPassengerWitnessLead.Restore(generation)
+        if DarkPassengerLeadPlanner ~= nil and
+           DarkPassengerLeadPlanner.Apply ~= nil then
+            DarkPassengerLeadPlanner.Apply(generation)
         end
         return true
     end
@@ -397,10 +408,11 @@ function DarkPassengerBelongings.Start(generation)
     end
     local state = ReadState()
     if state.readGeneration == generation then
+        EnsureRegistryDiscovery(generation)
         EnsureReaction(generation)
-        if DarkPassengerWitnessLead ~= nil and
-           DarkPassengerWitnessLead.Restore ~= nil then
-            DarkPassengerWitnessLead.Restore(generation)
+        if DarkPassengerLeadPlanner ~= nil and
+           DarkPassengerLeadPlanner.Apply ~= nil then
+            DarkPassengerLeadPlanner.Apply(generation)
         end
         Log("start restored: document already read generation=" .. tostring(generation))
         return true
@@ -417,10 +429,6 @@ function DarkPassengerBelongings.Start(generation)
     return DarkPassengerBelongings.Poll(
         { generation = generation, timerSerial = timerSerial }
     )
-end
-
-function DarkPassengerBelongings.OnRumorAwarded(generation)
-    return DarkPassengerBelongings.Start(generation)
 end
 
 function DarkPassengerBelongings.Status()

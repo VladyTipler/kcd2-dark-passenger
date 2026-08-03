@@ -80,7 +80,7 @@ foreach ($token in
     'resolved.binding.containerGuid',
     'resolved.binding.documentGuid',
     'resolved.evidence.id',
-    'resolved.evidence.confidence',
+    'resolved.evidence.code',
     'dp_belongings_schema_version',
     'dp_belongings_placed_generation',
     'dp_belongings_read_generation',
@@ -88,7 +88,7 @@ foreach ($token in
     'chest.inventory:CreateItem(',
     'Minigame.WasBookOpened(',
     'Script.SetTimerForFunction(',
-    'DarkPassengerInvestigation.AddEvidence('
+    'DarkPassengerEvidenceRegistry.Discover('
 ) {
     Add-Result ($belongings.Contains($token)) `
         "belongings contract contains $token"
@@ -199,8 +199,9 @@ Add-Result (
 ) 'placement never duplicates a document already held by Henry'
 
 Add-Result (
-    $belongings -match '(?s)AddEvidence\(\s*resolved\.evidence\.confidence,\s*resolved\.evidence\.id,\s*generation\s*\)'
-) 'document read awards the configured evidence transaction'
+    $belongings -match '(?s)EvidenceRegistry\.Discover\(\s*generation,\s*resolved\.evidence\.code' -and
+    -not $belongings.Contains('DarkPassengerInvestigation.AddEvidence(')
+) 'document read reports one configured registry discovery'
 
 Add-Result (
     $belongings.Contains('{ generation = generation, timerSerial = timerSerial }') -and
@@ -214,8 +215,9 @@ Add-Result (
 ) 'runtime preserves vanilla chest access rules'
 
 Add-Result (
-    $evidence.Contains('DarkPassengerBelongings.OnRumorAwarded(')
-) 'successful rumor starts the belongings step'
+    $seeder.Contains('DarkPassengerBelongings.Start(') -and
+    -not $evidence.Contains('DarkPassengerBelongings.OnRumorAwarded(')
+) 'case-start seeding begins document observation before rumor completion'
 
 Add-Result (Test-Path -LiteralPath $seederPath -PathType Leaf) `
     'generic case-start evidence seeder exists'
@@ -231,16 +233,10 @@ Add-Result (
     $seeder.Contains('payload.generation')
 ) 'missing streamed containers retry with stale-callback guards'
 
-$restoreMatch = [regex]::Match(
-    $evidence,
-    '(?s)function DarkPassengerEvidence\.Restore\(investigationState\)(.*?)function DarkPassengerEvidence\.AddRumorAction'
-)
 Add-Result (
-    $restoreMatch.Success -and
-    $restoreMatch.Groups[1].Value.Contains(
-        'DarkPassengerBelongings.OnRumorAwarded(generation)'
-    )
-) 'save-load restore repairs belongings for an already-awarded rumor'
+    $belongings.Contains('EnsureRegistryDiscovery(generation)') -and
+    $belongings.Contains('state.readGeneration == generation')
+) 'save-load migrates an already-read document into the registry'
 
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
 $belongingsReload = 'Script.ReloadScript("Scripts/mods/dpbelongings.lua")'

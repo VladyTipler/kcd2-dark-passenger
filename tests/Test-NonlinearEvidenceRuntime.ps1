@@ -11,6 +11,7 @@ $investigationPath = Join-Path $scriptRoot 'dpinvestigation.lua'
 $initPath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $snapshotPath = Join-Path $scriptRoot 'dpcasesnapshot.lua'
 $seederPath = Join-Path $scriptRoot 'dpevidenceseeder.lua'
+$plannerPath = Join-Path $scriptRoot 'dpleadplanner.lua'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -36,6 +37,7 @@ $investigation = Read-OptionalText $investigationPath
 $init = Read-OptionalText $initPath
 $snapshot = Read-OptionalText $snapshotPath
 $seeder = Read-OptionalText $seederPath
+$planner = Read-OptionalText $plannerPath
 
 Add-Result (Test-Path -LiteralPath $registryPath -PathType Leaf) `
     'central evidence registry exists'
@@ -134,6 +136,26 @@ Add-Result (
     $seeder.Contains('DarkPassengerEvidenceRegistry.MarkPlaced(') -and
     $seeder.Contains('placement == "case_start"')
 ) 'seeder projects snapshot case-start evidence into the registry'
+Add-Result (Test-Path -LiteralPath $plannerPath -PathType Leaf) `
+    'pure lead planner exists'
+foreach ($export in 'Evaluate', 'Apply', 'RunSelfTest') {
+    Add-Result (
+        $planner.Contains("function DarkPassengerLeadPlanner.$export")
+    ) "lead planner exports $export"
+}
+Add-Result (
+    $planner.Contains('rumor-ledger-witness') -and
+    $planner.Contains('rumor-witness-ledger') -and
+    $planner.Contains('ledger-rumor-witness') -and
+    $planner.Contains('parallel after rumor') -and
+    $planner.Contains('same confidence')
+) 'lead planner self-test covers all nonlinear clue orders'
+Add-Result (
+    $planner.Contains('hints_unlocked_by') -and
+    $planner.Contains('status ~= "discovered"') -and
+    $planner.Contains('DarkPassengerEvidence.ApplyAvailability(') -and
+    $planner.Contains('DarkPassengerWitnessLead.ApplyAvailability(')
+) 'planner projects undiscovered finite directions into native adapters'
 
 if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `
@@ -145,6 +167,7 @@ if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
         $investigationPath,
         $snapshotPath,
         $seederPath,
+        $plannerPath,
         $initPath
     )) {
         if ((Test-Path -LiteralPath $compiler) -and

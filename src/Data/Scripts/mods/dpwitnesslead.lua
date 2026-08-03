@@ -1,12 +1,12 @@
 DarkPassengerWitnessLead = DarkPassengerWitnessLead or {}
 
-DarkPassengerWitnessLead.SCHEMA_VERSION = 1
+DarkPassengerWitnessLead.SCHEMA_VERSION = 2
 DarkPassengerWitnessLead.AVAILABLE_BUFF_GUID = "a823ebb8-f3e3-4437-b885-9fafea591858"
 
 local KEYS = {
     schema = "dp_witness_lead_schema_version",
     availableGeneration = "dp_witness_lead_available_generation",
-    awardedGeneration = "dp_witness_lead_awarded_generation",
+    legacyAwardedGeneration = "dp_witness_lead_awarded_generation",
 }
 
 local function Log(message)
@@ -44,36 +44,44 @@ local function WriteScalar(key, value)
 end
 
 local function DefaultState()
-    return { availableGeneration = 0, awardedGeneration = 0 }
+    return { availableGeneration = 0, legacyAwardedGeneration = 0 }
 end
 
 local function CopyState(state)
     return {
         availableGeneration =
             tonumber(state ~= nil and state.availableGeneration) or 0,
-        awardedGeneration =
-            tonumber(state ~= nil and state.awardedGeneration) or 0,
+        legacyAwardedGeneration = tonumber(
+            state ~= nil and state.legacyAwardedGeneration
+        ) or 0,
     }
 end
 
 local function ReadState()
-    if tonumber(ReadScalar(KEYS.schema)) ~=
-       DarkPassengerWitnessLead.SCHEMA_VERSION then
-        return DefaultState()
+    local schema = tonumber(ReadScalar(KEYS.schema))
+    if schema == DarkPassengerWitnessLead.SCHEMA_VERSION then
+        return {
+            availableGeneration =
+                tonumber(ReadScalar(KEYS.availableGeneration)) or 0,
+            legacyAwardedGeneration = 0,
+        }
     end
-    return {
-        availableGeneration =
-            tonumber(ReadScalar(KEYS.availableGeneration)) or 0,
-        awardedGeneration =
-            tonumber(ReadScalar(KEYS.awardedGeneration)) or 0,
-    }
+    if schema == 1 then
+        return {
+            availableGeneration =
+                tonumber(ReadScalar(KEYS.availableGeneration)) or 0,
+            legacyAwardedGeneration = tonumber(
+                ReadScalar(KEYS.legacyAwardedGeneration)
+            ) or 0,
+        }
+    end
+    return DefaultState()
 end
 
 local function PersistState(state)
     local results = {
         WriteScalar(KEYS.schema, DarkPassengerWitnessLead.SCHEMA_VERSION),
         WriteScalar(KEYS.availableGeneration, state.availableGeneration),
-        WriteScalar(KEYS.awardedGeneration, state.awardedGeneration),
     }
     for _, succeeded in ipairs(results) do
         if not succeeded then return false end
@@ -159,6 +167,47 @@ local function MatchesActiveCanary(generation)
         tonumber(resolved.generation) == tonumber(generation)
 end
 
+local function IsDiscovered(generation, resolved)
+    if resolved == nil or resolved.evidence == nil or
+       DarkPassengerEvidenceRegistry == nil or
+       DarkPassengerEvidenceRegistry.GetCaseState == nil then
+        return false
+    end
+    local registryState =
+        DarkPassengerEvidenceRegistry.GetCaseState(generation)
+    for _, entry in ipairs(
+        registryState ~= nil and registryState.evidence or {}
+    ) do
+        if tonumber(entry.code) == tonumber(resolved.evidence.code) then
+            return entry.status == "discovered"
+        end
+    end
+    return false
+end
+
+local function MigrateLegacyDiscovery(generation, state, resolved)
+    if tonumber(state.legacyAwardedGeneration) ~= tonumber(generation) then
+        return true
+    end
+    if DarkPassengerEvidenceRegistry == nil or
+       DarkPassengerEvidenceRegistry.Discover == nil then
+        return false
+    end
+    local result = DarkPassengerEvidenceRegistry.Discover(
+        generation,
+        resolved.evidence.code,
+        { source = "legacy_witness_award" }
+    )
+    if result == nil or (
+        result.accepted ~= true and result.reason ~= "already_discovered"
+    ) then
+        return false
+    end
+    state.legacyAwardedGeneration = 0
+    state.availableGeneration = 0
+    return PersistState(state)
+end
+
 function DarkPassengerWitnessLead.Transition(state, event)
     local nextState = CopyState(state)
     local eventType = event ~= nil and event.type or nil
@@ -168,23 +217,13 @@ function DarkPassengerWitnessLead.Transition(state, event)
     end
 
     if eventType == "open" then
-        if nextState.awardedGeneration == generation then
-            return nextState, { accepted = false, reason = "already_awarded" }
-        end
         nextState.availableGeneration = generation
         return nextState, { accepted = true, reason = "opened" }
     end
 
-    if eventType == "award" then
-        if nextState.awardedGeneration == generation then
-            return nextState, { accepted = false, reason = "already_awarded" }
-        end
-        if nextState.availableGeneration ~= generation then
-            return nextState, { accepted = false, reason = "not_available" }
-        end
+    if eventType == "close" then
         nextState.availableGeneration = 0
-        nextState.awardedGeneration = generation
-        return nextState, { accepted = true, reason = "awarded" }
+        return nextState, { accepted = true, reason = "closed" }
     end
 
     if eventType == "restore" then
@@ -195,21 +234,31 @@ function DarkPassengerWitnessLead.Transition(state, event)
 end
 
 function DarkPassengerWitnessLead.Start(generation)
+    return DarkPassengerWitnessLead.ApplyAvailability(generation, true)
+end
+
+function DarkPassengerWitnessLead.ApplyAvailability(generation, available)
     generation = tonumber(generation)
     if generation == nil or not MatchesActiveCanary(generation) then
-        Log("start rejected generation=" .. tostring(generation))
+        RemoveAvailabilityBuff()
         return false
     end
     local state = ReadState()
-    if state.awardedGeneration == generation then
+    local resolved = ResolveWitness()
+    if not MigrateLegacyDiscovery(generation, state, resolved) then
+        return false
+    end
+    state = ReadState()
+    if IsDiscovered(generation, resolved) then available = false end
+    local nextState, result = DarkPassengerWitnessLead.Transition(
+        state,
+        { type = available and "open" or "close", generation = generation }
+    )
+    if not result.accepted or not PersistState(nextState) then return false end
+    if not available then
         RemoveAvailabilityBuff()
         return true
     end
-    local nextState, result = DarkPassengerWitnessLead.Transition(
-        state,
-        { type = "open", generation = generation }
-    )
-    if not result.accepted or not PersistState(nextState) then return false end
     if not AddAvailabilityBuff() then
         Log("availability deferred generation=" .. tostring(generation))
         return false
@@ -225,14 +274,15 @@ function DarkPassengerWitnessLead.Restore(generation)
         return false
     end
     local state = ReadState()
-    if state.awardedGeneration == generation then
-        RemoveAvailabilityBuff()
-        return true
+    local resolved = ResolveWitness()
+    if not MigrateLegacyDiscovery(generation, state, resolved) then
+        return false
     end
-    if state.availableGeneration ~= generation then
-        return DarkPassengerWitnessLead.Start(generation)
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        return DarkPassengerLeadPlanner.Apply(generation) ~= nil
     end
-    return AddAvailabilityBuff()
+    return DarkPassengerWitnessLead.ApplyAvailability(generation, false)
 end
 
 function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
@@ -254,7 +304,11 @@ function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
     end
 
     local state = ReadState()
-    if state.awardedGeneration == generation then
+    if not MigrateLegacyDiscovery(generation, state, resolved) then
+        return false
+    end
+    state = ReadState()
+    if IsDiscovered(generation, resolved) then
         RemoveAvailabilityBuff()
         return true
     end
@@ -263,10 +317,10 @@ function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
         return false
     end
 
-    local evidenceResult = DarkPassengerInvestigation.AddEvidence(
-        resolved.evidence.confidence,
-        resolved.evidence.id,
-        generation
+    local evidenceResult = DarkPassengerEvidenceRegistry.Discover(
+        generation,
+        resolved.evidence.code,
+        { source = "witness_dialogue" }
     )
     if evidenceResult == nil or evidenceResult.accepted ~= true then
         Log(
@@ -276,15 +330,15 @@ function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
         return false
     end
 
-    local nextState, transition = DarkPassengerWitnessLead.Transition(
-        state,
-        { type = "award", generation = generation }
-    )
-    if not transition.accepted or not PersistState(nextState) then return false end
-    RemoveAvailabilityBuff()
+    DarkPassengerWitnessLead.ApplyAvailability(generation, false)
+    if DarkPassengerLeadPlanner ~= nil and
+       DarkPassengerLeadPlanner.Apply ~= nil then
+        DarkPassengerLeadPlanner.Apply(generation)
+    end
     Log(
         "awarded generation=" .. tostring(generation) ..
-        " confidence=" .. tostring(evidenceResult.current)
+        " confidence=" .. tostring(evidenceResult.current) ..
+        " configured=" .. tostring(resolved.evidence.confidence)
     )
     return true
 end
@@ -294,7 +348,8 @@ function DarkPassengerWitnessLead.Status()
     Log(
         "status availableGeneration=" ..
         tostring(state.availableGeneration) ..
-        " awardedGeneration=" .. tostring(state.awardedGeneration) ..
+        " legacyAwardedGeneration=" ..
+        tostring(state.legacyAwardedGeneration) ..
         " hasBuff=" .. tostring(HasAvailabilityBuff())
     )
     return state
@@ -312,33 +367,14 @@ function DarkPassengerWitnessLead.RunSelfTest()
         { type = "open", generation = 8 }
     )
     Expect(opened.accepted and state.availableGeneration == 8, "open")
-    local awarded
-    state, awarded = DarkPassengerWitnessLead.Transition(
+    local closed
+    state, closed = DarkPassengerWitnessLead.Transition(
         state,
-        { type = "award", generation = 8 }
+        { type = "close", generation = 8 }
     )
     Expect(
-        awarded.accepted and state.availableGeneration == 0 and
-        state.awardedGeneration == 8,
-        "award"
-    )
-    local duplicateState, duplicate = DarkPassengerWitnessLead.Transition(
-        state,
-        { type = "award", generation = 8 }
-    )
-    Expect(
-        not duplicate.accepted and duplicate.reason == "already_awarded" and
-        duplicateState.awardedGeneration == 8,
-        "duplicate"
-    )
-    local staleState, stale = DarkPassengerWitnessLead.Transition(
-        DefaultState(),
-        { type = "award", generation = 7 }
-    )
-    Expect(
-        not stale.accepted and stale.reason == "not_available" and
-        staleState.awardedGeneration == 0,
-        "requires availability"
+        closed.accepted and state.availableGeneration == 0,
+        "close"
     )
     local passed = #failures == 0
     Log(
