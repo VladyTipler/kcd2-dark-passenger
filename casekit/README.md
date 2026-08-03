@@ -50,6 +50,34 @@ Pritoky and Zhelejov profiles contain only reviewed overrides. They confirm
 case roles, evidence containers and typed localized identity without copying
 world coordinates or engine IDs into story packs.
 
+The typed authoring boundary is implemented as CaseKit schema version 1:
+
+```text
+content/archetypes/*.archetype.json
+  + content/stories/*.story.json
+  + content/evidence-modules/*.evidence.json
+  -> Read-CaseKitAuthoringDeck
+  -> validated InvestigationThreads + bilingual assets
+```
+
+A CaseArchetype owns reusable investigation grammar, semantic slots, evidence
+balance and reveal threshold. A StoryPack owns one coherent canonical truth
+and several connected `InvestigationThread` chains. Each thread combines a
+lead with one or more evidence actions and explicit results: revealed facts,
+next steps, unlocked threads and journal feedback. EvidenceModules implement
+reusable in-game actions such as source dialogue, document search, witness
+testimony and overheard dialogue.
+
+The first deck contains `paper-trail-witness`, `missing-traveler` and four core
+EvidenceModules. The loader validates module ports, semantic slot bindings,
+fact and thread references, one-shot confidence, a reachable reveal threshold,
+out-of-order presentation variants, typed `{{slot.field}}` templates and exact
+Russian/English asset-key parity. Anonymous-capable slots cannot use `.name`.
+
+StoryPack content is authored rather than assembled from unrelated narrative
+fragments. Settlement, concrete actors and clue order may vary while the
+canonical crime, motive and causal history remain intact.
+
 These checkpoints do not change the generated mod, runtime selection or save
 schema. Current CaseSpecs and `config/case-settlement-bindings.json` remain the
 active source of truth until authoring-contract parity passes.
@@ -80,14 +108,17 @@ pwsh -NoProfile -File '.\casekit\tests\Test-Kcd2WorldExporter.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-WorldSemanticIndex.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-WorldSemanticIndexCli.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-IdentityResolver.ps1'
+pwsh -NoProfile -File '.\casekit\tests\Test-CaseBuilderContracts.ps1'
 ```
 
 The compiler-boundary test invokes the real existing
 `tools/CaseSpecCompiler.psm1` and requires byte-identical Lua plus equivalent
 compatibility and native-wiring output.
 
-## Next boundary
+## Current migration boundary
 
-The next milestone adds typed archetype, story and evidence-module contracts
-over this index. Native emitters stay behind the unchanged output port until
-multiple settlements and archetypes prove the abstraction.
+The new deck is not yet an active mod input. Current CaseSpecs and
+`config/case-settlement-bindings.json` remain the source of the shipping
+artifacts. The next milestone resolves authored threads against semantic world
+profiles and materializes finite neutral CaseVariants. Native emitters stay
+behind the unchanged output port until parity is proven.

@@ -10,13 +10,30 @@ $worldAdapterPath = Join-Path $PSScriptRoot `
 Import-Module $worldAdapterPath -Force
 $worldIndexPath = Join-Path $PSScriptRoot 'core\CaseKit.WorldIndex.psm1'
 Import-Module $worldIndexPath -Force
+$authoringPath = Join-Path $PSScriptRoot 'core\CaseKit.Authoring.psm1'
+Import-Module $authoringPath -Force
 
 function Read-CaseKitAuthoringDeck {
+    [CmdletBinding(DefaultParameterSetName = 'Legacy')]
     param(
-        [Parameter(Mandatory)][string]$LegacyCaseRoot,
-        [Parameter(Mandatory)][string]$LegacyBindingPath
+        [Parameter(Mandatory, ParameterSetName = 'Legacy')]
+        [string]$LegacyCaseRoot,
+        [Parameter(Mandatory, ParameterSetName = 'Legacy')]
+        [string]$LegacyBindingPath,
+        [Parameter(Mandatory, ParameterSetName = 'Authored')]
+        [string]$ArchetypeRoot,
+        [Parameter(Mandatory, ParameterSetName = 'Authored')]
+        [string]$StoryRoot,
+        [Parameter(Mandatory, ParameterSetName = 'Authored')]
+        [string]$EvidenceModuleRoot
     )
 
+    if ($PSCmdlet.ParameterSetName -eq 'Authored') {
+        return Read-CaseKitAuthoredDeck `
+            -ArchetypeRoot $ArchetypeRoot `
+            -StoryRoot $StoryRoot `
+            -EvidenceModuleRoot $EvidenceModuleRoot
+    }
     return Read-CaseKitLegacyDeck `
         -CaseRoot $LegacyCaseRoot `
         -BindingPath $LegacyBindingPath

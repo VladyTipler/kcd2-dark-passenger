@@ -139,7 +139,10 @@ crime, motive or causal history from unrelated random fragments. This is the
 chosen balance between combinatorial volume and a deliberately written story.
 The content target is approximately ten reviewed StoryPacks per archetype and
 approximately ten mechanically distinct archetypes; this is a long-term
-content scale, not a requirement for the first compiler slice.
+content scale, not a requirement for the first compiler slice. The initial
+playable content milestone should be roughly twenty polished stories across a
+smaller set of proven archetypes, expanding only after repetition and authoring
+cost are measured in real play.
 
 ### EvidenceModule
 

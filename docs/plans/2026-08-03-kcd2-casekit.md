@@ -26,7 +26,9 @@
   tolerate out-of-order clue discovery.
 - Keep the long-term content target (roughly ten stories per roughly ten
   archetypes) outside the first contract slice; prove the authoring model with
-  one archetype and one story first.
+  one archetype and one story first. Target roughly twenty polished stories
+  for the initial playable content milestone before expanding toward one
+  hundred base stories.
 
 ## Immediate implementation slice
 
@@ -294,7 +296,16 @@ git add -- casekit/core casekit/tests config/settlements
 git commit -m "feat: resolve semantic actor identities"
 ```
 
-### Task 4: Add CaseBuilder authoring contracts and typed templates
+### Task 4: Add CaseBuilder authoring contracts and typed templates - completed
+
+Implementation note: CaseKit schema version 1 now models each coherent
+StoryPack as connected `InvestigationThread` records with typed leads, evidence
+actions and results. The first production authoring deck contains
+`paper-trail-witness`, `missing-traveler` and four core EvidenceModules, but is
+not yet connected to the shipping compiler. The 24-check contract suite covers
+RU/EN parity, typed templates, anonymous identity, module ports and kinds,
+fact/thread/step references, structural reachability, out-of-order
+presentation and reachable confidence.
 
 **Files:**
 - Create: `casekit/core/CaseKit.Authoring.psm1`

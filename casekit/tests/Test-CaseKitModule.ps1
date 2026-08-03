@@ -23,8 +23,8 @@ Add-Result (Test-Path -LiteralPath $manifestPath -PathType Leaf) `
 
 if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
     $manifest = Import-PowerShellDataFile -LiteralPath $manifestPath
-    Add-Result ($manifest.ModuleVersion -eq '0.2.0') `
-        'CaseKit manifest records semantic world index milestone'
+    Add-Result ($manifest.ModuleVersion -eq '0.3.0') `
+        'CaseKit manifest records typed authoring milestone'
     Import-Module $manifestPath -Force
     $expected = @(
         'ConvertTo-CaseKitBackendInput',
