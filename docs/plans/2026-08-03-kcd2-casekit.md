@@ -18,6 +18,15 @@
 - Generated files are disposable; authored files are the source of truth.
 - Run test scripts sequentially because several generators share `build/mod`.
 - Do not require a running game until the final focused live acceptance.
+- Treat one StoryPack as one coherent authored truth with controlled world,
+  actor, clue-order and delivery variation; do not combine random narrative
+  fragments into a case.
+- Model a StoryPack as several connected `InvestigationThread` chains:
+  lead -> search or communication -> result. Threads may branch, converge and
+  tolerate out-of-order clue discovery.
+- Keep the long-term content target (roughly ten stories per roughly ten
+  archetypes) outside the first contract slice; prove the authoring model with
+  one archetype and one story first.
 
 ## Immediate implementation slice
 
@@ -301,8 +310,16 @@ git commit -m "feat: resolve semantic actor identities"
 
 Assert the loader validates:
 
-- archetype required/optional slots and evidence topology;
-- story facts plus identical Russian/English key sets;
+- archetype required/optional slots, allowed investigation-thread grammar and
+  evidence topology;
+- one coherent StoryPack truth, declared facts and several connected
+  `InvestigationThread` chains;
+- every thread has a lead, one or more search/communication evidence steps and
+  at least one declared result;
+- multiple leads may converge on one evidence node and out-of-order discovery
+  has an authored conditional presentation path;
+- story dialogue, document, clue and journal assets have identical
+  Russian/English key sets;
 - evidence module capability requirements and one-shot confidence;
 - placeholders matching `{{slot.property}}`;
 - a reachable confidence path to 70.
@@ -314,6 +331,8 @@ unknown slot in template
 anonymous actor referenced through .name
 missing English key
 unknown evidence module
+thread result references unknown fact
+dangling next-thread reference
 maximum reachable confidence below 70
 ```
 
@@ -349,8 +368,10 @@ function Expand-CaseKitTemplate {
 }
 ```
 
-Do not migrate current CaseSpecs yet; this task proves the new authoring layer
-in isolation.
+Use `missing-traveler` as the first coherent dossier: its innkeeper lead,
+pre-seeded ledger, stablehand testimony and optional overheard clue become
+connected threads over one shared fact graph. Do not migrate current CaseSpecs
+yet; this task proves the new authoring layer in isolation.
 
 **Step 4: Run tests**
 

@@ -99,26 +99,47 @@ worker or exclude a bad container. Story packs do not repeat concrete GUIDs.
 
 ### CaseArchetype
 
-An archetype defines gameplay topology rather than prose:
+An archetype defines the reusable grammar and outer gameplay topology rather
+than one fixed clue route or prose:
 
 - required and optional semantic slots;
 - compatible evidence module kinds;
-- facts and dependency graph;
+- allowed investigation-thread shapes and dependency rules;
 - confidence budget and reveal threshold;
 - opener and route diversity;
 - marker, area and journal requirements.
 
 ### StoryPack
 
-A story pack supplies reviewed Russian and English content:
+A story pack is one coherent authored case dossier. It supplies reviewed
+Russian and English content plus the concrete investigation threads through
+which that story is discovered:
 
 - innocent victim, crime, motive, cover story and escaped justice;
-- dialogue variants, documents and journal copy;
+- a shared fact graph and the relationships between people and events;
+- several `InvestigationThread` chains built as lead, search or communication,
+  and result;
+- dialogue variants, documents, clue copy and journal revisions for every
+  thread;
 - typed template variables;
 - compatible archetypes and optional constraints.
 
 Text is authored, not generated during play. Russian and English keys are
 validated together.
+
+An `InvestigationThread` is not required to be strictly linear. Multiple leads
+may converge on one clue, one result may unlock several next leads, and a clue
+may be discovered before its intended hint. Every result reveals declared
+facts, grants its one-shot confidence through an evidence module, optionally
+unlocks another thread and produces visible journal feedback.
+
+One StoryPack owns one canonical truth. Settlement, concrete world actors,
+clue order and delivery may vary, but the compiler does not assemble the
+crime, motive or causal history from unrelated random fragments. This is the
+chosen balance between combinatorial volume and a deliberately written story.
+The content target is approximately ten reviewed StoryPacks per archetype and
+approximately ten mechanically distinct archetypes; this is a long-term
+content scale, not a requirement for the first compiler slice.
 
 ### EvidenceModule
 
@@ -126,6 +147,12 @@ An evidence module is one reusable gameplay primitive such as source dialogue,
 document in a container, witness testimony, looted item or overheard dialogue.
 It declares required capabilities, placement, facts revealed, prerequisites,
 one-shot confidence and journal feedback.
+
+The boundary is intentional: CaseArchetype defines which thread grammar and
+module kinds are legal, StoryPack arranges concrete story threads and authored
+assets, and EvidenceModule implements the in-game action that discovers one
+piece of evidence. StoryPack never owns KCD2 GUIDs or native XML wiring, while
+EvidenceModule never owns the case lore.
 
 ## Typed bindings and identity
 
