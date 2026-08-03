@@ -236,6 +236,36 @@ function DarkPassengerInvestigation.Transition(state, event)
         return nextState, result
     end
 
+    if eventType == "reconcile" then
+        local total = tonumber(event.total)
+        if total == nil or total < 0 then
+            result.reason = "invalid_evidence_total"
+            return nextState, result
+        end
+        total = math.min(100, total)
+        if total < nextState.confidence then
+            result.reason = "non_monotonic_confidence"
+            return nextState, result
+        end
+        if total == nextState.confidence then
+            result.accepted = true
+            result.reason = "evidence_unchanged"
+            return nextState, result
+        end
+        local previous = nextState.confidence
+        nextState.confidence = total
+        result.accepted = true
+        result.delta = nextState.confidence - previous
+        result.reason = "evidence_reconciled"
+        if not nextState.revealed and
+           nextState.confidence >=
+               DarkPassengerInvestigation.REVEAL_THRESHOLD then
+            nextState.revealed = true
+            result.revealRequested = true
+        end
+        return nextState, result
+    end
+
     if eventType == "target_death" then
         nextState.active = false
         result.accepted = true
@@ -342,6 +372,10 @@ function DarkPassengerInvestigation.Restore(candidate, entity)
        DarkPassengerEvidence.Restore ~= nil then
         DarkPassengerEvidence.Restore(nextState)
     end
+    if DarkPassengerEvidenceRegistry ~= nil and
+       DarkPassengerEvidenceRegistry.Restore ~= nil then
+        DarkPassengerEvidenceRegistry.Restore(nextState.generation)
+    end
     return true
 end
 
@@ -382,6 +416,51 @@ function DarkPassengerInvestigation.AddEvidence(amount, label, generation)
         "evidence label=" .. tostring(label) ..
         " old=" .. tostring(result.previous) ..
         " accepted=" .. tostring(result.delta) ..
+        " new=" .. tostring(result.current) ..
+        " generation=" .. tostring(result.generation) ..
+        " reveal=" .. tostring(result.revealRequested)
+    )
+    return result
+end
+
+function DarkPassengerInvestigation.ReconcileEvidence(total, generation)
+    local current = ReadState()
+    local nextState, result = DarkPassengerInvestigation.Transition(
+        current,
+        {
+            type = "reconcile",
+            total = total,
+            generation = generation,
+        }
+    )
+    result.previous = current.confidence
+    result.current = nextState.confidence
+    result.generation = nextState.generation
+    result.revealed = nextState.revealed
+    if not result.accepted then
+        InvestigationLog(
+            "reconciliation rejected reason=" .. tostring(result.reason) ..
+            " total=" .. tostring(total) ..
+            " generation=" .. tostring(generation)
+        )
+        return result
+    end
+
+    DarkPassengerInvestigation.state = nextState
+    if result.reason ~= "evidence_unchanged" then
+        PersistState(nextState)
+    end
+    if result.revealRequested or
+       (nextState.revealed and not nextState.revealDispatched) then
+        result.revealDispatched = DispatchReveal(
+            nextState,
+            DarkPassengerInvestigation.entity
+        )
+    else
+        result.revealDispatched = nextState.revealDispatched
+    end
+    InvestigationLog(
+        "evidence reconciled old=" .. tostring(result.previous) ..
         " new=" .. tostring(result.current) ..
         " generation=" .. tostring(result.generation) ..
         " reveal=" .. tostring(result.revealRequested)
@@ -559,6 +638,48 @@ function DarkPassengerInvestigation.RunSelfTest()
         result.accepted and state.generation == 2 and
         state.confidence == 0 and not state.revealed,
         "new generation"
+    )
+    local reconcileState, reconcileResult =
+        DarkPassengerInvestigation.Transition(
+            state,
+            { type = "reconcile", total = 50, generation = 2 }
+        )
+    Expect(
+        reconcileResult.accepted and reconcileState.confidence == 50 and
+        reconcileResult.delta == 50,
+        "reconcile exact total"
+    )
+    reconcileState, reconcileResult =
+        DarkPassengerInvestigation.Transition(
+            reconcileState,
+            { type = "reconcile", total = 50, generation = 2 }
+        )
+    Expect(
+        reconcileResult.accepted and
+        reconcileResult.reason == "evidence_unchanged" and
+        reconcileResult.delta == 0,
+        "reconcile idempotent"
+    )
+    reconcileState, reconcileResult =
+        DarkPassengerInvestigation.Transition(
+            reconcileState,
+            { type = "reconcile", total = 40, generation = 2 }
+        )
+    Expect(
+        not reconcileResult.accepted and
+        reconcileResult.reason == "non_monotonic_confidence" and
+        reconcileState.confidence == 50,
+        "reconcile rejects regression"
+    )
+    reconcileState, reconcileResult =
+        DarkPassengerInvestigation.Transition(
+            reconcileState,
+            { type = "reconcile", total = 70, generation = 2 }
+        )
+    Expect(
+        reconcileResult.accepted and reconcileState.revealed and
+        reconcileResult.revealRequested,
+        "reconcile reveal once"
     )
     state, result = DarkPassengerInvestigation.Transition(
         state,
