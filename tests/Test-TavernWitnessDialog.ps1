@@ -219,12 +219,17 @@ foreach ($fragment in
     '<BuffTagTrigger Name="witnessAvailableTrigger">',
     '<tavern_witness_dialog_k Name="tavernWitnessDialog">',
     '<Constant Name="Context" Value="dp_witness_heard_kutnohorsko" />',
-    'TypeT="DP_WitnessProgress"',
-    'StringName="dark_within_witness_name"'
+    '<State Name="evidenceProgress" TypeT="DP_EvidenceProgress">',
+    'Name="Directions1102_1103"',
+    'StringName="dp_case_1001_directions_1102_1103"'
 ) {
     Add-Result ($generatedQuest.Contains($fragment)) `
         "generated quest contains witness boundary: $fragment"
 }
+Add-Result (
+    -not $generatedQuest.Contains('TypeT="DP_WitnessProgress"') -and
+    -not $generatedQuest.Contains('StringName="dark_within_witness_name"')
+) 'generated quest folds witness knowledge into the universal evidence objective'
 
 foreach ($xmlPath in
     $dialogPath,

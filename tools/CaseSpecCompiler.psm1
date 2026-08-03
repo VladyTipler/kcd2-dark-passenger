@@ -30,6 +30,70 @@ function Test-DpTextValue {
     return -not [string]::IsNullOrWhiteSpace([string]$Value)
 }
 
+function Get-DpStableGuid {
+    param([Parameter(Mandatory)][string]$Seed)
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Seed)
+    $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    $hex = [System.Convert]::ToHexString($hash).ToLowerInvariant().Substring(0, 32)
+    return '{0}-{1}-{2}-{3}-{4}' -f `
+        $hex.Substring(0, 8),
+        $hex.Substring(8, 4),
+        $hex.Substring(12, 4),
+        $hex.Substring(16, 4),
+        $hex.Substring(20, 12)
+}
+
+function Get-DpDirectionEvidence {
+    param([Parameter(Mandatory)]$CaseSpec)
+
+    return @($CaseSpec.evidence | Where-Object {
+        [string]$_.role -ne 'innkeeper' -and
+        $null -ne $_.PSObject.Properties['direction']
+    })
+}
+
+function Get-DpJournalStates {
+    param([Parameter(Mandatory)]$CaseSpec)
+
+    $directions = @(Get-DpDirectionEvidence -CaseSpec $CaseSpec)
+    $stateCount = [int][math]::Pow(2, $directions.Count)
+    $states = [System.Collections.Generic.List[object]]::new()
+    for ($mask = 0; $mask -lt $stateCount; $mask++) {
+        $selected = [System.Collections.Generic.List[object]]::new()
+        for ($index = 0; $index -lt $directions.Count; $index++) {
+            if (($mask -band (1 -shl $index)) -ne 0) {
+                $selected.Add($directions[$index])
+            }
+        }
+        $codeSuffix = if ($selected.Count -eq 0) {
+            'none'
+        }
+        else {
+            @($selected | ForEach-Object { [int]$_.code }) -join '_'
+        }
+        $stateSuffix = if ($selected.Count -eq 0) {
+            'None'
+        }
+        else {
+            @($selected | ForEach-Object { [int]$_.code }) -join '_'
+        }
+        $states.Add([ordered]@{
+            code = $mask
+            state_name = "Directions$stateSuffix"
+            signal_tag = 37 + $mask
+            buff_guid = Get-DpStableGuid `
+                -Seed "darkpassenger-lead-state-$mask"
+            localization_key =
+                "dp_case_$([int]$CaseSpec.code)_directions_$codeSuffix"
+            direction_keys = @($selected | ForEach-Object {
+                [string]$_.direction.key
+            })
+        })
+    }
+    return $states.ToArray()
+}
+
 function ConvertTo-DpLuaString {
     param([AllowNull()][string]$Value)
 
@@ -116,7 +180,10 @@ function ConvertTo-DpLuaValue {
 }
 
 function ConvertTo-DpRuntimeEvidence {
-    param([Parameter(Mandatory)]$Evidence)
+    param(
+        [Parameter(Mandatory)]$Evidence,
+        [int]$DirectionCode = 0
+    )
 
     return [ordered]@{
         id = [string]$Evidence.id
@@ -144,6 +211,10 @@ function ConvertTo-DpRuntimeEvidence {
         prompt_key = if (
             $null -ne $Evidence.PSObject.Properties['promptKey']
         ) { [string]$Evidence.promptKey } else { $null }
+        direction_code = $DirectionCode
+        direction_key = if (
+            $null -ne $Evidence.PSObject.Properties['direction']
+        ) { [string]$Evidence.direction.key } else { $null }
     }
 }
 
@@ -153,11 +224,19 @@ function ConvertTo-DpRuntimeCase {
         [Parameter(Mandatory)]$Binding
     )
 
-    $evidence = @(
-        $CaseSpec.evidence | ForEach-Object {
-            ConvertTo-DpRuntimeEvidence -Evidence $_
+    $evidence = [System.Collections.Generic.List[object]]::new()
+    $directionIndex = 0
+    foreach ($definition in @($CaseSpec.evidence)) {
+        $directionCode = 0
+        if ([string]$definition.role -ne 'innkeeper' -and
+            $null -ne $definition.PSObject.Properties['direction']) {
+            $directionCode = 1 -shl $directionIndex
+            $directionIndex++
         }
-    )
+        $evidence.Add((ConvertTo-DpRuntimeEvidence `
+            -Evidence $definition `
+            -DirectionCode $directionCode))
+    }
     $rumors = @($evidence | Where-Object {
         $_.kind -eq 'dialogue' -and $_.role -eq 'innkeeper'
     })
@@ -175,7 +254,8 @@ function ConvertTo-DpRuntimeCase {
         reveal_threshold = [int]$CaseSpec.revealThreshold
         rumors = $rumors
         evidence_steps = @($evidence | Select-Object -Skip 1)
-        evidence = $evidence
+        evidence = $evidence.ToArray()
+        journal_states = @(Get-DpJournalStates -CaseSpec $CaseSpec)
         bindings = $Binding.roles
         text = $CaseSpec.text
     }
@@ -282,6 +362,29 @@ function ConvertTo-DpLocalizationXml {
                         "Localization key '$key' conflicts with existing " +
                         "$Language text."
                     )
+                }
+                continue
+            }
+            $values[$key] = $value
+            $rows.Add([ordered]@{ key = $key; value = $value })
+        }
+        foreach ($state in @(Get-DpJournalStates -CaseSpec $case)) {
+            if ([int]$state.code -eq 0) { continue }
+            $key = [string]$state.localization_key
+            $parts = @($state.direction_keys | ForEach-Object {
+                $directionKey = [string]$_
+                if (-not $values.Contains($directionKey)) {
+                    throw (
+                        "Journal direction key '$directionKey' is absent " +
+                        "from $Language localization."
+                    )
+                }
+                [string]$values[$directionKey]
+            })
+            $value = $parts -join ' '
+            if ($values.Contains($key)) {
+                if ([string]$values[$key] -ne $value) {
+                    throw "Generated journal localization key '$key' conflicts."
                 }
                 continue
             }
@@ -536,6 +639,64 @@ function ConvertTo-DpNativeRegionWiring {
     $witnessContext = [string]$native.contexts.witnessHeard
     $objective = $native.witnessObjective
     $objectiveAssetName = [string]$objective.assetName
+    $journalStates = @(Get-DpJournalStates -CaseSpec $CaseSpec)
+    $evidenceStateNodes = [System.Collections.Generic.List[string]]::new()
+    $evidenceStateEdges = [System.Collections.Generic.List[string]]::new()
+    $evidenceTypeEnums = [System.Collections.Generic.List[string]]::new()
+    $evidenceLogs = [System.Collections.Generic.List[string]]::new()
+    foreach ($journalState in $journalStates) {
+        $stateCode = [int]$journalState.code
+        $stateName = [string]$journalState.state_name
+        $signalTag = [int]$journalState.signal_tag
+        $evidenceStateNodes.Add(
+            "        <MakeArray Name=`"leadStateTags$stateCode`" TypeT=`"wh::rpgmodule::BuffDefinitionAITags`">"
+        )
+        $evidenceStateNodes.Add(
+            "          <Constant Name=`"A`" Value=`"$signalTag`" />"
+        )
+        $evidenceStateNodes.Add('        </MakeArray>')
+        $evidenceStateNodes.Add(
+            "        <BuffTagTrigger Name=`"leadStateTrigger$stateCode`">"
+        )
+        $evidenceStateNodes.Add('          <Asset Name="Souls" Alias="player" />')
+        $evidenceStateNodes.Add(
+            "          <Edge From=`"leadStateTags$stateCode.Array`" To=`"BuffTags`" />"
+        )
+        $evidenceStateNodes.Add('          <Edge From="questProgress.Active" To="IsActive" />')
+        $evidenceStateNodes.Add('        </BuffTagTrigger>')
+        $evidenceStateEdges.Add(
+            "          <Edge From=`"leadStateTrigger$stateCode.OnAdded`" To=`"Set$stateName`" />"
+        )
+        $objectiveValueType = if ($stateCode -eq 0) { 'None' } else { 'Started' }
+        $evidenceTypeEnums.Add(
+            "          <StateTypeEnumeration Name=`"$stateName`" ObjectiveValueType=`"$objectiveValueType`" />"
+        )
+        if ($stateCode -eq 0) {
+            $evidenceLogs.Add(
+                "            <EnumLog Type=`"None`" Name=`"$stateName`" />"
+            )
+            continue
+        }
+        $englishParts = @($journalState.direction_keys | ForEach-Object {
+            $property = $CaseSpec.localization.en.PSObject.Properties[
+                [string]$_
+            ]
+            [string]$property.Value
+        })
+        $fallbackText = ConvertTo-DpXmlText ($englishParts -join ' ')
+        $localizationKey = [string]$journalState.localization_key
+        $evidenceLogs.Add(
+            "            <EnumLog Type=`"Started`" Name=`"$stateName`" IsTracked=`"true`">"
+        )
+        $evidenceLogs.Add(
+            "              <Log StringName=`"$localizationKey`" Text=`"$fallbackText`">"
+        )
+        $evidenceLogs.Add(
+            "                <Localization Text=`"$fallbackText`" Language=`"WHS`" />"
+        )
+        $evidenceLogs.Add('              </Log>')
+        $evidenceLogs.Add('            </EnumLog>')
+    }
 
     $definitions = @"
       <Definitions>
@@ -670,11 +831,15 @@ function ConvertTo-DpNativeRegionWiring {
         dialogDefinitions = $definitions.TrimEnd()
         rumorNodes = $rumorNodes.TrimEnd()
         witnessNodes = $witnessNodes.TrimEnd()
-        evidenceWitnessEdge =
-            '          <Edge From="witnessAvailableTrigger.OnAdded" To="SetDone" />'
-        witnessObjectiveNodes = $witnessObjectiveNodes.TrimEnd()
-        witnessType = $witnessType.TrimEnd()
-        witnessObjective = $witnessObjective.TrimEnd()
+        evidenceStateNodes = $evidenceStateNodes -join "`n"
+        evidenceStateEdges = $evidenceStateEdges -join "`n"
+        evidenceType = $evidenceTypeEnums -join "`n"
+        evidenceLogs = $evidenceLogs -join "`n"
+        journalStates = $journalStates
+        evidenceWitnessEdge = ''
+        witnessObjectiveNodes = ''
+        witnessType = ''
+        witnessObjective = ''
         dialogues = @($native.dialogues | ForEach-Object {
             [ordered]@{
                 fileName = [string]$_.fileName
@@ -682,6 +847,95 @@ function ConvertTo-DpNativeRegionWiring {
             }
         })
     }
+}
+
+function Get-DpLeadSignalStates {
+    param([Parameter(Mandatory)][object[]]$CaseSpecs)
+
+    $largest = @()
+    foreach ($case in $CaseSpecs) {
+        $states = @(Get-DpJournalStates -CaseSpec $case)
+        if ($states.Count -gt $largest.Count) { $largest = $states }
+    }
+    return $largest
+}
+
+function ConvertTo-DpLeadStateTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($state in @(Get-DpLeadSignalStates -CaseSpecs $CaseSpecs)) {
+        $tag = [int]$state.signal_tag
+        $name = "dp_lead_state_$([int]$state.code)"
+        $idMatch = [regex]::Match(
+            $BaseXml,
+            "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+        )
+        if ($idMatch.Success) {
+            if (-not $idMatch.Value.Contains(
+                "buff_ai_tag_name=`"$name`""
+            )) {
+                throw "Lead-state buff tag id $tag collides with another tag."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Lead-state buff tag name '$name' has another id."
+        }
+        $additions.Add(
+            "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+            "buff_ai_tag_name=`"$name`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buff_ai_tags>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpLeadStateBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($state in @(Get-DpLeadSignalStates -CaseSpecs $CaseSpecs)) {
+        $code = [int]$state.code
+        $tag = [int]$state.signal_tag
+        $guid = [string]$state.buff_guid
+        $name = "dp_lead_state_$code"
+        $guidMatch = [regex]::Match(
+            $BaseXml,
+            "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+        )
+        if ($guidMatch.Success) {
+            if (-not $guidMatch.Value.Contains("buff_name=`"$name`"") -or
+                -not $guidMatch.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+                throw "Lead-state buff guid $guid collides with another buff."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_name=`"$name`"")) {
+            throw "Lead-state buff name '$name' has another guid."
+        }
+        $additions.Add(
+            "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+            "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+            "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+            "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+            "implementation=`"Cpp:Constant`" is_persistent=`"true`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buffs>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
 }
 
 function Get-DpCaseSpecValidationErrors {
@@ -880,6 +1134,47 @@ function Get-DpCaseSpecValidationErrors {
             $null -eq $binding[0].roles.PSObject.Properties[$role]) {
             $errors.Add("$prefix semantic role '$role' is not bound")
         }
+        if ($role -ne 'innkeeper') {
+            $direction = $step.PSObject.Properties['direction']
+            $directionKey = if ($null -ne $direction) {
+                [string]$direction.Value.key
+            }
+            else { '' }
+            if (-not (Test-DpTextValue $directionKey)) {
+                $errors.Add(
+                    "$prefix evidence '$evidenceId' direction.key is required"
+                )
+            }
+            else {
+                foreach ($language in 'ru', 'en') {
+                    $localizationProperty =
+                        $CaseSpec.PSObject.Properties['localization']
+                    $languageProperty = if (
+                        $null -ne $localizationProperty
+                    ) {
+                        $localizationProperty.Value.PSObject.Properties[
+                            $language
+                        ]
+                    }
+                    else { $null }
+                    $languageRoot = if ($null -ne $languageProperty) {
+                        $languageProperty.Value
+                    }
+                    else { $null }
+                    $localized = if ($null -ne $languageRoot) {
+                        $languageRoot.PSObject.Properties[$directionKey]
+                    }
+                    else { $null }
+                    if ($null -eq $localized -or
+                        -not (Test-DpTextValue $localized.Value)) {
+                        $errors.Add(
+                            "$prefix evidence '$evidenceId' direction key " +
+                            "'$directionKey' is missing localization.$language"
+                        )
+                    }
+                }
+            }
+        }
 
         $placementProperty = $step.PSObject.Properties['placement']
         $placement = if ($null -ne $placementProperty) {
@@ -922,6 +1217,13 @@ function Get-DpCaseSpecValidationErrors {
                 "$prefix evidence '$evidenceId' reveals must contain a fact"
             )
         }
+    }
+
+    $directionCount = @(Get-DpDirectionEvidence -CaseSpec $CaseSpec).Count
+    if ($directionCount -gt 5) {
+        $errors.Add(
+            "$prefix supports at most 5 simultaneous journal directions"
+        )
     }
 
     $evidenceIds = @($evidence | ForEach-Object { [string]$_.id })
@@ -1013,6 +1315,9 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpCaseCompatibilityReport',
     'ConvertTo-DpDialogueXml',
     'ConvertTo-DpNativeRegionWiring',
+    'Get-DpJournalStates',
+    'ConvertTo-DpLeadStateTagXml',
+    'ConvertTo-DpLeadStateBuffXml',
     'ConvertTo-DpLocalizationXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpScriptContextXml',

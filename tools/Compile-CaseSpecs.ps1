@@ -90,6 +90,11 @@ $nativeManifest = [ordered]@{
             dialogDefinitions = $_.dialogDefinitions
             rumorNodes = $_.rumorNodes
             witnessNodes = $_.witnessNodes
+            evidenceStateNodes = $_.evidenceStateNodes
+            evidenceStateEdges = $_.evidenceStateEdges
+            evidenceType = $_.evidenceType
+            evidenceLogs = $_.evidenceLogs
+            journalStates = $_.journalStates
             evidenceWitnessEdge = $_.evidenceWitnessEdge
             witnessObjectiveNodes = $_.witnessObjectiveNodes
             witnessType = $_.witnessType
@@ -150,6 +155,26 @@ $stageTransforms = @(
                 -BaseXml $xml `
                 -CaseSpecs $cases `
                 -Bindings $bindings
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpLeadStateTagXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpLeadStateBuffXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
         }
     }
 )

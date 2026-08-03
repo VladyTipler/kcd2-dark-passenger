@@ -138,7 +138,7 @@ Add-Result (
 ) 'seeder projects snapshot case-start evidence into the registry'
 Add-Result (Test-Path -LiteralPath $plannerPath -PathType Leaf) `
     'pure lead planner exists'
-foreach ($export in 'Evaluate', 'Apply', 'RunSelfTest') {
+foreach ($export in 'Transition', 'Evaluate', 'Publish', 'Apply', 'RunSelfTest') {
     Add-Result (
         $planner.Contains("function DarkPassengerLeadPlanner.$export")
     ) "lead planner exports $export"
@@ -156,6 +156,20 @@ Add-Result (
     $planner.Contains('DarkPassengerEvidence.ApplyAvailability(') -and
     $planner.Contains('DarkPassengerWitnessLead.ApplyAvailability(')
 ) 'planner projects undiscovered finite directions into native adapters'
+Add-Result (
+    $planner.Contains('dp_lead_presentation_generation') -and
+    $planner.Contains('dp_lead_presentation_state_code') -and
+    $planner.Contains('dp_lead_presentation_revision') -and
+    $planner.Contains('presentation_unchanged') -and
+    $planner.Contains('nextState.revision + 1')
+) 'planner persists monotonic journal presentation revisions'
+Add-Result (
+    $planner.Contains('direction_code') -and
+    $planner.Contains('plan.stateCode') -and
+    $planner.Contains('state.buff_guid') -and
+    $planner.Contains('RemoveAllBuffsByGuid(') -and
+    $planner.Contains('soul:AddBuff(')
+) 'planner publishes exactly one compiled journal-state signal buff'
 
 if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `

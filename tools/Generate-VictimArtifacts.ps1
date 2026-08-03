@@ -134,6 +134,10 @@ function New-RegionalQuest {
     $rumorDialogDefinition = ''
     $rumorDialogNodes = ''
     $witnessNodes = ''
+    $evidenceStateNodes = ''
+    $evidenceStateEdges = ''
+    $evidenceType = ''
+    $evidenceLogs = ''
     $evidenceWitnessEdge = ''
     $witnessObjectiveNodes = ''
     $witnessType = ''
@@ -143,6 +147,10 @@ function New-RegionalQuest {
         $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
         $rumorDialogNodes = [string]$NativeWiring.rumorNodes
         $witnessNodes = [string]$NativeWiring.witnessNodes
+        $evidenceStateNodes = [string]$NativeWiring.evidenceStateNodes
+        $evidenceStateEdges = [string]$NativeWiring.evidenceStateEdges
+        $evidenceType = [string]$NativeWiring.evidenceType
+        $evidenceLogs = [string]$NativeWiring.evidenceLogs
         $evidenceWitnessEdge = [string]$NativeWiring.evidenceWitnessEdge
         $witnessObjectiveNodes = [string]$NativeWiring.witnessObjectiveNodes
         $witnessType = [string]$NativeWiring.witnessType
@@ -337,6 +345,10 @@ function New-RegionalQuest {
         '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
         '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
         '{{DP_WITNESS_NODES}}' = $witnessNodes.TrimEnd()
+        '{{DP_EVIDENCE_STATE_NODES}}' = $evidenceStateNodes.TrimEnd()
+        '{{DP_EVIDENCE_STATE_EDGES}}' = $evidenceStateEdges.TrimEnd()
+        '{{DP_EVIDENCE_TYPE_ENUMS}}' = $evidenceType.TrimEnd()
+        '{{DP_EVIDENCE_LOGS}}' = $evidenceLogs.TrimEnd()
         '{{DP_EVIDENCE_WITNESS_EDGE}}' = $evidenceWitnessEdge
         '{{DP_WITNESS_OBJECTIVE_NODES}}' = $witnessObjectiveNodes.TrimEnd()
         '{{DP_WITNESS_TYPE}}' = $witnessType.TrimEnd()

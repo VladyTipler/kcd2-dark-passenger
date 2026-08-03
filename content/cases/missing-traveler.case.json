@@ -123,6 +123,9 @@
         "culprit_knew_about_money"
       ],
       "reaction": "vanilla_neutral",
+      "direction": {
+        "key": "dp_mt_direction_ledger"
+      },
       "item": {
         "name": "dp_matej_guest_ledger",
         "nameKey": "dp_mt_ledger_name",
@@ -145,7 +148,10 @@
         "horse_returner_identified",
         "suspect_identified"
       ],
-      "promptKey": "dp_mt_witness_prompt"
+      "promptKey": "dp_mt_witness_prompt",
+      "direction": {
+        "key": "dp_mt_witness_objective_active"
+      }
     }
   ],
   "text": {
@@ -189,6 +195,7 @@
       "dp_mt_witness_objective_name": "Расспросить батрака Богуслава",
       "dp_mt_witness_objective_active": "Лаврентий сказал, что конь Матея вернулся без всадника. Батрак Богуслав мог видеть, кто привёл его обратно.",
       "dp_mt_witness_objective_done": "Богуслав видел, как местный житель вернул коня Матея один, а затем сжёг что-то у дороги. Он указал на подозреваемого.",
+      "dp_mt_direction_ledger": "Лаврентий запер гостевую книгу в сундуке наверху. Строку об отъезде Матея написал кто-то другой — книгу стоит осмотреть.",
       "dp_mt_ledger_name": "Вырванный лист гостевой книги",
       "dp_mt_ledger_info": "Лист из гостевой книги Желеёвского трактира. Строка об отъезде выведена другим почерком, а между страницами спрятана записка.",
       "dp_mt_ledger_content": "<p>Матей из Ледеча. Три ночи оплачено.</p><p><i>Уехал до заутрени.</i></p><p>Последняя строка выведена более тёмными чернилами и другой рукой. Между страницами сложен клочок бумаги:</p><p>Если я не вернусь, деньги в кошеле принадлежат Маркете, вдове Павла. Один здешний узнал о них и весь вечер расспрашивал, сколько я везу и кто меня ждёт. На рассвете он обещал показать короткую дорогу мимо старой ивы.</p><p>Он слишком любезен для человека, которому от меня ничего не нужно. Но если я ошибаюсь, к полудню буду уже далеко.</p><p>Матей</p>"
@@ -223,6 +230,7 @@
       "dp_mt_witness_objective_name": "Question the farmhand Bretislav",
       "dp_mt_witness_objective_active": "Lavrentiy said Matej's horse returned without its rider. The farmhand Bretislav may have seen who brought it back.",
       "dp_mt_witness_objective_done": "Bretislav saw a local man return Matej's horse alone, then burn something by the road. He identified the suspect.",
+      "dp_mt_direction_ledger": "Lavrentiy locked the guest ledger in his upstairs chest. Someone else wrote Matej's departure line, so the book is worth examining.",
       "dp_mt_ledger_name": "Torn Guest-Ledger Page",
       "dp_mt_ledger_info": "A page from the Zhelejov inn ledger. The departure line is in another hand, and a note was hidden between the leaves.",
       "dp_mt_ledger_content": "<p>Matej of Ledetchko. Three nights paid.</p><p><i>Left before matins.</i></p><p>The last line is written in darker ink and another hand. A folded scrap lies between the pages:</p><p>If I do not return, the money in my purse belongs to Marketa, Pavel's widow. A local man learned of it and spent the evening asking how much I carried and who expected me. At dawn he means to show me a shorter road past the old willow.</p><p>He is too obliging for a man who wants nothing from me. But if I am wrong, I shall be far away by noon.</p><p>Matej</p>"

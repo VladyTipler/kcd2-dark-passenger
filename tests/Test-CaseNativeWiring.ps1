@@ -40,6 +40,14 @@ try {
         'CaseSpec declares native wiring'
     Add-Result (@($case.native.dialogues).Count -eq 2) `
         'CaseSpec declares opener and witness dialogues'
+    $directionEvidence = @($case.evidence | Where-Object role -ne 'innkeeper')
+    Add-Result (
+        $directionEvidence.Count -eq 2 -and
+        @($directionEvidence | Where-Object {
+            $null -eq $_.direction -or
+            [string]::IsNullOrWhiteSpace([string]$_.direction.key)
+        }).Count -eq 0
+    ) 'every follow-up evidence source declares authored journal direction copy'
 
     New-Item -ItemType Directory -Path $testRoot -Force | Out-Null
     & $compilerPath `
@@ -86,16 +94,25 @@ try {
     ) 'native manifest preserves live signal tags and contexts'
     Add-Result (
         $null -ne $regionRecord -and
-        ([string]$regionRecord.witnessObjective).Contains(
-            'dark_within_witness_name'
+        @($regionRecord.journalStates).Count -eq 4 -and
+        ([string]$regionRecord.evidenceStateNodes).Contains('Value="37"') -and
+        ([string]$regionRecord.evidenceStateNodes).Contains('Value="40"') -and
+        ([string]$regionRecord.evidenceType).Contains('Directions1102_1103') -and
+        ([string]$regionRecord.evidenceLogs).Contains(
+            '<EnumLog Type="None" Name="DirectionsNone" />'
         ) -and
-        ([string]$regionRecord.witnessObjective).Contains(
-            'dark_within_witness_active'
+        ([string]$regionRecord.evidenceLogs).Contains('Directions1102') -and
+        ([string]$regionRecord.evidenceLogs).Contains('Directions1103') -and
+        ([string]$regionRecord.evidenceLogs).Contains('Directions1102_1103')
+    ) 'compiler emits every finite umbrella journal knowledge state'
+    Add-Result (
+        [string]::IsNullOrWhiteSpace(
+            [string]$regionRecord.witnessObjective
         ) -and
-        ([string]$regionRecord.witnessObjective).Contains(
-            'dark_within_witness_done'
+        [string]::IsNullOrWhiteSpace(
+            [string]$regionRecord.witnessObjectiveNodes
         )
-    ) 'native manifest preserves witness objective contract'
+    ) 'separate witness objective is removed from generated wiring'
 
     foreach ($fileName in @(
         'innkeeper_rumor_dialog_k.xml',

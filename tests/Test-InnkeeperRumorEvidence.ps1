@@ -165,14 +165,19 @@ foreach ($fragment in
     '<Constant Name="A" Value="31" />',
     '<BuffTagTrigger Name="firstLeadTrigger">',
     '<State Name="evidenceProgress" TypeT="DP_EvidenceProgress">',
-    '<Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />',
+    '{{DP_EVIDENCE_STATE_NODES}}',
+    '{{DP_EVIDENCE_STATE_EDGES}}',
     '<Type TypeName="DP_EvidenceProgress">',
     '<Objective TypeT="DP_EvidenceProgress" Name="{{DP_EVIDENCE_OBJECTIVE_NAME}}">',
-    'StringName="dark_within_evidence_first_lead"'
+    '{{DP_EVIDENCE_TYPE_ENUMS}}',
+    '{{DP_EVIDENCE_LOGS}}'
 ) {
     Add-Result ($questTemplate.Contains($fragment)) `
-        "quest template contains first-lead contract: $fragment"
+        "quest template contains generated evidence-state contract: $fragment"
 }
+Add-Result (
+    -not $questTemplate.Contains('<Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />')
+) 'quest template no longer hardcodes one linear first-lead transition'
 Add-Result (
     $questTemplate.Contains('<Edge From="revealTagTrigger.OnAdded" To="SetDone" />')
 ) 'victim reveal completes evidence gathering without replacing area tracking'

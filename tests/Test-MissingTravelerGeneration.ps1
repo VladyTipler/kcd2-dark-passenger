@@ -59,6 +59,10 @@ $contextPath = Join-Path $stageRoot `
     'Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml'
 $itemPath = Join-Path $stageRoot `
     'Data\Libs\Tables\item\item__darkpassengertest.xml'
+$buffTagPath = Join-Path $stageRoot `
+    'Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+$buffPath = Join-Path $stageRoot `
+    'Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
 $catalogPath = Join-Path $stageRoot `
     'Data\Scripts\mods\generated\dp_case_catalog.lua'
 $runtimePath = Join-Path $stageRoot `
@@ -75,6 +79,8 @@ foreach ($path in @(
     $stormPath,
     $contextPath,
     $itemPath,
+    $buffTagPath,
+    $buffPath,
     $catalogPath,
     $runtimePath,
     $englishPath,
@@ -90,6 +96,8 @@ $witness = Read-OptionalText $witnessPath
 $storm = Read-OptionalText $stormPath
 $contexts = Read-OptionalText $contextPath
 $items = Read-OptionalText $itemPath
+$buffTags = Read-OptionalText $buffTagPath
+$buffs = Read-OptionalText $buffPath
 $catalog = Read-OptionalText $catalogPath
 $runtime = Read-OptionalText $runtimePath
 $english = Read-OptionalText $englishPath
@@ -108,9 +116,17 @@ Add-Result (
 Add-Result (
     $quest.Contains('dp_rumor_heard_trosecko') -and
     $quest.Contains('dp_witness_heard_trosecko') -and
-    $quest.Contains('<DarkWithinWitnessObjective_t Name="witnessVisual">') -and
-    $quest.Contains('<Objective TypeT="DP_WitnessProgress" Name="DarkWithinWitnessObjective_t">')
-) 'universal Trosky graph carries evidence contexts and witness objective'
+    $quest.Contains('Name="Directions2102_2103"') -and
+    $quest.Contains('Name="Directions2102"') -and
+    $quest.Contains('Name="Directions2103"') -and
+    -not $quest.Contains('Name="witnessVisual"') -and
+    -not $quest.Contains('TypeT="DP_WitnessProgress"')
+) 'universal Trosky graph carries one finite umbrella evidence objective'
+Add-Result (
+    $quest.Contains('Value="37"') -and
+    $quest.Contains('Value="40"') -and
+    $quest.Contains('dp_case_2001_directions_2102_2103')
+) 'quest graph consumes deterministic Lua presentation signals'
 
 Add-Result (
     $rumor.Contains('Role="DP_INNKEEPER_RUMOR"') -and
@@ -153,7 +169,10 @@ foreach ($localization in @(
         $localization.Text.Contains('<Cell>dp_mt_rumor_prompt</Cell>') -and
         $localization.Text.Contains('<Cell>dp_mt_witness_prompt</Cell>') -and
         $localization.Text.Contains('<Cell>dp_mt_ledger_content</Cell>') -and
-        $localization.Text.Contains('&lt;p&gt;')
+        $localization.Text.Contains('&lt;p&gt;') -and
+        $localization.Text.Contains(
+            '<Cell>dp_case_2001_directions_2102_2103</Cell>'
+        )
     ) "$($localization.Language) generated localization contains all content families"
 }
 Add-Result (
@@ -181,6 +200,19 @@ Add-Result (
     $catalog.Contains('occupation = "farmhand"')
 ) 'runtime catalog carries localized witness identity metadata'
 Add-Result (
+    $catalog.Contains('direction_code = 1') -and
+    $catalog.Contains('direction_code = 2') -and
+    $catalog.Contains('journal_states') -and
+    $catalog.Contains('state_name = "Directions2102_2103"') -and
+    $catalog.Contains('signal_tag = 40')
+) 'runtime catalog and quest share finite journal-state identity'
+Add-Result (
+    $buffTags.Contains('buff_ai_tag_id="37" buff_ai_tag_name="dp_lead_state_0"') -and
+    $buffTags.Contains('buff_ai_tag_id="40" buff_ai_tag_name="dp_lead_state_3"') -and
+    $buffs.Contains('buff_name="dp_lead_state_0"') -and
+    $buffs.Contains('buff_name="dp_lead_state_3"')
+) 'build generates hidden persistent lead-state signal buffs'
+Add-Result (
     $runtime -match (
         '(?s)region = "trosecko".*?' +
         'rumorContext = "dp_rumor_heard_trosecko".*?' +
@@ -201,6 +233,8 @@ foreach ($path in @(
     $stormPath,
     $contextPath,
     $itemPath,
+    $buffTagPath,
+    $buffPath,
     $catalogPath,
     $runtimePath,
     $englishPath,

@@ -11,6 +11,7 @@
       <Nodes>
 {{DP_RUMOR_DIALOG_NODES}}
 {{DP_WITNESS_NODES}}
+{{DP_EVIDENCE_STATE_NODES}}
         <State Name="watcherActive" TypeT="bool">
           <Edge From="arm" To="SetTrue" />
         </State>
@@ -182,7 +183,7 @@
         </{{DP_SEARCH_OBJECTIVE_NAME}}>
         <State Name="evidenceProgress" TypeT="DP_EvidenceProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
-          <Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />
+{{DP_EVIDENCE_STATE_EDGES}}
 {{DP_EVIDENCE_WITNESS_EDGE}}
           <Edge From="revealTagTrigger.OnAdded" To="SetDone" />
         </State>
@@ -232,8 +233,7 @@
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
         <Type TypeName="DP_EvidenceProgress">
-          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
-          <StateTypeEnumeration Name="FirstLead" ObjectiveValueType="Started" />
+{{DP_EVIDENCE_TYPE_ENUMS}}
           <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
         </Type>
 {{DP_WITNESS_TYPE}}
@@ -335,12 +335,7 @@
             <Localization Text="Gather proof of guilt" Language="WHS" />
           </LocalizedName>
           <Logs>
-            <EnumLog Type="None" Name="None" />
-            <EnumLog Type="Started" Name="FirstLead" IsTracked="true">
-              <Log StringName="dark_within_evidence_first_lead" Text="An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.">
-                <Localization Text="An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof." Language="WHS" />
-              </Log>
-            </EnumLog>
+{{DP_EVIDENCE_LOGS}}
             <EnumLog Type="Completed" Name="Done" />
           </Logs>
         </Objective>

@@ -118,6 +118,9 @@
         "tavern_witness_identity"
       ],
       "reaction": "vanilla_neutral",
+      "direction": {
+        "key": "dp_ca_direction_belongings"
+      },
       "item": {
         "name": "dp_vojtech_last_letter",
         "nameKey": "dp_vojtech_letter_name",
@@ -134,7 +137,10 @@
       "placement": "on_event",
       "discoverableWithoutHint": false,
       "hintsUnlockedBy": ["vojtech_belongings"],
-      "reveals": ["suspect_identified"]
+      "reveals": ["suspect_identified"],
+      "direction": {
+        "key": "dp_ca_direction_witness"
+      }
     }
   ],
   "text": {
@@ -145,6 +151,16 @@
     "en": {
       "title": "A Convenient Accident",
       "description": "The farmhand Vojtech's death was too quickly dismissed as an accident. I must uncover what the locals chose to forget."
+    }
+  },
+  "localization": {
+    "ru": {
+      "dp_ca_direction_belongings": "Корчмарь сказал, что сундук с вещами Войтеха остался на сеновале за корчмой. Возможно, там найдётся то, чего не пожелал искать рихтарж.",
+      "dp_ca_direction_witness": "Войтех написал, что одна из служанок видела его разговор с убийцей. Возможно, она сможет опознать этого человека."
+    },
+    "en": {
+      "dp_ca_direction_belongings": "The innkeeper said Vojtech's chest remains in the hayloft behind the inn. It may hold what the bailiff chose not to find.",
+      "dp_ca_direction_witness": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man."
     }
   }
 }
