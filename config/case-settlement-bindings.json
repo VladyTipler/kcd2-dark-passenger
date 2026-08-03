@@ -45,6 +45,48 @@
               "occupation": "farmhand"
             }
           }
+        },
+        "overheard": {
+          "pairs": [
+            {
+              "id": "inn_yard_primary",
+              "speakers": [
+                {
+                  "role": "speakerA",
+                  "entityName": "tzel_man_12",
+                  "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+                  "questAlias": "DpOverheardZelejovPrimaryA",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+                },
+                {
+                  "role": "speakerB",
+                  "entityName": "tzel_woman_9",
+                  "soulGuid": "4758bdb9-f854-38ef-1ea4-e8799614ceb7",
+                  "questAlias": "DpOverheardZelejovPrimaryB",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+                }
+              ]
+            },
+            {
+              "id": "inn_yard_fallback",
+              "speakers": [
+                {
+                  "role": "speakerA",
+                  "entityName": "tzel_man_13",
+                  "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+                  "questAlias": "DpOverheardZelejovFallbackA",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+                },
+                {
+                  "role": "speakerB",
+                  "entityName": "tzel_woman_11",
+                  "soulGuid": "40924ea1-1d40-e575-9c92-f0b3806656aa",
+                  "questAlias": "DpOverheardZelejovFallbackB",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+                }
+              ]
+            }
+          ]
         }
       }
     }

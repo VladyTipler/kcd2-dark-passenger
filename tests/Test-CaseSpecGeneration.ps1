@@ -131,7 +131,7 @@ try {
         [int]$report.cases[1].code -eq 2001 -and
         $report.cases[1].bindingKey -eq 'trosecko/zelejov' -and
         (@($report.cases[1].evidenceIds) -join ',') -eq
-        'zelejov_innkeeper_missing_traveler,matej_guest_ledger,zelejov_stablehand_witness'
+        'zelejov_innkeeper_missing_traveler,matej_guest_ledger,zelejov_stablehand_witness,zelejov_inn_yard_whisper'
     ) 'compatibility report identifies Missing Traveler contract'
 
     Import-Module $modulePath -Force

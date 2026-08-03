@@ -138,6 +138,46 @@ function Get-DpDialogueVariants {
     return $result.ToArray()
 }
 
+function Get-DpOverheardDefinition {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $property = $CaseSpec.native.PSObject.Properties['overheard']
+    if ($null -eq $property) { return $null }
+    $overheard = $property.Value
+    $evidence = @($CaseSpec.evidence | Where-Object {
+        [string]$_.id -eq [string]$overheard.evidenceId
+    })
+    if ($evidence.Count -ne 1) {
+        throw "Overheard dialogue '$($overheard.graphName)' has unknown evidence."
+    }
+    $bindingProperty = $Binding.roles.PSObject.Properties['overheard']
+    if ($null -eq $bindingProperty) {
+        throw "Case '$($CaseSpec.id)' has no overheard settlement binding."
+    }
+    $pairs = @($bindingProperty.Value.pairs)
+    return [ordered]@{
+        evidence_id = [string]$overheard.evidenceId
+        evidence_code = [int]$evidence[0].code
+        graph_name = [string]$overheard.graphName
+        file_name = [string]$overheard.fileName
+        root_key = [string]$overheard.rootKey
+        decision_alias = [string]$overheard.decisionAlias
+        sequence_name = [string]$overheard.sequenceName
+        clue_port = [string]$overheard.cluePort
+        clue_label = [string]$overheard.clueLabel
+        context = [string]$overheard.context
+        hearing_distance = [int]$overheard.hearingDistance
+        repeat_after_seconds = [int]$overheard.repeatAfterSeconds
+        available_tag = [int]$overheard.availableTag
+        buff_guid = Get-DpStableGuid -Seed 'darkpassenger-overheard-available'
+        responses = @($overheard.responses)
+        pairs = $pairs
+    }
+}
+
 function ConvertTo-DpLuaString {
     param([AllowNull()][string]$Value)
 
@@ -299,6 +339,9 @@ function ConvertTo-DpRuntimeCase {
                 buff_guid = $_.buff_guid
             }
         })
+    $overheard = Get-DpOverheardDefinition `
+        -CaseSpec $CaseSpec `
+        -Binding $Binding
     return [ordered]@{
         id = [string]$CaseSpec.id
         code = [int]$CaseSpec.code
@@ -315,6 +358,7 @@ function ConvertTo-DpRuntimeCase {
         evidence = $evidence.ToArray()
         journal_states = @(Get-DpJournalStates -CaseSpec $CaseSpec)
         dialogue_variants = $dialogueVariants
+        overheard = $overheard
         bindings = $Binding.roles
         text = $CaseSpec.text
     }
@@ -478,8 +522,29 @@ function ConvertTo-DpStormRoleXml {
             [string]$_.region -eq [string]$case.constraints.region -and
             [string]$_.settlement -eq [string]$case.constraints.settlement
         })[0]
+        $roleBindings = [System.Collections.Generic.List[object]]::new()
         foreach ($role in 'innkeeper', 'witness') {
-            $roleBinding = $binding.roles.PSObject.Properties[$role].Value
+            $property = $binding.roles.PSObject.Properties[$role]
+            if ($null -eq $property) { continue }
+            $roleBindings.Add([ordered]@{
+                suffix = $role
+                value = $property.Value
+            })
+        }
+        $overheardProperty = $binding.roles.PSObject.Properties['overheard']
+        if ($null -ne $overheardProperty) {
+            foreach ($pair in @($overheardProperty.Value.pairs)) {
+                foreach ($speaker in @($pair.speakers)) {
+                    $roleBindings.Add([ordered]@{
+                        suffix = 'overheard_' + [string]$pair.id + '_' +
+                            [string]$speaker.role
+                        value = $speaker
+                    })
+                }
+            }
+        }
+        foreach ($entry in $roleBindings) {
+            $roleBinding = $entry.value
             $entityName = [string]$roleBinding.entityName
             $dialogueRole = [string]$roleBinding.dialogueRole
             $existing = @($rules | Where-Object {
@@ -490,7 +555,7 @@ function ConvertTo-DpStormRoleXml {
 
             $ruleName = 'darkpassenger_' +
                 ([string]$case.constraints.settlement -replace '[^A-Za-z0-9_]', '_') +
-                '_' + $role
+                '_' + ([string]$entry.suffix -replace '[^A-Za-z0-9_]', '_')
             if ($BaseXml.Contains("<rule name=`"$ruleName`">") -or
                 @($additions | Where-Object {
                     $_.Contains("<rule name=`"$ruleName`">")
@@ -538,10 +603,19 @@ function ConvertTo-DpScriptContextXml {
     }
     $additions = [System.Collections.Generic.List[string]]::new()
     foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $contexts = [System.Collections.Generic.List[string]]::new()
         foreach ($context in @(
             [string]$case.native.contexts.rumorHeard,
             [string]$case.native.contexts.witnessHeard
         )) {
+            if (Test-DpTextValue $context) { $contexts.Add($context) }
+        }
+        $overheardProperty = $case.native.PSObject.Properties['overheard']
+        if ($null -ne $overheardProperty -and
+            (Test-DpTextValue $overheardProperty.Value.context)) {
+            $contexts.Add([string]$overheardProperty.Value.context)
+        }
+        foreach ($context in $contexts) {
             if ($names.Add($context)) {
                 $contextXml = ConvertTo-DpXmlText $context
                 $additions.Add(
@@ -705,6 +779,72 @@ function ConvertTo-DpDialogueXml {
     return ($lines -join "`n") + "`n"
 }
 
+function ConvertTo-DpOverheardDialogueXml {
+    param(
+        [Parameter(Mandatory)]$Overheard,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $roleMap = @{}
+    foreach ($pair in @($Binding.roles.overheard.pairs)) {
+        foreach ($speaker in @($pair.speakers)) {
+            $semanticRole = [string]$speaker.role
+            $dialogueRole = [string]$speaker.dialogueRole
+            if ($roleMap.ContainsKey($semanticRole) -and
+                [string]$roleMap[$semanticRole] -ne $dialogueRole) {
+                throw "Overheard role '$semanticRole' maps to multiple dialogue roles."
+            }
+            $roleMap[$semanticRole] = $dialogueRole
+        }
+    }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('<?xml version="1.0" encoding="utf-8"?>')
+    $lines.Add('<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">')
+    $lines.Add('  <Skald>')
+    $lines.Add("    <Dialog Name=`"$($Overheard.graph_name)`">")
+    $lines.Add('      <Ports>')
+    $lines.Add(
+        "        <Port Name=`"$($Overheard.clue_port)`" Direction=`"Out`" Type=`"trigger`">"
+    )
+    $clueLabel = ConvertTo-DpXmlText $Overheard.clue_label
+    $lines.Add("          <DesignName Text=`"$clueLabel`" />")
+    $lines.Add('        </Port>')
+    $lines.Add('      </Ports>')
+    $lines.Add("      <Text StringName=`"$($Overheard.root_key)`" />")
+    $lines.Add('      <Dialogue Type="ingame" TechnicalStatus="Enabled" Initiator="NonPlayer">')
+    $lines.Add(
+        "        <Decision Name=`"overheard_root`" Priority=`"SideQuest`" Alias=`"$($Overheard.decision_alias)`">"
+    )
+    $lines.Add('          <Sequences>')
+    $lines.Add(
+        "            <Sequence EndType=`"EndDialogue`" Name=`"$($Overheard.sequence_name)`">"
+    )
+    $lines.Add('              <Triggers>')
+    $lines.Add("                <Port Name=`"$($Overheard.clue_port)`" />")
+    $lines.Add('              </Triggers>')
+    $lines.Add('              <Elements>')
+    foreach ($response in @($Overheard.responses)) {
+        $semanticRole = [string]$response.role
+        if (-not $roleMap.ContainsKey($semanticRole)) {
+            throw "Overheard dialogue uses unbound role '$semanticRole'."
+        }
+        $dialogueRole = [string]$roleMap[$semanticRole]
+        $lines.Add("                <Response Role=`"$dialogueRole`">")
+        $lines.Add("                  <Text StringName=`"$($response.key)`" />")
+        $lines.Add('                </Response>')
+    }
+    $lines.Add('              </Elements>')
+    $lines.Add('            </Sequence>')
+    $lines.Add('          </Sequences>')
+    $lines.Add('        </Decision>')
+    $lines.Add('      </Dialogue>')
+    $lines.Add('    </Dialog>')
+    $lines.Add('  </Skald>')
+    $lines.Add('</Database>')
+    return ($lines -join "`n") + "`n"
+}
+
 function ConvertTo-DpNativeRegionWiring {
     param(
         [Parameter(Mandatory)]$CaseSpec,
@@ -719,6 +859,9 @@ function ConvertTo-DpNativeRegionWiring {
     }
     $rumor = $rumor[0]
     $witness = $witness[0]
+    $overheard = Get-DpOverheardDefinition `
+        -CaseSpec $CaseSpec `
+        -Binding $Binding
     $folder = [string]$native.dialogFolder
     $rumorTag = [int]$native.signals.rumorAvailableTag
     $witnessTag = [int]$native.signals.witnessAvailableTag
@@ -826,10 +969,15 @@ function ConvertTo-DpNativeRegionWiring {
     $rumorVariantNodeXml = $rumorVariantNodes -join "`n"
     $rumorVariantPortEdgeXml = $rumorVariantPortEdges -join "`n"
 
+    $overheardDefinition = if ($null -ne $overheard) {
+        "        <Definition File=`"$folder/$($overheard.file_name)`" />"
+    }
+    else { '' }
     $definitions = @"
       <Definitions>
         <Definition File="$folder/$($rumor.fileName)" />
         <Definition File="$folder/$($witness.fileName)" />
+$overheardDefinition
       </Definitions>
 "@
     $rumorNodes = @"
@@ -910,6 +1058,128 @@ $rumorVariantPortEdgeXml
           <Edge From="witnessDialogueRequestActive.State" To="IsActive" />
         </SetEntityContext>
 "@
+    $overheardNodes = ''
+    $overheardAssets = ''
+    $overheardDialogue = $null
+    if ($null -ne $overheard) {
+        $nodeLines = [System.Collections.Generic.List[string]]::new()
+        $assetLines = [System.Collections.Generic.List[string]]::new()
+        $nodeLines.Add('        <MakeArray Name="overheardAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">')
+        $nodeLines.Add(
+            "          <Constant Name=`"A`" Value=`"$($overheard.available_tag)`" />"
+        )
+        $nodeLines.Add('        </MakeArray>')
+        for ($pairIndex = 0; $pairIndex -lt $overheard.pairs.Count; $pairIndex++) {
+            $pair = $overheard.pairs[$pairIndex]
+            $speakers = @($pair.speakers)
+            $pairName = if ($pairIndex -eq 0) { 'Primary' } else { 'Fallback' }
+            $pairNode = "overheard${pairName}Speakers"
+            $triggerNode = "overheard${pairName}AvailableTrigger"
+            $stateNode = "overheard${pairName}Available"
+            $switchNode = "overheardSwitch$pairName"
+            $nodeLines.Add(
+                "        <MakeArray Name=`"$pairNode`" TypeT=`"wh::rpgmodule::Souls`">"
+            )
+            for ($speakerIndex = 0; $speakerIndex -lt $speakers.Count; $speakerIndex++) {
+                $letter = [char]([int][char]'A' + $speakerIndex)
+                $nodeLines.Add(
+                    "          <Asset Name=`"$letter`" Alias=`"$($speakers[$speakerIndex].questAlias)`" />"
+                )
+                $assetLines.Add(
+                    "        <SoulAsset Name=`"$($speakers[$speakerIndex].questAlias)`" SharedSoulGuids=`"$($speakers[$speakerIndex].soulGuid)`" />"
+                )
+            }
+            $nodeLines.Add('        </MakeArray>')
+            $nodeLines.Add("        <BuffTagTrigger Name=`"$triggerNode`">")
+            $nodeLines.Add(
+                "          <Asset Name=`"Souls`" Alias=`"$($speakers[0].questAlias)`" />"
+            )
+            $nodeLines.Add('          <Edge From="overheardAvailableTags.Array" To="BuffTags" />')
+            $nodeLines.Add('          <Edge From="questProgress.Active" To="IsActive" />')
+            $nodeLines.Add('        </BuffTagTrigger>')
+            $nodeLines.Add("        <State Name=`"$stateNode`" TypeT=`"bool`">")
+            $nodeLines.Add(
+                "          <Edge From=`"$triggerNode.OnAdded`" To=`"SetTrue`" />"
+            )
+            $nodeLines.Add(
+                "          <Edge From=`"$triggerNode.OnRemoved`" To=`"SetFalse`" />"
+            )
+            foreach ($resultTrigger in @(
+                'satisfactionTrigger',
+                'cleanResultTrigger',
+                'controlledResultTrigger',
+                'noisyResultTrigger',
+                'externalResultTrigger'
+            )) {
+                $nodeLines.Add(
+                    "          <Edge From=`"$resultTrigger.OnAdded`" To=`"SetFalse`" />"
+                )
+            }
+            $nodeLines.Add('        </State>')
+            $nodeLines.Add(
+                "        <switchdialog Name=`"$switchNode`" Namespace=`"utils.speech`">"
+            )
+            $nodeLines.Add(
+                "          <Asset Name=`"linksource`" Alias=`"$($speakers[0].questAlias)`" />"
+            )
+            $nodeLines.Add(
+                "          <Constant Name=`"alias`" Value=`"$($overheard.decision_alias)`" />"
+            )
+            $nodeLines.Add('          <Constant Name="dialogtype" Value="Ingame" />')
+            $nodeLines.Add(
+                "          <Constant Name=`"repeatafterseconds`" Value=`"$($overheard.repeat_after_seconds)`" />"
+            )
+            $nodeLines.Add('          <Constant Name="repeataftersecondsvariation" Value="0" />')
+            $nodeLines.Add('          <Constant Name="playdialoganimations" Value="false" />')
+            $nodeLines.Add('          <Constant Name="maxscheduledpriority" Value="52" />')
+            $nodeLines.Add('          <Constant Name="context" Value="-" />')
+            $nodeLines.Add('          <Constant Name="perceivingplayer" Value="false" />')
+            $nodeLines.Add(
+                "          <Constant Name=`"playerdistance`" Value=`"$($overheard.hearing_distance)`" />"
+            )
+            $nodeLines.Add('          <Constant Name="continuosinitiatorchecks" Value="false" />')
+            $nodeLines.Add('          <Constant Name="lookatenabled" Value="false" />')
+            $nodeLines.Add('          <Asset Name="lookattarget" Alias="player" />')
+            $nodeLines.Add('          <Constant Name="boostperceptionpriority" Value="false" />')
+            $nodeLines.Add('          <Constant Name="perceptiondebuff" Value="false" />')
+            $nodeLines.Add('          <Constant Name="subtitlesdown" Value="false" />')
+            $nodeLines.Add("          <Edge From=`"$pairNode.Array`" To=`"souls`" />")
+            $nodeLines.Add("          <Edge From=`"$stateNode.State`" To=`"active`" />")
+            $nodeLines.Add('        </switchdialog>')
+        }
+        $nodeLines.Add(
+            "        <$($overheard.graph_name) Name=`"overheardEvidenceDialog`" />"
+        )
+        $nodeLines.Add('        <State Name="overheardClueRequestActive" TypeT="bool">')
+        $nodeLines.Add(
+            "          <Edge From=`"overheardEvidenceDialog.$($overheard.clue_port)`" To=`"SetTrue`" />"
+        )
+        $nodeLines.Add('          <Edge From="overheardCluePulse.OnFinished" To="SetFalse" />')
+        $nodeLines.Add('          <Edge From="questProgress.OnActive" To="SetFalse" />')
+        $nodeLines.Add('        </State>')
+        $nodeLines.Add('        <Timer Name="overheardCluePulse">')
+        $nodeLines.Add('          <Constant Name="Duration" Value="3s" />')
+        $nodeLines.Add('          <Constant Name="TimeType" Value="RealTime" />')
+        $nodeLines.Add(
+            "          <Edge From=`"overheardEvidenceDialog.$($overheard.clue_port)`" To=`"SetRunning`" />"
+        )
+        $nodeLines.Add('        </Timer>')
+        $nodeLines.Add('        <SetEntityContext Name="overheardClueRequest">')
+        $nodeLines.Add(
+            "          <Constant Name=`"Context`" Value=`"$($overheard.context)`" />"
+        )
+        $nodeLines.Add('          <Asset Name="Souls" Alias="player" />')
+        $nodeLines.Add('          <Edge From="overheardClueRequestActive.State" To="IsActive" />')
+        $nodeLines.Add('        </SetEntityContext>')
+        $overheardNodes = $nodeLines -join "`n"
+        $overheardAssets = $assetLines -join "`n"
+        $overheardDialogue = [ordered]@{
+            fileName = [string]$overheard.file_name
+            xml = ConvertTo-DpOverheardDialogueXml `
+                -Overheard $overheard `
+                -Binding $Binding
+        }
+    }
     $witnessObjectiveNodes = @"
         <State Name="witnessObjectiveProgress" TypeT="DP_WitnessProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
@@ -961,6 +1231,8 @@ $rumorVariantPortEdgeXml
         dialogDefinitions = $definitions.TrimEnd()
         rumorNodes = $rumorNodes.TrimEnd()
         witnessNodes = $witnessNodes.TrimEnd()
+        overheardNodes = $overheardNodes.TrimEnd()
+        overheardAssets = $overheardAssets.TrimEnd()
         evidenceStateNodes = $evidenceStateNodes -join "`n"
         evidenceStateEdges = $evidenceStateEdges -join "`n"
         evidenceType = $evidenceTypeEnums -join "`n"
@@ -982,7 +1254,7 @@ $rumorVariantPortEdgeXml
                     -Binding $Binding `
                     -Variants $variants
             }
-        })
+        }) + @($overheardDialogue | Where-Object { $null -ne $_ })
     }
 }
 
@@ -1167,6 +1439,93 @@ function ConvertTo-DpDialogueVariantBuffXml {
     $index = $BaseXml.LastIndexOf($marker)
     if ($index -lt 0) { throw 'Buff table has no closing collection.' }
     return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function Get-DpOverheardSignal {
+    param([Parameter(Mandatory)][object[]]$CaseSpecs)
+
+    $tags = @($CaseSpecs | ForEach-Object {
+        $property = $_.native.PSObject.Properties['overheard']
+        if ($null -ne $property) { [int]$property.Value.availableTag }
+    } | Sort-Object -Unique)
+    if ($tags.Count -eq 0) { return $null }
+    if ($tags.Count -ne 1) {
+        throw 'Overheard canaries must share one availability signal tag.'
+    }
+    return [ordered]@{
+        tag = [int]$tags[0]
+        name = 'dp_overheard_available'
+        guid = Get-DpStableGuid -Seed 'darkpassenger-overheard-available'
+    }
+}
+
+function ConvertTo-DpOverheardTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $signal = Get-DpOverheardSignal -CaseSpecs $CaseSpecs
+    if ($null -eq $signal) { return $BaseXml }
+    $tag = [int]$signal.tag
+    $name = [string]$signal.name
+    $match = [regex]::Match(
+        $BaseXml,
+        "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+    )
+    if ($match.Success) {
+        if (-not $match.Value.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Overheard buff tag id $tag collides."
+        }
+        return $BaseXml
+    }
+    if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+        throw "Overheard buff tag name '$name' has another id."
+    }
+    $addition =
+        "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+        "buff_ai_tag_name=`"$name`" />`n"
+    $marker = "`t</buff_ai_tags>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
+    return $BaseXml.Insert($index, $addition)
+}
+
+function ConvertTo-DpOverheardBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $signal = Get-DpOverheardSignal -CaseSpecs $CaseSpecs
+    if ($null -eq $signal) { return $BaseXml }
+    $tag = [int]$signal.tag
+    $name = [string]$signal.name
+    $guid = [string]$signal.guid
+    $match = [regex]::Match(
+        $BaseXml,
+        "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+    )
+    if ($match.Success) {
+        if (-not $match.Value.Contains("buff_name=`"$name`"") -or
+            -not $match.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+            throw "Overheard buff guid $guid collides."
+        }
+        return $BaseXml
+    }
+    if ($BaseXml.Contains("buff_name=`"$name`"")) {
+        throw "Overheard buff name '$name' has another guid."
+    }
+    $addition =
+        "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+        "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+        "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+        "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+        "implementation=`"Cpp:Constant`" is_persistent=`"true`" />`n"
+    $marker = "`t</buffs>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff table has no closing collection.' }
+    return $BaseXml.Insert($index, $addition)
 }
 
 function Get-DpCaseSpecValidationErrors {
@@ -1365,6 +1724,91 @@ function Get-DpCaseSpecValidationErrors {
         -not (Test-DpTextValue $CaseSpec.native.contexts.witnessHeard)) {
         $errors.Add("$prefix native dialogue contexts are required")
     }
+    $overheardProperty = $CaseSpec.native.PSObject.Properties['overheard']
+    if ($null -ne $overheardProperty) {
+        $overheard = $overheardProperty.Value
+        foreach ($field in @(
+            'evidenceId',
+            'graphName',
+            'fileName',
+            'rootKey',
+            'decisionAlias',
+            'sequenceName',
+            'cluePort',
+            'clueLabel',
+            'context'
+        )) {
+            if (-not (Test-DpTextValue $overheard.$field)) {
+                $errors.Add("$prefix native.overheard.$field is required")
+            }
+        }
+        if ([int]$overheard.hearingDistance -le 0 -or
+            [int]$overheard.repeatAfterSeconds -lt 0 -or
+            [int]$overheard.availableTag -le 0) {
+            $errors.Add("$prefix native.overheard scheduler values are invalid")
+        }
+        $responses = @($overheard.responses)
+        if ($responses.Count -eq 0) {
+            $errors.Add("$prefix native.overheard requires responses")
+        }
+        foreach ($response in $responses) {
+            if ([string]$response.role -notin @('speakerA', 'speakerB') -or
+                -not (Test-DpTextValue $response.key)) {
+                $errors.Add("$prefix native.overheard response is invalid")
+            }
+        }
+        if ($binding.Count -eq 1) {
+            $bindingProperty =
+                $binding[0].roles.PSObject.Properties['overheard']
+            $pairs = if ($null -ne $bindingProperty) {
+                @($bindingProperty.Value.pairs)
+            }
+            else { @() }
+            if ($pairs.Count -ne 2) {
+                $errors.Add(
+                    "$prefix overheard binding requires a primary and fallback pair"
+                )
+            }
+            $entityNames = [System.Collections.Generic.HashSet[string]]::new(
+                [System.StringComparer]::Ordinal
+            )
+            foreach ($pair in $pairs) {
+                $speakers = @($pair.speakers)
+                if (-not (Test-DpTextValue $pair.id) -or
+                    $speakers.Count -ne 2 -or
+                    @($speakers.role | Sort-Object -Unique) -join ',' -ne
+                        'speakerA,speakerB') {
+                    $errors.Add("$prefix overheard pair '$($pair.id)' is invalid")
+                    continue
+                }
+                foreach ($speaker in $speakers) {
+                    foreach ($field in @(
+                        'entityName',
+                        'soulGuid',
+                        'questAlias',
+                        'dialogueRole'
+                    )) {
+                        if (-not (Test-DpTextValue $speaker.$field)) {
+                            $errors.Add(
+                                "$prefix overheard speaker $field is required"
+                            )
+                        }
+                    }
+                    if ([string]$speaker.soulGuid -notmatch
+                        '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+                        $errors.Add(
+                            "$prefix overheard speaker soulGuid is invalid"
+                        )
+                    }
+                    if (-not $entityNames.Add([string]$speaker.entityName)) {
+                        $errors.Add(
+                            "$prefix overheard speaker '$($speaker.entityName)' is duplicated"
+                        )
+                    }
+                }
+            }
+        }
+    }
     if (-not (Test-DpTextValue $CaseSpec.native.witnessObjective.assetName)) {
         $errors.Add("$prefix native.witnessObjective.assetName is required")
     }
@@ -1432,7 +1876,7 @@ function Get-DpCaseSpecValidationErrors {
             $null -eq $binding[0].roles.PSObject.Properties[$role]) {
             $errors.Add("$prefix semantic role '$role' is not bound")
         }
-        if ($role -ne 'innkeeper') {
+        if ($role -ne 'innkeeper' -and $role -ne 'overheard') {
             $direction = $step.PSObject.Properties['direction']
             $directionKey = if ($null -ne $direction) {
                 [string]$direction.Value.key
@@ -1479,10 +1923,10 @@ function Get-DpCaseSpecValidationErrors {
             [string]$placementProperty.Value
         }
         else { '' }
-        if ($placement -notin @('case_start', 'on_event')) {
+        if ($placement -notin @('case_start', 'on_event', 'ambient')) {
             $errors.Add(
                 "$prefix evidence '$evidenceId' placement must be " +
-                "'case_start' or 'on_event'"
+                "'case_start', 'on_event', or 'ambient'"
             )
         }
 
@@ -1515,6 +1959,12 @@ function Get-DpCaseSpecValidationErrors {
                 "$prefix evidence '$evidenceId' reveals must contain a fact"
             )
         }
+    }
+    if ($null -ne $overheardProperty -and
+        @($evidence | Where-Object {
+            [string]$_.id -eq [string]$overheardProperty.Value.evidenceId
+        }).Count -ne 1) {
+        $errors.Add("$prefix native.overheard evidenceId is unknown")
     }
 
     $directionCount = @(Get-DpDirectionEvidence -CaseSpec $CaseSpec).Count
@@ -1650,6 +2100,7 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpCaseCatalogLua',
     'ConvertTo-DpCaseCompatibilityReport',
     'ConvertTo-DpDialogueXml',
+    'ConvertTo-DpOverheardDialogueXml',
     'ConvertTo-DpNativeRegionWiring',
     'Get-DpJournalStates',
     'Get-DpDialogueVariants',
@@ -1657,6 +2108,8 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpLeadStateBuffXml',
     'ConvertTo-DpDialogueVariantTagXml',
     'ConvertTo-DpDialogueVariantBuffXml',
+    'ConvertTo-DpOverheardTagXml',
+    'ConvertTo-DpOverheardBuffXml',
     'ConvertTo-DpLocalizationXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpScriptContextXml',

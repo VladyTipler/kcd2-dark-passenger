@@ -11,6 +11,7 @@
       <Nodes>
 {{DP_RUMOR_DIALOG_NODES}}
 {{DP_WITNESS_NODES}}
+{{DP_OVERHEARD_NODES}}
 {{DP_EVIDENCE_STATE_NODES}}
         <State Name="watcherActive" TypeT="bool">
           <Edge From="arm" To="SetTrue" />
@@ -297,6 +298,7 @@
         <SoulAsset Name="PritokySoul40" SharedSoulGuids="1cb77ea3-4e6a-4048-a659-63046f927a8e" />
         <SoulAsset Name="PritokySoul42" SharedSoulGuids="c6243024-5a07-46b7-acef-e7e1f8d3c9c6" />
 {{DP_TARGET_ASSETS}}
+{{DP_OVERHEARD_ASSETS}}
       </Assets>
       <Text Text="Dark Within" />
       <QuestName StringName="{{DP_QUEST_NAME}}" Text="Dark Within">

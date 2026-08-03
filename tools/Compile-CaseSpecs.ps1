@@ -90,6 +90,8 @@ $nativeManifest = [ordered]@{
             dialogDefinitions = $_.dialogDefinitions
             rumorNodes = $_.rumorNodes
             witnessNodes = $_.witnessNodes
+            overheardNodes = $_.overheardNodes
+            overheardAssets = $_.overheardAssets
             evidenceStateNodes = $_.evidenceStateNodes
             evidenceStateEdges = $_.evidenceStateEdges
             evidenceType = $_.evidenceType
@@ -193,6 +195,26 @@ $stageTransforms = @(
         Transform = {
             param($xml)
             ConvertTo-DpDialogueVariantBuffXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpOverheardTagXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpOverheardBuffXml `
                 -BaseXml $xml `
                 -CaseSpecs $cases
         }

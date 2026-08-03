@@ -28,6 +28,7 @@ Script.ReloadScript("Scripts/mods/dpcasecontent.lua")
 Script.ReloadScript("Scripts/mods/dpcasesnapshot.lua")
 Script.ReloadScript("Scripts/mods/dpcaseevidence.lua")
 Script.ReloadScript("Scripts/mods/dpevidenceregistry.lua")
+Script.ReloadScript("Scripts/mods/dpoverheardevidence.lua")
 Script.ReloadScript("Scripts/mods/dpleadplanner.lua")
 Script.ReloadScript("Scripts/mods/dpevidencereaction.lua")
 Script.ReloadScript("Scripts/mods/dpwitnesslead.lua")
@@ -1194,6 +1195,7 @@ DarkPassengerQuestBridge.REQUESTS = {
         deathContext = "dp_target_dead_trosecko",
         rumorContext = "dp_rumor_heard_trosecko",
         witnessContext = "dp_witness_heard_trosecko",
+        overheardContext = "dp_overheard_clue_spoken_trosecko",
     },
 }
 DarkPassengerQuestBridge.KILL_CONTEXT = "dp_ordinary_human_kill"
@@ -1262,6 +1264,7 @@ function DarkPassengerQuestBridge.StartPolling(reason)
     DarkPassengerQuestBridge.lastKillState = nil
     DarkPassengerQuestBridge.lastRumorStates = {}
     DarkPassengerQuestBridge.lastWitnessStates = {}
+    DarkPassengerQuestBridge.lastOverheardStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
         " generation=" .. tostring(DarkPassengerQuestBridge.pollGeneration)
@@ -1516,6 +1519,45 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
            DarkPassengerWitnessLead ~= nil and
            DarkPassengerWitnessLead.OnDialogueCompleted ~= nil then
             DarkPassengerWitnessLead.OnDialogueCompleted(request.region)
+        end
+
+        local hasOverheardRequest = false
+        if request.overheardContext ~= nil and
+           playerEntity ~= nil and
+           playerEntity.soul ~= nil and
+           playerEntity.soul.HasScriptContext ~= nil then
+            local ok, contextOrError = pcall(function()
+                return playerEntity.soul:HasScriptContext(
+                    request.overheardContext
+                )
+            end)
+            if ok then
+                hasOverheardRequest =
+                    contextOrError == true or contextOrError == 1
+            else
+                TargetLog(
+                    "overheard context check failed region=" ..
+                    tostring(request.region) ..
+                    " error=" .. tostring(contextOrError)
+                )
+            end
+        end
+        local previousOverheardState =
+            DarkPassengerQuestBridge.lastOverheardStates[request.region]
+        local overheardRequestBecameActive =
+            hasOverheardRequest and previousOverheardState ~= true
+        if previousOverheardState ~= hasOverheardRequest then
+            DarkPassengerQuestBridge.lastOverheardStates[request.region] =
+                hasOverheardRequest
+            TargetLog(
+                "overheard context region=" .. tostring(request.region) ..
+                " active=" .. tostring(hasOverheardRequest)
+            )
+        end
+        if overheardRequestBecameActive and
+           DarkPassengerOverheardEvidence ~= nil and
+           DarkPassengerOverheardEvidence.OnClueSpoken ~= nil then
+            DarkPassengerOverheardEvidence.OnClueSpoken(request.region)
         end
     end
 

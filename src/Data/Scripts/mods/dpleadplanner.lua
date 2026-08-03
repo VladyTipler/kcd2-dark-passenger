@@ -339,6 +339,13 @@ function DarkPassengerLeadPlanner.Apply(generation)
             plan.by_role.witness == true
         )
     end
+    if DarkPassengerOverheardEvidence ~= nil and
+       DarkPassengerOverheardEvidence.ApplyAvailability ~= nil then
+        DarkPassengerOverheardEvidence.ApplyAvailability(
+            generation,
+            plan.by_role.overheard == true
+        )
+    end
     Log(
         "applied generation=" .. tostring(generation) ..
         " directions=" .. table.concat(plan.directions, ",") ..

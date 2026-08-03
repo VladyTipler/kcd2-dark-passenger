@@ -66,11 +66,12 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
 
     $steps = @($case.evidence)
     Add-Result (
-        $steps.Count -eq 3 -and
+        $steps.Count -eq 4 -and
         $steps[0].id -eq 'zelejov_innkeeper_missing_traveler' -and
         $steps[1].id -eq 'matej_guest_ledger' -and
-        $steps[2].id -eq 'zelejov_stablehand_witness'
-    ) 'evidence chain preserves rumor document witness order'
+        $steps[2].id -eq 'zelejov_stablehand_witness' -and
+        $steps[3].id -eq 'zelejov_inn_yard_whisper'
+    ) 'evidence chain preserves authored source order'
     Add-Result (
         ([int]$steps[0].confidence -eq 20) -and
         ([int]$steps[1].confidence -eq 30) -and
@@ -94,6 +95,12 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         @($steps[1].reveals) -contains 'forged_departure' -and
         @($steps[2].reveals) -contains 'suspect_identified'
     ) 'evidence sources reveal authored case facts'
+    Add-Result (
+        $steps[3].placement -eq 'ambient' -and
+        $steps[3].role -eq 'overheard' -and
+        [int]$steps[3].confidence -eq 15 -and
+        $steps[3].discoverableWithoutHint -eq $true
+    ) 'ambient conversation is an independent optional clue'
 
     $document = $steps[1]
     Add-Result (
@@ -158,6 +165,16 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         foreach ($response in @($dialogue.responses)) {
             $referencedKeys.Add([string]$response.key)
         }
+        foreach ($variant in @($dialogue.variants)) {
+            $referencedKeys.Add([string]$variant.promptKey)
+            foreach ($response in @($variant.responses)) {
+                $referencedKeys.Add([string]$response.key)
+            }
+        }
+    }
+    $referencedKeys.Add([string]$case.native.overheard.rootKey)
+    foreach ($response in @($case.native.overheard.responses)) {
+        $referencedKeys.Add([string]$response.key)
     }
     foreach ($key in @(
         $case.native.witnessObjective.nameKey,
@@ -170,7 +187,9 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         $referencedKeys.Add([string]$key)
     }
     Add-Result (
-        @($referencedKeys | Select-Object -Unique | Where-Object {
+        @($referencedKeys | Where-Object {
+            -not [string]::IsNullOrWhiteSpace($_)
+        } | Select-Object -Unique | Where-Object {
             $_ -notin $ruKeys -or $_ -notin $enKeys
         }).Count -eq 0
     ) 'every native and document key has RU and EN text'

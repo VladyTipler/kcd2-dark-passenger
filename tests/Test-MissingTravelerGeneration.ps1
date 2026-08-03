@@ -53,6 +53,8 @@ $rumorPath = Join-Path $dialogRoot `
     'innkeeper_missing_traveler_dialog_t.xml'
 $witnessPath = Join-Path $dialogRoot `
     'stablehand_missing_traveler_dialog_t.xml'
+$overheardPath = Join-Path $dialogRoot `
+    'overheard_missing_traveler_dialog_t.xml'
 $stormPath = Join-Path $stageRoot `
     'Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $contextPath = Join-Path $stageRoot `
@@ -76,6 +78,7 @@ foreach ($path in @(
     $questPath,
     $rumorPath,
     $witnessPath,
+    $overheardPath,
     $stormPath,
     $contextPath,
     $itemPath,
@@ -93,6 +96,7 @@ foreach ($path in @(
 $quest = Read-OptionalText $questPath
 $rumor = Read-OptionalText $rumorPath
 $witness = Read-OptionalText $witnessPath
+$overheard = Read-OptionalText $overheardPath
 $storm = Read-OptionalText $stormPath
 $contexts = Read-OptionalText $contextPath
 $items = Read-OptionalText $itemPath
@@ -109,6 +113,9 @@ Add-Result (
     ) -and
     $quest.Contains(
         '<Definition File="dark_within_t/stablehand_missing_traveler_dialog_t.xml" />'
+    ) -and
+    $quest.Contains(
+        '<Definition File="dark_within_t/overheard_missing_traveler_dialog_t.xml" />'
     ) -and
     $quest.Contains('<innkeeper_missing_traveler_dialog_t Name="innkeeperRumorDialog">') -and
     $quest.Contains('<stablehand_missing_traveler_dialog_t Name="tavernWitnessDialog">')
@@ -156,6 +163,11 @@ Add-Result (
     $witness.Contains('StringName="dp_mt_witness_prompt"') -and
     $witness.Contains('StringName="dp_mt_witness_bretislav_point"')
 ) 'generated witness dialogue uses semantic role and authored keys'
+Add-Result (
+    $overheard.Contains('<Dialogue Type="ingame"') -and
+    $overheard.Contains('Initiator="NonPlayer"') -and
+    $overheard.Contains('<Port Name="clue_spoken" />')
+) 'generated overheard evidence uses the native ingame dialogue boundary'
 
 Add-Result (
     $storm.Contains('<hasName name="tzel_vavrinec" />') -and
@@ -169,8 +181,11 @@ Add-Result (
     ) -and
     $contexts.Contains(
         '<ScriptContextDatabaseNode Name="dp_witness_heard_trosecko" Class="Entity" />'
+    ) -and
+    $contexts.Contains(
+        '<ScriptContextDatabaseNode Name="dp_overheard_clue_spoken_trosecko" Class="Entity" />'
     )
-) 'generated ScriptContext table exposes both Trosky bridges'
+) 'generated ScriptContext table exposes all Trosky evidence bridges'
 Add-Result (
     $items.Contains('Id="d5833fd4-f7bf-4957-86f5-d661db38bcf3"') -and
     $items.Contains('Name="dp_matej_guest_ledger"') -and

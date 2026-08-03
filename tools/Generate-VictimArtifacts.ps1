@@ -134,6 +134,8 @@ function New-RegionalQuest {
     $rumorDialogDefinition = ''
     $rumorDialogNodes = ''
     $witnessNodes = ''
+    $overheardNodes = ''
+    $overheardAssets = ''
     $evidenceStateNodes = ''
     $evidenceStateEdges = ''
     $evidenceType = ''
@@ -147,6 +149,8 @@ function New-RegionalQuest {
         $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
         $rumorDialogNodes = [string]$NativeWiring.rumorNodes
         $witnessNodes = [string]$NativeWiring.witnessNodes
+        $overheardNodes = [string]$NativeWiring.overheardNodes
+        $overheardAssets = [string]$NativeWiring.overheardAssets
         $evidenceStateNodes = [string]$NativeWiring.evidenceStateNodes
         $evidenceStateEdges = [string]$NativeWiring.evidenceStateEdges
         $evidenceType = [string]$NativeWiring.evidenceType
@@ -345,6 +349,7 @@ function New-RegionalQuest {
         '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
         '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
         '{{DP_WITNESS_NODES}}' = $witnessNodes.TrimEnd()
+        '{{DP_OVERHEARD_NODES}}' = $overheardNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_NODES}}' = $evidenceStateNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_EDGES}}' = $evidenceStateEdges.TrimEnd()
         '{{DP_EVIDENCE_TYPE_ENUMS}}' = $evidenceType.TrimEnd()
@@ -375,6 +380,7 @@ function New-RegionalQuest {
         '{{DP_TARGET_DETECTION_NODES}}' = $detectionNodes -join "`n"
         '{{DP_TARGET_DEATH_NODES}}' = $deathNodes -join "`n"
         '{{DP_TARGET_ASSETS}}' = $assets -join "`n"
+        '{{DP_OVERHEARD_ASSETS}}' = $overheardAssets.TrimEnd()
         '{{DP_TARGET_LOGS}}' = $logs -join "`n"
     }
 

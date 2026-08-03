@@ -45,6 +45,9 @@ $requiredCommands = @(
     'Get-DpDialogueVariants',
     'ConvertTo-DpDialogueVariantTagXml',
     'ConvertTo-DpDialogueVariantBuffXml',
+    'ConvertTo-DpOverheardDialogueXml',
+    'ConvertTo-DpOverheardTagXml',
+    'ConvertTo-DpOverheardBuffXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpScriptContextXml',
     'ConvertTo-DpItemTableXml'
@@ -216,7 +219,7 @@ if ((Test-Path -LiteralPath $modulePath) -and
     Add-Result (
         $placementErrors -contains (
             "invalid-placement.json: evidence 'matej_guest_ledger' " +
-            "placement must be 'case_start' or 'on_event'"
+            "placement must be 'case_start', 'on_event', or 'ambient'"
         )
     ) 'unknown evidence placement is rejected'
 
@@ -229,7 +232,7 @@ if ((Test-Path -LiteralPath $modulePath) -and
     Add-Result (
         $missingPlacementErrors -contains (
             "missing-placement.json: evidence 'matej_guest_ledger' " +
-            "placement must be 'case_start' or 'on_event'"
+            "placement must be 'case_start', 'on_event', or 'ambient'"
         )
     ) 'missing evidence placement returns a validation error'
 
