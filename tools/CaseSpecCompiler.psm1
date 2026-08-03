@@ -94,6 +94,50 @@ function Get-DpJournalStates {
     return $states.ToArray()
 }
 
+function Get-DpDialogueVariants {
+    param([Parameter(Mandatory)]$CaseSpec)
+
+    $evidenceById = @{}
+    foreach ($evidence in @($CaseSpec.evidence)) {
+        $evidenceById[[string]$evidence.id] = $evidence
+    }
+    $result = [System.Collections.Generic.List[object]]::new()
+    $slot = 0
+    foreach ($dialogue in @($CaseSpec.native.dialogues)) {
+        $variantsProperty = $dialogue.PSObject.Properties['variants']
+        if ($null -eq $variantsProperty) { continue }
+        $evidenceId = [string]$dialogue.evidenceId
+        if (-not $evidenceById.ContainsKey($evidenceId)) {
+            throw "Dialogue '$($dialogue.graphName)' has unknown evidence '$evidenceId'."
+        }
+        foreach ($variant in @($variantsProperty.Value)) {
+            $discoveredCodes = @($variant.when.allDiscovered |
+                ForEach-Object { [int]$evidenceById[[string]$_].code })
+            $undiscoveredCodes = @($variant.when.allUndiscovered |
+                ForEach-Object { [int]$evidenceById[[string]$_].code })
+            $variantId = [string]$variant.id
+            $result.Add([ordered]@{
+                dialogue_name = [string]$dialogue.graphName
+                dialogue_kind = [string]$dialogue.kind
+                evidence_id = $evidenceId
+                evidence_code = [int]$evidenceById[$evidenceId].code
+                id = $variantId
+                port_name = "variant_$variantId"
+                sequence_name = "$($dialogue.sequenceName)_$variantId"
+                prompt_key = [string]$variant.promptKey
+                responses = @($variant.responses)
+                all_discovered_codes = $discoveredCodes
+                all_undiscovered_codes = $undiscoveredCodes
+                signal_tag = 69 + $slot
+                buff_guid = Get-DpStableGuid `
+                    -Seed "darkpassenger-dialogue-variant-$slot"
+            })
+            $slot++
+        }
+    }
+    return $result.ToArray()
+}
+
 function ConvertTo-DpLuaString {
     param([AllowNull()][string]$Value)
 
@@ -241,6 +285,20 @@ function ConvertTo-DpRuntimeCase {
         $_.kind -eq 'dialogue' -and $_.role -eq 'innkeeper'
     })
 
+    $dialogueVariants = @(Get-DpDialogueVariants -CaseSpec $CaseSpec |
+        ForEach-Object {
+            [ordered]@{
+                dialogue_name = $_.dialogue_name
+                dialogue_kind = $_.dialogue_kind
+                evidence_id = $_.evidence_id
+                evidence_code = $_.evidence_code
+                id = $_.id
+                all_discovered_codes = $_.all_discovered_codes
+                all_undiscovered_codes = $_.all_undiscovered_codes
+                signal_tag = $_.signal_tag
+                buff_guid = $_.buff_guid
+            }
+        })
     return [ordered]@{
         id = [string]$CaseSpec.id
         code = [int]$CaseSpec.code
@@ -256,6 +314,7 @@ function ConvertTo-DpRuntimeCase {
         evidence_steps = @($evidence | Select-Object -Skip 1)
         evidence = $evidence.ToArray()
         journal_states = @(Get-DpJournalStates -CaseSpec $CaseSpec)
+        dialogue_variants = $dialogueVariants
         bindings = $Binding.roles
         text = $CaseSpec.text
     }
@@ -561,9 +620,11 @@ function ConvertTo-DpItemTableXml {
 function ConvertTo-DpDialogueXml {
     param(
         [Parameter(Mandatory)]$Dialogue,
-        [Parameter(Mandatory)]$Binding
+        [Parameter(Mandatory)]$Binding,
+        [object[]]$Variants = @()
     )
 
+    $compiledVariants = @($Variants)
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('<?xml version="1.0" encoding="utf-8"?>')
     $lines.Add('<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">')
@@ -575,6 +636,15 @@ function ConvertTo-DpDialogueXml {
         "          <DesignName Text=`"$(ConvertTo-DpXmlText $Dialogue.availableLabel)`" />"
     )
     $lines.Add('        </Port>')
+    foreach ($variant in $compiledVariants) {
+        $lines.Add(
+            "        <Port Name=`"$($variant.port_name)`" Direction=`"In`" Type=`"bool`">"
+        )
+        $lines.Add(
+            "          <DesignName Text=`"$($Dialogue.availableLabel): $($variant.id)`" />"
+        )
+        $lines.Add('        </Port>')
+    }
     $lines.Add('        <Port Name="heard" Direction="Out" Type="trigger">')
     $lines.Add(
         "          <DesignName Text=`"$(ConvertTo-DpXmlText $Dialogue.heardLabel)`" />"
@@ -585,30 +655,47 @@ function ConvertTo-DpDialogueXml {
     $lines.Add('      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false">')
     $lines.Add("        <Decision Name=`"$($Dialogue.kind)_root`" Priority=`"General`">")
     $lines.Add('          <Sequences>')
-    $lines.Add(
-        "            <Sequence EndType=`"EndDialogue`" EntryCondition=`"Port('available')`" Name=`"$($Dialogue.sequenceName)`">"
-    )
-    $lines.Add("              <UiPrompt StringName=`"$($Dialogue.promptKey)`" />")
-    $lines.Add('              <Triggers>')
-    $lines.Add('                <Port Name="heard" />')
-    $lines.Add('              </Triggers>')
-    $lines.Add('              <Elements>')
-    foreach ($response in @($Dialogue.responses)) {
-        $role = [string]$response.role
-        if ($role -ne 'HENRY') {
-            $roleBinding = $Binding.roles.PSObject.Properties[$role]
-            if ($null -eq $roleBinding) {
-                throw "Dialogue '$($Dialogue.graphName)' uses unbound role '$role'."
-            }
-            $role = [string]$roleBinding.Value.dialogueRole
-        }
-        $lines.Add("                <Response Role=`"$role`">")
-        $lines.Add("                  <Text StringName=`"$($response.key)`" />")
-        $lines.Add('                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>')
-        $lines.Add('                </Response>')
+    $sequences = if ($compiledVariants.Count -gt 0) {
+        $compiledVariants
     }
-    $lines.Add('              </Elements>')
-    $lines.Add('            </Sequence>')
+    else {
+        @([ordered]@{
+            port_name = $null
+            sequence_name = [string]$Dialogue.sequenceName
+            prompt_key = [string]$Dialogue.promptKey
+            responses = @($Dialogue.responses)
+        })
+    }
+    foreach ($sequence in $sequences) {
+        $entryCondition = if (Test-DpTextValue $sequence.port_name) {
+            "Port('available') AND Port('$($sequence.port_name)')"
+        }
+        else { "Port('available')" }
+        $lines.Add(
+            "            <Sequence EndType=`"EndDialogue`" EntryCondition=`"$entryCondition`" Name=`"$($sequence.sequence_name)`">"
+        )
+        $lines.Add("              <UiPrompt StringName=`"$($sequence.prompt_key)`" />")
+        $lines.Add('              <Triggers>')
+        $lines.Add('                <Port Name="heard" />')
+        $lines.Add('              </Triggers>')
+        $lines.Add('              <Elements>')
+        foreach ($response in @($sequence.responses)) {
+            $role = [string]$response.role
+            if ($role -ne 'HENRY') {
+                $roleBinding = $Binding.roles.PSObject.Properties[$role]
+                if ($null -eq $roleBinding) {
+                    throw "Dialogue '$($Dialogue.graphName)' uses unbound role '$role'."
+                }
+                $role = [string]$roleBinding.Value.dialogueRole
+            }
+            $lines.Add("                <Response Role=`"$role`">")
+            $lines.Add("                  <Text StringName=`"$($response.key)`" />")
+            $lines.Add('                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>')
+            $lines.Add('                </Response>')
+        }
+        $lines.Add('              </Elements>')
+        $lines.Add('            </Sequence>')
+    }
     $lines.Add('          </Sequences>')
     $lines.Add('        </Decision>')
     $lines.Add('      </Dialogue>')
@@ -639,6 +726,10 @@ function ConvertTo-DpNativeRegionWiring {
     $witnessContext = [string]$native.contexts.witnessHeard
     $objective = $native.witnessObjective
     $objectiveAssetName = [string]$objective.assetName
+    $dialogueVariants = @(Get-DpDialogueVariants -CaseSpec $CaseSpec)
+    $rumorVariants = @($dialogueVariants | Where-Object {
+        [string]$_.dialogue_name -eq [string]$rumor.graphName
+    })
     $journalStates = @(Get-DpJournalStates -CaseSpec $CaseSpec)
     $evidenceStateNodes = [System.Collections.Generic.List[string]]::new()
     $evidenceStateEdges = [System.Collections.Generic.List[string]]::new()
@@ -698,6 +789,43 @@ function ConvertTo-DpNativeRegionWiring {
         $evidenceLogs.Add('            </EnumLog>')
     }
 
+    $rumorVariantNodes = [System.Collections.Generic.List[string]]::new()
+    $rumorVariantPortEdges = [System.Collections.Generic.List[string]]::new()
+    foreach ($variant in $rumorVariants) {
+        $slot = [int]$variant.signal_tag - 69
+        $rumorVariantNodes.Add(
+            "        <MakeArray Name=`"rumorVariant${slot}Tags`" TypeT=`"wh::rpgmodule::BuffDefinitionAITags`">"
+        )
+        $rumorVariantNodes.Add(
+            "          <Constant Name=`"A`" Value=`"$($variant.signal_tag)`" />"
+        )
+        $rumorVariantNodes.Add('        </MakeArray>')
+        $rumorVariantNodes.Add(
+            "        <BuffTagTrigger Name=`"rumorVariant${slot}Trigger`">"
+        )
+        $rumorVariantNodes.Add('          <Asset Name="Souls" Alias="player" />')
+        $rumorVariantNodes.Add(
+            "          <Edge From=`"rumorVariant${slot}Tags.Array`" To=`"BuffTags`" />"
+        )
+        $rumorVariantNodes.Add('          <Edge From="questProgress.Active" To="IsActive" />')
+        $rumorVariantNodes.Add('        </BuffTagTrigger>')
+        $rumorVariantNodes.Add(
+            "        <State Name=`"rumorVariant${slot}Active`" TypeT=`"bool`">"
+        )
+        $rumorVariantNodes.Add(
+            "          <Edge From=`"rumorVariant${slot}Trigger.OnAdded`" To=`"SetTrue`" />"
+        )
+        $rumorVariantNodes.Add(
+            "          <Edge From=`"rumorVariant${slot}Trigger.OnRemoved`" To=`"SetFalse`" />"
+        )
+        $rumorVariantNodes.Add('        </State>')
+        $rumorVariantPortEdges.Add(
+            "          <Edge From=`"rumorVariant${slot}Active.State`" To=`"$($variant.port_name)`" />"
+        )
+    }
+    $rumorVariantNodeXml = $rumorVariantNodes -join "`n"
+    $rumorVariantPortEdgeXml = $rumorVariantPortEdges -join "`n"
+
     $definitions = @"
       <Definitions>
         <Definition File="$folder/$($rumor.fileName)" />
@@ -723,8 +851,10 @@ function ConvertTo-DpNativeRegionWiring {
           <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
           <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
         </State>
+$rumorVariantNodeXml
         <$($rumor.graphName) Name="innkeeperRumorDialog">
           <Edge From="rumorDialogueAvailable.State" To="available" />
+$rumorVariantPortEdgeXml
         </$($rumor.graphName)>
         <State Name="rumorDialogueRequestActive" TypeT="bool">
           <Edge From="questProgress.OnActive" To="SetFalse" />
@@ -841,9 +971,16 @@ function ConvertTo-DpNativeRegionWiring {
         witnessType = ''
         witnessObjective = ''
         dialogues = @($native.dialogues | ForEach-Object {
+            $graphName = [string]$_.graphName
+            $variants = @($dialogueVariants | Where-Object {
+                [string]$_.dialogue_name -eq $graphName
+            })
             [ordered]@{
                 fileName = [string]$_.fileName
-                xml = ConvertTo-DpDialogueXml -Dialogue $_ -Binding $Binding
+                xml = ConvertTo-DpDialogueXml `
+                    -Dialogue $_ `
+                    -Binding $Binding `
+                    -Variants $variants
             }
         })
     }
@@ -922,6 +1059,100 @@ function ConvertTo-DpLeadStateBuffXml {
         }
         if ($BaseXml.Contains("buff_name=`"$name`"")) {
             throw "Lead-state buff name '$name' has another guid."
+        }
+        $additions.Add(
+            "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+            "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+            "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+            "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+            "implementation=`"Cpp:Constant`" is_persistent=`"true`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buffs>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function Get-DpDialogueVariantSignalStates {
+    param([Parameter(Mandatory)][object[]]$CaseSpecs)
+
+    $largest = @()
+    foreach ($case in $CaseSpecs) {
+        $variants = @(Get-DpDialogueVariants -CaseSpec $case)
+        if ($variants.Count -gt $largest.Count) { $largest = $variants }
+    }
+    return $largest
+}
+
+function ConvertTo-DpDialogueVariantTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($variant in @(
+        Get-DpDialogueVariantSignalStates -CaseSpecs $CaseSpecs
+    )) {
+        $slot = [int]$variant.signal_tag - 69
+        $tag = [int]$variant.signal_tag
+        $name = "dp_dialogue_variant_$slot"
+        $idMatch = [regex]::Match(
+            $BaseXml,
+            "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+        )
+        if ($idMatch.Success) {
+            if (-not $idMatch.Value.Contains(
+                "buff_ai_tag_name=`"$name`""
+            )) {
+                throw "Dialogue-variant buff tag id $tag collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Dialogue-variant buff tag name '$name' has another id."
+        }
+        $additions.Add(
+            "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+            "buff_ai_tag_name=`"$name`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buff_ai_tags>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpDialogueVariantBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($variant in @(
+        Get-DpDialogueVariantSignalStates -CaseSpecs $CaseSpecs
+    )) {
+        $slot = [int]$variant.signal_tag - 69
+        $tag = [int]$variant.signal_tag
+        $guid = [string]$variant.buff_guid
+        $name = "dp_dialogue_variant_$slot"
+        $guidMatch = [regex]::Match(
+            $BaseXml,
+            "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+        )
+        if ($guidMatch.Success) {
+            if (-not $guidMatch.Value.Contains("buff_name=`"$name`"") -or
+                -not $guidMatch.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+                throw "Dialogue-variant buff guid $guid collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_name=`"$name`"")) {
+            throw "Dialogue-variant buff name '$name' has another guid."
         }
         $additions.Add(
             "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
@@ -1044,18 +1275,85 @@ function Get-DpCaseSpecValidationErrors {
                 )
             }
         }
-        foreach ($response in @($dialogue.responses)) {
-            $role = [string]$response.role
-            if (-not (Test-DpTextValue $response.key)) {
+        $variantsProperty = $dialogue.PSObject.Properties['variants']
+        $responseGroups = [System.Collections.Generic.List[object]]::new()
+        if ($null -ne $variantsProperty) {
+            if (-not (Test-DpTextValue $dialogue.evidenceId)) {
                 $errors.Add(
-                    "$prefix native dialogue '$dialogueKind' response key is required"
+                    "$prefix native dialogue '$dialogueKind' evidenceId is required"
                 )
             }
-            if ($role -ne 'HENRY' -and $binding.Count -eq 1 -and
-                $null -eq $binding[0].roles.PSObject.Properties[$role]) {
-                $errors.Add(
-                    "$prefix native dialogue '$dialogueKind' role '$role' is not bound"
-                )
+            $variantIds = [System.Collections.Generic.HashSet[string]]::new(
+                [System.StringComparer]::Ordinal
+            )
+            foreach ($variant in @($variantsProperty.Value)) {
+                $variantId = [string]$variant.id
+                if ($variantId -notmatch '^[a-z][a-z0-9_]*$') {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' variant id " +
+                        "'$variantId' is invalid"
+                    )
+                }
+                elseif (-not $variantIds.Add($variantId)) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' variant " +
+                        "'$variantId' is duplicated"
+                    )
+                }
+                if (-not (Test-DpTextValue $variant.promptKey)) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' variant " +
+                        "'$variantId' promptKey is required"
+                    )
+                }
+                $whenProperty = $variant.PSObject.Properties['when']
+                if ($null -eq $whenProperty -or
+                    $null -eq $whenProperty.Value.PSObject.Properties[
+                        'allDiscovered'
+                    ] -or
+                    $null -eq $whenProperty.Value.PSObject.Properties[
+                        'allUndiscovered'
+                    ]) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' variant " +
+                        "'$variantId' requires finite when conditions"
+                    )
+                }
+                $responsesProperty = $variant.PSObject.Properties['responses']
+                $responses = if ($null -ne $responsesProperty) {
+                    @($responsesProperty.Value)
+                }
+                else { @() }
+                if ($responses.Count -eq 0) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' variant " +
+                        "'$variantId' requires responses"
+                    )
+                }
+                $responseGroups.Add($responses)
+            }
+        }
+        else {
+            $responsesProperty = $dialogue.PSObject.Properties['responses']
+            $responseGroups.Add($(if ($null -ne $responsesProperty) {
+                @($responsesProperty.Value)
+            }
+            else { @() }))
+        }
+        foreach ($responseGroup in $responseGroups) {
+            foreach ($response in @($responseGroup)) {
+                $role = [string]$response.role
+                if (-not (Test-DpTextValue $response.key)) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' response key is required"
+                    )
+                }
+                if ($role -ne 'HENRY' -and $binding.Count -eq 1 -and
+                    $null -eq $binding[0].roles.PSObject.Properties[$role]) {
+                    $errors.Add(
+                        "$prefix native dialogue '$dialogueKind' role '$role' is not bound"
+                    )
+                }
             }
         }
     }
@@ -1227,6 +1525,44 @@ function Get-DpCaseSpecValidationErrors {
     }
 
     $evidenceIds = @($evidence | ForEach-Object { [string]$_.id })
+    foreach ($dialogue in @($CaseSpec.native.dialogues)) {
+        $variantsProperty = $dialogue.PSObject.Properties['variants']
+        if ($null -eq $variantsProperty) { continue }
+        $dialogueKind = [string]$dialogue.kind
+        $dialogueEvidenceId = [string]$dialogue.evidenceId
+        if ((Test-DpTextValue $dialogueEvidenceId) -and
+            $dialogueEvidenceId -notin $evidenceIds) {
+            $errors.Add(
+                "$prefix native dialogue '$dialogueKind' references unknown " +
+                "reward evidence '$dialogueEvidenceId'"
+            )
+        }
+        foreach ($variant in @($variantsProperty.Value)) {
+            $variantId = [string]$variant.id
+            $whenProperty = $variant.PSObject.Properties['when']
+            if ($null -eq $whenProperty) { continue }
+            foreach ($condition in @(
+                @{ Field = 'allDiscovered'; Label = 'discovered' },
+                @{ Field = 'allUndiscovered'; Label = 'undiscovered' }
+            )) {
+                $conditionProperty =
+                    $whenProperty.Value.PSObject.Properties[$condition.Field]
+                if ($null -eq $conditionProperty) { continue }
+                foreach ($conditionEvidence in @($conditionProperty.Value)) {
+                    $conditionEvidenceId = [string]$conditionEvidence
+                    if ((Test-DpTextValue $conditionEvidenceId) -and
+                        $conditionEvidenceId -notin $evidenceIds) {
+                        $errors.Add(
+                            "$prefix native dialogue '$dialogueKind' variant " +
+                            "'$variantId' references unknown " +
+                            "$($condition.Label) evidence " +
+                            "'$conditionEvidenceId'"
+                        )
+                    }
+                }
+            }
+        }
+    }
     foreach ($step in $evidence) {
         $hintProperty = $step.PSObject.Properties['hintsUnlockedBy']
         if ($null -eq $hintProperty) { continue }
@@ -1316,8 +1652,11 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpDialogueXml',
     'ConvertTo-DpNativeRegionWiring',
     'Get-DpJournalStates',
+    'Get-DpDialogueVariants',
     'ConvertTo-DpLeadStateTagXml',
     'ConvertTo-DpLeadStateBuffXml',
+    'ConvertTo-DpDialogueVariantTagXml',
+    'ConvertTo-DpDialogueVariantBuffXml',
     'ConvertTo-DpLocalizationXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpScriptContextXml',

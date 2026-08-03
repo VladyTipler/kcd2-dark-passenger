@@ -176,6 +176,26 @@ $stageTransforms = @(
                 -BaseXml $xml `
                 -CaseSpecs $cases
         }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpDialogueVariantTagXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpDialogueVariantBuffXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases
+        }
     }
 )
 foreach ($stageTransform in $stageTransforms) {

@@ -131,8 +131,26 @@ Add-Result (
 Add-Result (
     $rumor.Contains('Role="DP_INNKEEPER_RUMOR"') -and
     $rumor.Contains('StringName="dp_mt_rumor_prompt"') -and
-    $rumor.Contains('StringName="dp_mt_rumor_innkeeper_matej"')
-) 'generated innkeeper dialogue uses semantic role and authored keys'
+    $rumor.Contains('StringName="dp_mt_rumor_innkeeper_matej"') -and
+    $rumor.Contains('<Port Name="variant_unread_ledger" Direction="In" Type="bool">') -and
+    $rumor.Contains('<Port Name="variant_ledger_discovered" Direction="In" Type="bool">') -and
+    $rumor.Contains(
+        'EntryCondition="Port(''available'') AND Port(''variant_unread_ledger'')"'
+    ) -and
+    $rumor.Contains(
+        'EntryCondition="Port(''available'') AND Port(''variant_ledger_discovered'')"'
+    ) -and
+    $rumor.Contains('StringName="dp_mt_rumor_found_henry_hand"') -and
+    ([regex]::Matches($rumor, '<Port Name="heard" />')).Count -eq 2
+) 'generated innkeeper dialogue compiles both variants into one reward port'
+Add-Result (
+    $quest.Contains('Value="69"') -and
+    $quest.Contains('Value="70"') -and
+    $quest.Contains('Name="rumorVariant0Trigger"') -and
+    $quest.Contains('Name="rumorVariant1Trigger"') -and
+    $quest.Contains('To="variant_unread_ledger"') -and
+    $quest.Contains('To="variant_ledger_discovered"')
+) 'universal quest projects compiled variant signals into FaderDialog ports'
 Add-Result (
     $witness.Contains('Role="DP_TAVERN_WITNESS"') -and
     $witness.Contains('StringName="dp_mt_witness_prompt"') -and
@@ -167,6 +185,12 @@ foreach ($localization in @(
 )) {
     Add-Result (
         $localization.Text.Contains('<Cell>dp_mt_rumor_prompt</Cell>') -and
+        $localization.Text.Contains(
+            '<Cell>dp_mt_rumor_prompt_ledger_found</Cell>'
+        ) -and
+        $localization.Text.Contains(
+            '<Cell>dp_mt_rumor_found_innkeeper_boguslav</Cell>'
+        ) -and
         $localization.Text.Contains('<Cell>dp_mt_witness_prompt</Cell>') -and
         $localization.Text.Contains('<Cell>dp_mt_ledger_content</Cell>') -and
         $localization.Text.Contains('&lt;p&gt;') -and
@@ -207,11 +231,30 @@ Add-Result (
     $catalog.Contains('signal_tag = 40')
 ) 'runtime catalog and quest share finite journal-state identity'
 Add-Result (
+    $catalog.Contains('dialogue_variants') -and
+    $catalog.Contains('evidence_id = "zelejov_innkeeper_missing_traveler"') -and
+    $catalog.Contains('id = "unread_ledger"') -and
+    $catalog.Contains('id = "ledger_discovered"') -and
+    $catalog.Contains('all_discovered_codes = {') -and
+    $catalog.Contains('signal_tag = 69') -and
+    $catalog.Contains('signal_tag = 70')
+) 'runtime catalog carries finite dialogue-variant selectors'
+Add-Result (
     $buffTags.Contains('buff_ai_tag_id="37" buff_ai_tag_name="dp_lead_state_0"') -and
     $buffTags.Contains('buff_ai_tag_id="40" buff_ai_tag_name="dp_lead_state_3"') -and
     $buffs.Contains('buff_name="dp_lead_state_0"') -and
     $buffs.Contains('buff_name="dp_lead_state_3"')
 ) 'build generates hidden persistent lead-state signal buffs'
+Add-Result (
+    $buffTags.Contains(
+        'buff_ai_tag_id="69" buff_ai_tag_name="dp_dialogue_variant_0"'
+    ) -and
+    $buffTags.Contains(
+        'buff_ai_tag_id="70" buff_ai_tag_name="dp_dialogue_variant_1"'
+    ) -and
+    $buffs.Contains('buff_name="dp_dialogue_variant_0"') -and
+    $buffs.Contains('buff_name="dp_dialogue_variant_1"')
+) 'build generates hidden persistent dialogue-variant signal buffs'
 Add-Result (
     $runtime -match (
         '(?s)region = "trosecko".*?' +

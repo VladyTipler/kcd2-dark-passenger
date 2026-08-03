@@ -150,6 +150,35 @@ function DarkPassengerLeadPlanner.Evaluate(caseTemplate, evidenceState)
     return plan
 end
 
+local function CodesMatch(status, codes, expectedDiscovered)
+    for _, code in ipairs(codes or {}) do
+        local discovered = status[tonumber(code)] == "discovered"
+        if discovered ~= expectedDiscovered then return false end
+    end
+    return true
+end
+
+function DarkPassengerLeadPlanner.SelectDialogueVariants(
+    caseTemplate,
+    evidenceState
+)
+    local status = StatusByCode(evidenceState)
+    local selectedByDialogue = {}
+    local selected = {}
+    for _, variant in ipairs(
+        caseTemplate ~= nil and caseTemplate.dialogue_variants or {}
+    ) do
+        local dialogueName = tostring(variant.dialogue_name or "")
+        if selectedByDialogue[dialogueName] == nil and
+           CodesMatch(status, variant.all_discovered_codes, true) and
+           CodesMatch(status, variant.all_undiscovered_codes, false) then
+            selectedByDialogue[dialogueName] = variant
+            selected[#selected + 1] = variant
+        end
+    end
+    return selected
+end
+
 local function PlayerEntity()
     if g_localActor ~= nil then return g_localActor end
     if player ~= nil then return player end
@@ -213,6 +242,42 @@ function DarkPassengerLeadPlanner.Publish(generation, caseTemplate, plan)
     return plan, result.reason
 end
 
+function DarkPassengerLeadPlanner.PublishDialogueVariants(
+    caseTemplate,
+    selectedVariants
+)
+    local actor = PlayerEntity()
+    local soul = actor ~= nil and actor.soul or nil
+    if soul == nil or soul.AddBuff == nil or
+       soul.RemoveAllBuffsByGuid == nil then
+        return false, "player_unavailable"
+    end
+    local desired = {}
+    for _, variant in ipairs(selectedVariants or {}) do
+        desired[tostring(variant.buff_guid)] = true
+    end
+    for _, variant in ipairs(
+        caseTemplate ~= nil and caseTemplate.dialogue_variants or {}
+    ) do
+        if desired[tostring(variant.buff_guid)] ~= true then
+            pcall(function()
+                soul:RemoveAllBuffsByGuid(variant.buff_guid)
+            end)
+        end
+    end
+    for _, variant in ipairs(selectedVariants or {}) do
+        if not HasBuff(soul, variant.buff_guid) then
+            local ok, handle = pcall(function()
+                return soul:AddBuff(variant.buff_guid)
+            end)
+            if not ok or handle == nil then
+                return false, "variant_signal_failed"
+            end
+        end
+    end
+    return true, "variants_published"
+end
+
 function DarkPassengerLeadPlanner.HasDirection(plan, directionId)
     for _, current in ipairs(plan ~= nil and plan.directions or {}) do
         if current == directionId then return true end
@@ -239,6 +304,11 @@ function DarkPassengerLeadPlanner.Apply(generation)
         selected.caseTemplate,
         evidenceState
     )
+    plan.dialogueVariants =
+        DarkPassengerLeadPlanner.SelectDialogueVariants(
+            selected.caseTemplate,
+            evidenceState
+        )
     local published, publishReason = DarkPassengerLeadPlanner.Publish(
         generation,
         selected.caseTemplate,
@@ -246,6 +316,14 @@ function DarkPassengerLeadPlanner.Apply(generation)
     )
     if published == nil then
         Log("presentation deferred reason=" .. tostring(publishReason))
+    end
+    local variantsPublished, variantReason =
+        DarkPassengerLeadPlanner.PublishDialogueVariants(
+            selected.caseTemplate,
+            plan.dialogueVariants
+        )
+    if not variantsPublished then
+        Log("dialogue variants deferred reason=" .. tostring(variantReason))
     end
     if DarkPassengerEvidence ~= nil and
        DarkPassengerEvidence.ApplyAvailability ~= nil then
@@ -290,6 +368,20 @@ function DarkPassengerLeadPlanner.RunSelfTest()
                 code = 3,
                 role = "witness",
                 hints_unlocked_by = { "rumor" },
+            },
+        },
+        dialogue_variants = {
+            {
+                dialogue_name = "rumor_dialogue",
+                id = "unread_ledger",
+                all_discovered_codes = {},
+                all_undiscovered_codes = { 1, 2 },
+            },
+            {
+                dialogue_name = "rumor_dialogue",
+                id = "ledger_discovered",
+                all_discovered_codes = { 2 },
+                all_undiscovered_codes = { 1 },
             },
         },
     }
@@ -372,7 +464,27 @@ function DarkPassengerLeadPlanner.RunSelfTest()
             unchangedState,
             { generation = 7, stateCode = 1 }
         )
-    passed = passed and changed.accepted and
+    local defaultVariants =
+        DarkPassengerLeadPlanner.SelectDialogueVariants(
+            caseTemplate,
+            State("pending", "pending", "pending")
+        )
+    local selectedVariants =
+        DarkPassengerLeadPlanner.SelectDialogueVariants(
+            caseTemplate,
+            State("pending", "discovered", "pending")
+        )
+    local completedVariants =
+        DarkPassengerLeadPlanner.SelectDialogueVariants(
+            caseTemplate,
+            State("discovered", "discovered", "pending")
+        )
+    passed = passed and #defaultVariants == 1 and
+        defaultVariants[1].id == "unread_ledger" and
+        #selectedVariants == 1 and
+        selectedVariants[1].id == "ledger_discovered" and
+        #completedVariants == 0 and
+        changed.accepted and
         presentation.revision == 1 and
         not unchanged.accepted and
         unchanged.reason == "presentation_unchanged" and

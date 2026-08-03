@@ -9,6 +9,10 @@ $dialogPath = Join-Path $repoRoot `
     'build\mod\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k\innkeeper_rumor_dialog_k.xml'
 $generatedQuestPath = Join-Path $repoRoot `
     'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'
+$missingTravelerDialogPath = Join-Path $repoRoot `
+    'build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t\innkeeper_missing_traveler_dialog_t.xml'
+$missingTravelerQuestPath = Join-Path $repoRoot `
+    'build\mod\Data\Quests\Final\Barbora\trosecko\dark_within_t.xml'
 $questTemplatePath = Join-Path $repoRoot `
     'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'
 $generatorPath = Join-Path $repoRoot 'tools\Generate-VictimArtifacts.ps1'
@@ -28,6 +32,8 @@ $runtimePath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\darkpassengertest.lua'
 $evidencePath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dpevidence.lua'
+$plannerPath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpleadplanner.lua'
 $englishPath = Join-Path $repoRoot `
     'localization\English\text__darkpassengertest.xml'
 $russianPath = Join-Path $repoRoot `
@@ -55,6 +61,8 @@ function Add-Result {
 
 $dialog = Read-OptionalText $dialogPath
 $generatedQuest = Read-OptionalText $generatedQuestPath
+$missingTravelerDialog = Read-OptionalText $missingTravelerDialogPath
+$missingTravelerQuest = Read-OptionalText $missingTravelerQuestPath
 $questTemplate = Read-OptionalText $questTemplatePath
 $generator = Read-OptionalText $generatorPath
 $stormIndex = Read-OptionalText $stormIndexPath
@@ -65,6 +73,7 @@ $buffTags = Read-OptionalText $buffTagPath
 $buffs = Read-OptionalText $buffPath
 $runtime = Read-OptionalText $runtimePath
 $evidence = Read-OptionalText $evidencePath
+$planner = Read-OptionalText $plannerPath
 $english = Read-OptionalText $englishPath
 $russian = Read-OptionalText $russianPath
 
@@ -163,6 +172,24 @@ Add-Result (
     $evidence.Contains('RUMOR_AVAILABLE_BUFF_GUID') -and
     $evidence.Contains('DEBUG_ACTION_ENABLED = false')
 ) 'evidence owns idempotent completion with the canary fallback disabled'
+Add-Result (
+    $missingTravelerDialog.Contains('variant_unread_ledger') -and
+    $missingTravelerDialog.Contains('variant_ledger_discovered') -and
+    $missingTravelerDialog.Contains('dp_mt_rumor_found_henry_hand') -and
+    $missingTravelerDialog.Contains('dp_mt_rumor_found_innkeeper_boguslav') -and
+    ([regex]::Matches(
+        $missingTravelerDialog,
+        '<Port Name="heard" />'
+    )).Count -eq 2
+) 'early-ledger and ordinary copy converge on one native completion port'
+Add-Result (
+    $missingTravelerQuest.Contains('rumorVariant0Trigger') -and
+    $missingTravelerQuest.Contains('rumorVariant1Trigger') -and
+    $planner.Contains('function DarkPassengerLeadPlanner.SelectDialogueVariants') -and
+    $planner.Contains('function DarkPassengerLeadPlanner.PublishDialogueVariants') -and
+    $planner.Contains('all_discovered_codes') -and
+    $planner.Contains('all_undiscovered_codes')
+) 'Lua selects a compiled dialogue variant and the graph only renders it'
 
 foreach ($key in @('dp_evidence_dialog_root', 'dp_evidence_ask_unease') +
     $dialogLineKeys) {

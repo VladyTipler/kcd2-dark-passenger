@@ -42,6 +42,9 @@ $requiredCommands = @(
     'Get-DpCaseSpecValidationErrors',
     'Get-DpValidatedCaseSpecs',
     'ConvertTo-DpLocalizationXml',
+    'Get-DpDialogueVariants',
+    'ConvertTo-DpDialogueVariantTagXml',
+    'ConvertTo-DpDialogueVariantBuffXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpScriptContextXml',
     'ConvertTo-DpItemTableXml'
@@ -149,6 +152,48 @@ if ((Test-Path -LiteralPath $modulePath) -and
     ) 'unsupported settlement is rejected'
 
     $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+
+    $missingTravelerRumor = @($missingTraveler.native.dialogues |
+        Where-Object kind -eq 'rumor')[0]
+    $rumorVariants = @($missingTravelerRumor.variants)
+    Add-Result (
+        [string]$missingTravelerRumor.evidenceId -eq
+            'zelejov_innkeeper_missing_traveler' -and
+        $rumorVariants.Count -eq 2 -and
+        (@($rumorVariants | ForEach-Object id) -join ',') -eq
+            'unread_ledger,ledger_discovered'
+    ) 'missing-traveler rumor authors two variants over one evidence reward'
+    if ($rumorVariants.Count -eq 2) {
+        Add-Result (
+            (@($rumorVariants[0].when.allUndiscovered) -join ',') -eq
+                'matej_guest_ledger,zelejov_innkeeper_missing_traveler' -and
+            (@($rumorVariants[1].when.allDiscovered) -join ',') -eq
+                'matej_guest_ledger' -and
+            (@($rumorVariants[1].when.allUndiscovered) -join ',') -eq
+                'zelejov_innkeeper_missing_traveler'
+        ) 'dialogue variants declare finite evidence knowledge conditions'
+
+        $unknownVariantEvidence = Copy-JsonObject $missingTraveler
+        $unknownVariantEvidence.native.dialogues[0].variants[1].when.allDiscovered =
+            @('missing_evidence')
+        $variantErrors = @(Get-DpCaseSpecValidationErrors `
+            -CaseSpec $unknownVariantEvidence `
+            -Bindings $bindings `
+            -SourceName 'unknown-dialogue-condition.json')
+        Add-Result (
+            $variantErrors -contains (
+                "unknown-dialogue-condition.json: native dialogue 'rumor' " +
+                "variant 'ledger_discovered' references unknown discovered " +
+                "evidence 'missing_evidence'"
+            )
+        ) 'dialogue variants reject unknown evidence conditions'
+    }
+    else {
+        Add-Result $false `
+            'dialogue variants declare finite evidence knowledge conditions'
+        Add-Result $false `
+            'dialogue variants reject unknown evidence conditions'
+    }
 
     Add-Result (
         @($missingTraveler.evidence | Where-Object {

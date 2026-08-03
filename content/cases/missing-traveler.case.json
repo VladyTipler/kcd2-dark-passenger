@@ -34,6 +34,7 @@
     "dialogues": [
       {
         "kind": "rumor",
+        "evidenceId": "zelejov_innkeeper_missing_traveler",
         "graphName": "innkeeper_missing_traveler_dialog_t",
         "fileName": "innkeeper_missing_traveler_dialog_t.xml",
         "rootKey": "dp_mt_rumor_root",
@@ -41,17 +42,48 @@
         "promptKey": "dp_mt_rumor_prompt",
         "availableLabel": "Missing traveler rumor available",
         "heardLabel": "Missing traveler rumor heard",
-        "responses": [
-          { "role": "HENRY", "key": "dp_mt_rumor_henry_missing" },
-          { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_left" },
-          { "role": "HENRY", "key": "dp_mt_rumor_henry_horse" },
-          { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_horse" },
-          { "role": "HENRY", "key": "dp_mt_rumor_henry_name" },
-          { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_matej" },
-          { "role": "HENRY", "key": "dp_mt_rumor_henry_ledger" },
-          { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_hand" },
-          { "role": "HENRY", "key": "dp_mt_rumor_henry_see" },
-          { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_chest" }
+        "variants": [
+          {
+            "id": "unread_ledger",
+            "when": {
+              "allDiscovered": [],
+              "allUndiscovered": [
+                "matej_guest_ledger",
+                "zelejov_innkeeper_missing_traveler"
+              ]
+            },
+            "promptKey": "dp_mt_rumor_prompt",
+            "responses": [
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_missing" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_left" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_horse" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_horse" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_name" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_matej" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_ledger" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_hand" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_see" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_chest" }
+            ]
+          },
+          {
+            "id": "ledger_discovered",
+            "when": {
+              "allDiscovered": ["matej_guest_ledger"],
+              "allUndiscovered": [
+                "zelejov_innkeeper_missing_traveler"
+              ]
+            },
+            "promptKey": "dp_mt_rumor_prompt_ledger_found",
+            "responses": [
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_hand" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_chest" },
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_note" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_horse" },
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_who" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_boguslav" }
+            ]
+          }
         ]
       },
       {
@@ -178,6 +210,13 @@
       "dp_mt_rumor_innkeeper_hand": "Не я. Строка появилась утром и почерк там чужой. После этого я убрал книгу под замок.",
       "dp_mt_rumor_henry_see": "Мне нужно на неё взглянуть.",
       "dp_mt_rumor_innkeeper_chest": "Книга наверху, в моём сундуке. Но ключа я тебе не дам. Если кто-то вписал туда ложь, я предпочту не знать, как ты её достал.",
+      "dp_mt_rumor_prompt_ledger_found": "Спросить о поддельной записи",
+      "dp_mt_rumor_found_henry_hand": "Строку об отъезде Матея вписал не ты.",
+      "dp_mt_rumor_found_innkeeper_chest": "Значит, ты всё-таки добрался до книги. Я ведь не давал тебе ключ.",
+      "dp_mt_rumor_found_henry_note": "Почерк другой. А записка между страницами говорит, что его заманили к старой иве.",
+      "dp_mt_rumor_found_innkeeper_horse": "Тогда он не уехал сам. И конь вернулся без него — до рассвета уже стоял в стойле.",
+      "dp_mt_rumor_found_henry_who": "Кто его привёл?",
+      "dp_mt_rumor_found_innkeeper_boguslav": "Не знаю. Богуслав был у лошадей той ночью. Если он что-то видел, говорить станет неохотно.",
       "dp_mt_witness_root": "Конь без всадника",
       "dp_mt_witness_prompt": "Расспросить Богуслава о коне Матея",
       "dp_mt_witness_henry_horse": "Ты присматриваешь за лошадьми. Помнишь коня торговца Матея?",
@@ -213,6 +252,13 @@
       "dp_mt_rumor_innkeeper_hand": "Not me. The line appeared that morning, in a hand I did not know. I locked the book away after that.",
       "dp_mt_rumor_henry_see": "I need to see it.",
       "dp_mt_rumor_innkeeper_chest": "It is upstairs, in my chest. I will not give you the key. If someone wrote a lie in my book, I would rather not know how you got it open.",
+      "dp_mt_rumor_prompt_ledger_found": "Ask about the forged entry",
+      "dp_mt_rumor_found_henry_hand": "You did not write the line saying Matej left.",
+      "dp_mt_rumor_found_innkeeper_chest": "So you got to the ledger after all. I certainly did not give you the key.",
+      "dp_mt_rumor_found_henry_note": "The hand is different. And the note between the pages says someone lured him past the old willow.",
+      "dp_mt_rumor_found_innkeeper_horse": "Then he did not leave of his own accord. His horse came back without him and was in the stable before dawn.",
+      "dp_mt_rumor_found_henry_who": "Who brought it back?",
+      "dp_mt_rumor_found_innkeeper_boguslav": "I do not know. Bretislav was with the horses that night. If he saw anything, he will not speak of it willingly.",
       "dp_mt_witness_root": "A Horse Without Its Rider",
       "dp_mt_witness_prompt": "Ask Bretislav about Matej's horse",
       "dp_mt_witness_henry_horse": "You tend the horses. Do you remember the merchant Matej's mount?",
