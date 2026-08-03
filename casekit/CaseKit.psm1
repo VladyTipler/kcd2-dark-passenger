@@ -5,6 +5,11 @@ $legacyAdapterPath = Join-Path $PSScriptRoot `
 Import-Module $legacyAdapterPath -Force
 $modelPath = Join-Path $PSScriptRoot 'core\CaseKit.Model.psm1'
 Import-Module $modelPath -Force
+$worldAdapterPath = Join-Path $PSScriptRoot `
+    'adapters\kcd2\CaseKit.Kcd2World.psm1'
+Import-Module $worldAdapterPath -Force
+$worldIndexPath = Join-Path $PSScriptRoot 'core\CaseKit.WorldIndex.psm1'
+Import-Module $worldIndexPath -Force
 
 function Read-CaseKitAuthoringDeck {
     param(
@@ -23,6 +28,18 @@ function Resolve-CaseKitVariants {
     return Resolve-CaseKitDeckVariants -Deck $Deck
 }
 
+function New-CaseKitWorldIndex {
+    param(
+        [Parameter(Mandatory)][string]$RawWorldPath,
+        [string]$VictimCatalogPath
+    )
+
+    $entities = Read-CaseKitKcd2WorldEntities `
+        -RawWorldPath $RawWorldPath `
+        -VictimCatalogPath $VictimCatalogPath
+    return New-CaseKitSemanticWorldIndex -Entities $entities
+}
+
 function ConvertTo-CaseKitBackendInput {
     param([Parameter(Mandatory)][object[]]$Variants)
 
@@ -31,6 +48,7 @@ function ConvertTo-CaseKitBackendInput {
 
 Export-ModuleMember -Function @(
     'ConvertTo-CaseKitBackendInput',
+    'New-CaseKitWorldIndex',
     'Read-CaseKitAuthoringDeck',
     'Resolve-CaseKitVariants'
 )

@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "region": "kutnohorsko",
+  "settlement": "pritoky",
+  "entities": [
+    {
+      "entityName": "kpri_innkeeper",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.innkeeper",
+        "role.tavern_worker"
+      ]
+    },
+    {
+      "entityName": "kpri_woman_10",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.tavern_worker"
+      ],
+      "identity": {
+        "mode": "titled",
+        "localized": {
+          "ru": {
+            "title": "служанка из пржитокской корчмы",
+            "direction": "служанку из корчмы в Пржитоках"
+          },
+          "en": {
+            "title": "Pritoky tavern maid",
+            "direction": "the maid at the inn in Pritoky"
+          }
+        }
+      }
+    },
+    {
+      "entityGuid": "277db45d-28ac-0286",
+      "addCapabilities": [
+        "container.evidence"
+      ],
+      "presentation": {
+        "localized": {
+          "ru": {
+            "locationHint": "сундук на сеновале при корчме в Пржитоках"
+          },
+          "en": {
+            "locationHint": "the chest in the hayloft by the Pritoky inn"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "region": "trosecko",
+  "settlement": "zelejov",
+  "entities": [
+    {
+      "entityName": "tzel_vavrinec",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.innkeeper",
+        "role.tavern_worker"
+      ]
+    },
+    {
+      "entityName": "tzel_bretislav",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.farmhand",
+        "role.tavern_worker",
+        "workplace.inn_stable"
+      ],
+      "identity": {
+        "mode": "named",
+        "localized": {
+          "ru": {
+            "name": "Богуслав",
+            "occupation": "батрак",
+            "direction": "батрак при желеевской корчме"
+          },
+          "en": {
+            "name": "Bretislav",
+            "occupation": "farmhand",
+            "direction": "the farmhand at the Zhelejov inn"
+          }
+        }
+      }
+    },
+    {
+      "entityGuid": "aaf89994-e94b-0309",
+      "addCapabilities": [
+        "container.evidence"
+      ],
+      "presentation": {
+        "localized": {
+          "ru": {
+            "locationHint": "запертый сундук на втором этаже желеевской корчмы"
+          },
+          "en": {
+            "locationHint": "the locked chest upstairs at the Zhelejov inn"
+          }
+        }
+      }
+    }
+  ]
+}

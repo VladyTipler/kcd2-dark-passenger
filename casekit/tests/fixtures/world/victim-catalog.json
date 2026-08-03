@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 2,
+  "regions": [],
+  "settlements": [],
+  "candidates": [
+    {
+      "entityName": "test_worker",
+      "guid": "00000000-0000-0000-0000-000000000202",
+      "enabled": true,
+      "killableVerified": true,
+      "storyCritical": false,
+      "questCritical": false,
+      "immortal": false,
+      "dead": false
+    }
+  ]
+}

@@ -45,7 +45,7 @@ World-wide semantic indexing, content migration and multi-variant runtime
 selection are later milestones. They begin only after this low-risk seam is
 green.
 
-### Task 1: Scaffold the reusable CaseKit boundary
+### Task 1: Scaffold the reusable CaseKit boundary - completed
 
 **Files:**
 - Create: `casekit/CaseKit.psd1`
@@ -130,7 +130,13 @@ git add -- casekit
 git commit -m "feat: scaffold reusable casekit module"
 ```
 
-### Task 2: Generate the KCD2 semantic world index
+### Task 2: Generate the KCD2 semantic world index - completed
+
+Implementation note: the raw exporter keeps legacy `candidates` byte-stable
+for victim-slot generation and adds complete `actors` plus settlement
+`containers` for CaseKit. The semantic index is built from `actors`, then
+annotated by the unchanged victim catalog; it does not mistake the filtered
+951-target pool for the whole world.
 
 **Files:**
 - Create: `casekit/adapters/kcd2/CaseKit.Kcd2World.psm1`
@@ -209,7 +215,12 @@ git add -- casekit tools/Export-WorldVictimCandidates.ps1 config/world-semantic-
 git commit -m "feat: generate semantic world index"
 ```
 
-### Task 3: Resolve identity and central settlement profiles
+### Task 3: Resolve identity and central settlement profiles - completed
+
+Implementation note: non-generic localization keys enter the raw index as
+`unresolved`, not automatically `named`. Pritoky and Zhelejov profiles are the
+reviewed authority that promotes concrete actors to `named` or `titled` and
+confirms evidence containers.
 
 **Files:**
 - Create: `casekit/core/CaseKit.Identity.psm1`

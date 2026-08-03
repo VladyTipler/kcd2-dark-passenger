@@ -22,9 +22,13 @@ Add-Result (Test-Path -LiteralPath $manifestPath -PathType Leaf) `
     'CaseKit module manifest exists'
 
 if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
+    $manifest = Import-PowerShellDataFile -LiteralPath $manifestPath
+    Add-Result ($manifest.ModuleVersion -eq '0.2.0') `
+        'CaseKit manifest records semantic world index milestone'
     Import-Module $manifestPath -Force
     $expected = @(
         'ConvertTo-CaseKitBackendInput',
+        'New-CaseKitWorldIndex',
         'Read-CaseKitAuthoringDeck',
         'Resolve-CaseKitVariants'
     ) | Sort-Object
