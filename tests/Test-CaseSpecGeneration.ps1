@@ -90,6 +90,12 @@ try {
         'settlement = "zelejov"',
         'id = "zelejov_innkeeper_missing_traveler"',
         'id = "matej_guest_ledger"',
+        'placement = "case_start"',
+        'discoverable_without_hint = true',
+        'hints_unlocked_by = {',
+        '"zelejov_innkeeper_missing_traveler"',
+        'reveals = {',
+        '"forged_departure"',
         'id = "zelejov_stablehand_witness"',
         'entityName = "tzel_vavrinec"',
         'containerGuid = "aaf89994-e94b-0309"',
@@ -103,6 +109,8 @@ try {
         $catalog.IndexOf('id = "vojtech_belongings"') -lt
         $catalog.IndexOf('id = "tavern_witness"')
     ) 'Lua catalog preserves evidence order'
+    Add-Result (-not $catalog.Contains('next_lead =')) `
+        'Lua catalog has no obsolete linear next-lead chain'
 
     Add-Result (
         $null -ne $report -and

@@ -67,7 +67,10 @@ foreach ($token in
     'dp_case_content_opener_code',
     'selected once per investigation generation',
     'source_stance',
-    'next_lead'
+    'placement',
+    'discoverable_without_hint',
+    'hints_unlocked_by',
+    'reveals'
 ) {
     Add-Result (
         $caseRuntime.Contains($token) -or
@@ -83,13 +86,16 @@ foreach ($token in
     'code = 1101',
     'source_stance = "afraid"',
     'confidence = 20',
-    'next_lead = "vojtech_belongings"',
+    'placement = "on_event"',
+    'discoverable_without_hint = true',
     'region = "kutnohorsko"',
     'settlement = "pritoky"'
 ) {
     Add-Result ($generatedCatalog.Contains($token)) `
         "compiled canary content contains $token"
 }
+Add-Result (-not $generatedCatalog.Contains('next_lead =')) `
+    'compiled content has no obsolete linear next-lead chain'
 
 $contentReload =
     'Script.ReloadScript("Scripts/mods/generated/dp_case_catalog.lua")'

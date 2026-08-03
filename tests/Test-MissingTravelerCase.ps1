@@ -28,6 +28,9 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
     Import-Module $modulePath -Force
     $case = Read-DpCaseSpec -LiteralPath $casePath
     $bindings = Read-DpCaseSettlementBindings -LiteralPath $bindingPath
+    $binding = @($bindings.settlements | Where-Object {
+        $_.region -eq 'trosecko' -and $_.settlement -eq 'zelejov'
+    })[0]
     $errors = @(Get-DpCaseSpecValidationErrors `
         -CaseSpec $case `
         -Bindings $bindings `
@@ -37,6 +40,8 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
     Add-Result (
         $case.id -eq 'missing_traveler' -and [int]$case.code -eq 2001
     ) 'case has stable identity and numeric code'
+    Add-Result ([int]$case.schemaVersion -eq 2) `
+        'case uses nonlinear evidence schema version 2'
     Add-Result (
         $case.constraints.region -eq 'trosecko' -and
         $case.constraints.settlement -eq 'zelejov'
@@ -52,6 +57,12 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         $case.crimeProfile.method -eq 'robbery_murder' -and
         $case.crimeProfile.coverStory -eq 'forged_departure'
     ) 'crime profile encodes Matej robbery and forged departure'
+    Add-Result (
+        $binding.roles.witness.identity.ru.name -eq 'Богуслав' -and
+        $binding.roles.witness.identity.ru.occupation -eq 'батрак' -and
+        $binding.roles.witness.identity.en.name -eq 'Bretislav' -and
+        $binding.roles.witness.identity.en.occupation -eq 'farmhand'
+    ) 'witness binding preserves localized native identity'
 
     $steps = @($case.evidence)
     Add-Result (
@@ -67,10 +78,22 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         ([int]$case.revealThreshold -eq 70)
     ) 'confidence reaches reveal at 20 plus 30 plus 20'
     Add-Result (
-        $steps[0].nextLead -eq $steps[1].id -and
-        $steps[1].nextLead -eq $steps[2].id -and
-        $steps[2].nextLead -eq 'reveal_target'
-    ) 'evidence graph reaches native target reveal'
+        $steps[0].placement -eq 'on_event' -and
+        $steps[0].discoverableWithoutHint -eq $true -and
+        @($steps[0].hintsUnlockedBy).Count -eq 0 -and
+        $steps[1].placement -eq 'case_start' -and
+        $steps[1].discoverableWithoutHint -eq $true -and
+        @($steps[1].hintsUnlockedBy) -contains $steps[0].id -and
+        $steps[2].placement -eq 'on_event' -and
+        $steps[2].discoverableWithoutHint -eq $false -and
+        @($steps[2].hintsUnlockedBy) -contains $steps[0].id -and
+        @($steps[2].hintsUnlockedBy) -notcontains $steps[1].id
+    ) 'ledger and stablehand become parallel leads after the rumor'
+    Add-Result (
+        @($steps[0].reveals) -contains 'matej_horse_returned' -and
+        @($steps[1].reveals) -contains 'forged_departure' -and
+        @($steps[2].reveals) -contains 'suspect_identified'
+    ) 'evidence sources reveal authored case facts'
 
     $document = $steps[1]
     Add-Result (
@@ -101,13 +124,24 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
     Add-Result (
         $case.localization.ru.dp_mt_witness_objective_active -eq (
             'Лаврентий сказал, что конь Матея вернулся без всадника. ' +
-            'Конюх мог видеть, кто привёл его обратно.'
+            'Батрак Богуслав мог видеть, кто привёл его обратно.'
         ) -and
         $case.localization.en.dp_mt_witness_objective_active -eq (
             "Lavrentiy said Matej's horse returned without its rider. " +
-            'The stablehand may have seen who brought it back.'
+            'The farmhand Bretislav may have seen who brought it back.'
         )
-    ) 'stablehand direction cites the riderless horse fact'
+    ) 'farmhand direction cites the riderless horse fact'
+    Add-Result (
+        $case.localization.ru.dp_mt_witness_prompt.Contains('Богуслава') -and
+        $case.localization.ru.dp_mt_witness_objective_name -eq `
+            'Расспросить батрака Богуслава' -and
+        $case.localization.ru.dp_mt_witness_objective_done.Contains(
+            'Богуслав видел'
+        ) -and
+        $case.localization.en.dp_mt_witness_prompt.Contains('Bretislav') -and
+        $case.localization.en.dp_mt_witness_objective_name -eq `
+            'Question the farmhand Bretislav'
+    ) 'visible witness copy uses localized name and actual occupation'
     Add-Result (
         -not $case.localization.ru.dp_mt_witness_objective_active.Contains(
             'Записка Матея'

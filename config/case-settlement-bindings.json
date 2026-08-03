@@ -34,7 +34,17 @@
         },
         "witness": {
           "entityName": "tzel_bretislav",
-          "dialogueRole": "DP_TAVERN_WITNESS"
+          "dialogueRole": "DP_TAVERN_WITNESS",
+          "identity": {
+            "ru": {
+              "name": "Богуслав",
+              "occupation": "батрак"
+            },
+            "en": {
+              "name": "Bretislav",
+              "occupation": "farmhand"
+            }
+          }
         }
       }
     }

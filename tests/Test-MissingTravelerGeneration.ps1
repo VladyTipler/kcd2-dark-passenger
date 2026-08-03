@@ -160,6 +160,13 @@ Add-Result (
     $russian.Contains('Вырванный лист гостевой книги') -and
     $english.Contains('Torn Guest-Ledger Page')
 ) 'Russian and English document copy is authored independently'
+Add-Result (
+    $russian.Contains('Расспросить Богуслава о коне Матея') -and
+    $russian.Contains('Расспросить батрака Богуслава') -and
+    -not $russian.Contains('Бретислав') -and
+    -not $russian.Contains('Расспросить конюха') -and
+    $english.Contains('Question the farmhand Bretislav')
+) 'generated localization preserves native witness identity by language'
 
 Add-Result (
     $catalog.Contains('id = "missing_traveler"') -and
@@ -167,6 +174,12 @@ Add-Result (
     $catalog.Contains('entityName = "tzel_bretislav"') -and
     $catalog.Contains('documentGuid = "d5833fd4-f7bf-4957-86f5-d661db38bcf3"')
 ) 'runtime catalog carries the same concrete binding identity'
+Add-Result (
+    $catalog.Contains('name = "Богуслав"') -and
+    $catalog.Contains('occupation = "батрак"') -and
+    $catalog.Contains('name = "Bretislav"') -and
+    $catalog.Contains('occupation = "farmhand"')
+) 'runtime catalog carries localized witness identity metadata'
 Add-Result (
     $runtime -match (
         '(?s)region = "trosecko".*?' +

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "missing_traveler",
   "code": 2001,
   "weight": 1,
@@ -84,8 +84,8 @@
       "nameKey": "dp_mt_witness_objective_name",
       "activeKey": "dp_mt_witness_objective_active",
       "doneKey": "dp_mt_witness_objective_done",
-      "fallbackName": "Question the stablehand",
-      "fallbackActive": "Lavrentiy said Matej's horse returned without its rider. The stablehand may have seen who brought it back.",
+      "fallbackName": "Question the farmhand Bretislav",
+      "fallbackActive": "Lavrentiy said Matej's horse returned without its rider. The farmhand Bretislav may have seen who brought it back.",
       "fallbackDone": "Bretislav saw a local man return Matej's horse alone and destroy evidence by the road. He identified the suspect."
     }
   },
@@ -98,7 +98,14 @@
       "purpose": "missing_person_rumor",
       "sourceStance": "guarded",
       "confidence": 20,
-      "nextLead": "matej_guest_ledger",
+      "placement": "on_event",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": [],
+      "reveals": [
+        "matej_missing",
+        "matej_horse_returned",
+        "guest_ledger_suspicious"
+      ],
       "promptKey": "dp_mt_rumor_prompt"
     },
     {
@@ -107,7 +114,14 @@
       "kind": "document",
       "role": "document",
       "confidence": 30,
-      "nextLead": "zelejov_stablehand_witness",
+      "placement": "case_start",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": ["zelejov_innkeeper_missing_traveler"],
+      "reveals": [
+        "forged_departure",
+        "old_willow_route",
+        "culprit_knew_about_money"
+      ],
       "reaction": "vanilla_neutral",
       "item": {
         "name": "dp_matej_guest_ledger",
@@ -124,7 +138,13 @@
       "purpose": "target_identification",
       "sourceStance": "afraid",
       "confidence": 20,
-      "nextLead": "reveal_target",
+      "placement": "on_event",
+      "discoverableWithoutHint": false,
+      "hintsUnlockedBy": ["zelejov_innkeeper_missing_traveler"],
+      "reveals": [
+        "horse_returner_identified",
+        "suspect_identified"
+      ],
       "promptKey": "dp_mt_witness_prompt"
     }
   ],
@@ -153,7 +173,7 @@
       "dp_mt_rumor_henry_see": "Мне нужно на неё взглянуть.",
       "dp_mt_rumor_innkeeper_chest": "Книга наверху, в моём сундуке. Но ключа я тебе не дам. Если кто-то вписал туда ложь, я предпочту не знать, как ты её достал.",
       "dp_mt_witness_root": "Конь без всадника",
-      "dp_mt_witness_prompt": "Расспросить Бретислава о коне Матея",
+      "dp_mt_witness_prompt": "Расспросить Богуслава о коне Матея",
       "dp_mt_witness_henry_horse": "Ты присматриваешь за лошадьми. Помнишь коня торговца Матея?",
       "dp_mt_witness_bretislav_remembers": "Гнедой, с белой бабкой на задней ноге. Матей уехал на нём ночью. А до рассвета конь снова стоял в стойле.",
       "dp_mt_witness_henry_without": "Вернулся без хозяина?",
@@ -166,9 +186,9 @@
       "dp_mt_witness_bretislav_fire": "Позже он жёг что-то у старой ивы. Пахло палёной шерстью. Наутро я нашёл обгоревшую пряжку от дорожного плаща.",
       "dp_mt_witness_henry_point": "Покажешь мне этого человека.",
       "dp_mt_witness_bretislav_point": "Покажу. Но после этого мы с тобой никогда не говорили.",
-      "dp_mt_witness_objective_name": "Расспросить конюха",
-      "dp_mt_witness_objective_active": "Лаврентий сказал, что конь Матея вернулся без всадника. Конюх мог видеть, кто привёл его обратно.",
-      "dp_mt_witness_objective_done": "Бретислав видел, как местный житель вернул коня Матея один, а затем сжёг что-то у дороги. Он указал на подозреваемого.",
+      "dp_mt_witness_objective_name": "Расспросить батрака Богуслава",
+      "dp_mt_witness_objective_active": "Лаврентий сказал, что конь Матея вернулся без всадника. Батрак Богуслав мог видеть, кто привёл его обратно.",
+      "dp_mt_witness_objective_done": "Богуслав видел, как местный житель вернул коня Матея один, а затем сжёг что-то у дороги. Он указал на подозреваемого.",
       "dp_mt_ledger_name": "Вырванный лист гостевой книги",
       "dp_mt_ledger_info": "Лист из гостевой книги Желеёвского трактира. Строка об отъезде выведена другим почерком, а между страницами спрятана записка.",
       "dp_mt_ledger_content": "<p>Матей из Ледеча. Три ночи оплачено.</p><p><i>Уехал до заутрени.</i></p><p>Последняя строка выведена более тёмными чернилами и другой рукой. Между страницами сложен клочок бумаги:</p><p>Если я не вернусь, деньги в кошеле принадлежат Маркете, вдове Павла. Один здешний узнал о них и весь вечер расспрашивал, сколько я везу и кто меня ждёт. На рассвете он обещал показать короткую дорогу мимо старой ивы.</p><p>Он слишком любезен для человека, которому от меня ничего не нужно. Но если я ошибаюсь, к полудню буду уже далеко.</p><p>Матей</p>"
@@ -200,8 +220,8 @@
       "dp_mt_witness_bretislav_fire": "Later he burned something by the old willow. It smelled of scorched wool. In the morning I found a blackened clasp from a travelling cloak.",
       "dp_mt_witness_henry_point": "You will point this man out to me.",
       "dp_mt_witness_bretislav_point": "I will. But after that, you and I never spoke.",
-      "dp_mt_witness_objective_name": "Question the stablehand",
-      "dp_mt_witness_objective_active": "Lavrentiy said Matej's horse returned without its rider. The stablehand may have seen who brought it back.",
+      "dp_mt_witness_objective_name": "Question the farmhand Bretislav",
+      "dp_mt_witness_objective_active": "Lavrentiy said Matej's horse returned without its rider. The farmhand Bretislav may have seen who brought it back.",
       "dp_mt_witness_objective_done": "Bretislav saw a local man return Matej's horse alone, then burn something by the road. He identified the suspect.",
       "dp_mt_ledger_name": "Torn Guest-Ledger Page",
       "dp_mt_ledger_info": "A page from the Zhelejov inn ledger. The departure line is in another hand, and a note was hidden between the leaves.",

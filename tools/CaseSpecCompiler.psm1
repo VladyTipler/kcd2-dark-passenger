@@ -135,7 +135,12 @@ function ConvertTo-DpRuntimeEvidence {
             $null -ne $Evidence.PSObject.Properties['sourceStance']
         ) { [string]$Evidence.sourceStance } else { $null }
         confidence = [int]$Evidence.confidence
-        next_lead = [string]$Evidence.nextLead
+        placement = [string]$Evidence.placement
+        discoverable_without_hint = [bool]$Evidence.discoverableWithoutHint
+        hints_unlocked_by = @($Evidence.hintsUnlockedBy | ForEach-Object {
+            [string]$_
+        })
+        reveals = @($Evidence.reveals | ForEach-Object { [string]$_ })
         prompt_key = if (
             $null -ne $Evidence.PSObject.Properties['promptKey']
         ) { [string]$Evidence.promptKey } else { $null }
@@ -692,8 +697,8 @@ function Get-DpCaseSpecValidationErrors {
     if (-not (Test-DpTextValue $CaseSpec.id)) {
         $errors.Add("$prefix id is required")
     }
-    if ([int]$CaseSpec.schemaVersion -ne 1) {
-        $errors.Add("$prefix schemaVersion must be 1")
+    if ([int]$CaseSpec.schemaVersion -ne 2) {
+        $errors.Add("$prefix schemaVersion must be 2")
     }
     if ([int]$CaseSpec.code -le 0) {
         $errors.Add("$prefix code must be a positive integer")
@@ -836,10 +841,16 @@ function Get-DpCaseSpecValidationErrors {
         elseif (-not $seenEvidenceCodes.Add($evidenceCode)) {
             $errors.Add("$prefix evidence code '$evidenceCode' is duplicated")
         }
-        if (-not (Test-DpTextValue $step.kind)) {
+        $kind = [string]$step.kind
+        if (-not (Test-DpTextValue $kind)) {
             $errors.Add("$prefix evidence '$evidenceId' kind is required")
         }
-        if ([string]$step.kind -eq 'document') {
+        elseif ($kind -notin @('dialogue', 'document')) {
+            $errors.Add(
+                "$prefix evidence '$evidenceId' kind '$kind' is not supported"
+            )
+        }
+        if ($kind -eq 'document') {
             foreach ($field in 'name', 'nameKey', 'infoKey', 'contentKey') {
                 if ($null -eq $step.PSObject.Properties['item'] -or
                     -not (Test-DpTextValue $step.item.$field)) {
@@ -870,21 +881,62 @@ function Get-DpCaseSpecValidationErrors {
             $errors.Add("$prefix semantic role '$role' is not bound")
         }
 
-        $nextLead = [string]$step.nextLead
-        if (-not (Test-DpTextValue $nextLead)) {
-            $errors.Add("$prefix evidence '$evidenceId' nextLead is required")
+        $placementProperty = $step.PSObject.Properties['placement']
+        $placement = if ($null -ne $placementProperty) {
+            [string]$placementProperty.Value
+        }
+        else { '' }
+        if ($placement -notin @('case_start', 'on_event')) {
+            $errors.Add(
+                "$prefix evidence '$evidenceId' placement must be " +
+                "'case_start' or 'on_event'"
+            )
+        }
+
+        $discoverableProperty =
+            $step.PSObject.Properties['discoverableWithoutHint']
+        if ($null -eq $discoverableProperty -or
+            $discoverableProperty.Value -isnot [bool]) {
+            $errors.Add(
+                "$prefix evidence '$evidenceId' " +
+                'discoverableWithoutHint must be boolean'
+            )
+        }
+
+        $hintProperty = $step.PSObject.Properties['hintsUnlockedBy']
+        if ($null -eq $hintProperty) {
+            $errors.Add(
+                "$prefix evidence '$evidenceId' hintsUnlockedBy is required"
+            )
+        }
+
+        $revealsProperty = $step.PSObject.Properties['reveals']
+        $revealedFacts = if ($null -ne $revealsProperty) {
+            @($revealsProperty.Value | Where-Object {
+                Test-DpTextValue $_
+            })
+        }
+        else { @() }
+        if (@($revealedFacts).Count -eq 0) {
+            $errors.Add(
+                "$prefix evidence '$evidenceId' reveals must contain a fact"
+            )
         }
     }
 
     $evidenceIds = @($evidence | ForEach-Object { [string]$_.id })
     foreach ($step in $evidence) {
-        $nextLead = [string]$step.nextLead
-        if ((Test-DpTextValue $nextLead) -and
-            $nextLead -ne 'reveal_target' -and
-            $nextLead -notin $evidenceIds) {
-            $errors.Add(
-                "$prefix evidence '$($step.id)' references unknown nextLead '$nextLead'"
-            )
+        $hintProperty = $step.PSObject.Properties['hintsUnlockedBy']
+        if ($null -eq $hintProperty) { continue }
+        foreach ($hintSource in @($hintProperty.Value)) {
+            $hintSourceId = [string]$hintSource
+            if ((Test-DpTextValue $hintSourceId) -and
+                $hintSourceId -notin $evidenceIds) {
+                $errors.Add(
+                    "$prefix evidence '$($step.id)' references unknown " +
+                    "hint source '$hintSourceId'"
+                )
+            }
         }
     }
 

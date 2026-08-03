@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "convenient_accident",
   "code": 1001,
   "weight": 1,
@@ -95,7 +95,13 @@
       "purpose": "strong_suspicion",
       "sourceStance": "afraid",
       "confidence": 20,
-      "nextLead": "vojtech_belongings",
+      "placement": "on_event",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": [],
+      "reveals": [
+        "vojtech_death_suspicious",
+        "vojtech_belongings_location"
+      ],
       "promptKey": "dp_evidence_ask_unease"
     },
     {
@@ -104,7 +110,13 @@
       "kind": "document",
       "role": "document",
       "confidence": 30,
-      "nextLead": "tavern_witness",
+      "placement": "case_start",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": ["pritoky_innkeeper_strong_suspicion"],
+      "reveals": [
+        "vojtech_witnessed_murder",
+        "tavern_witness_identity"
+      ],
       "reaction": "vanilla_neutral",
       "item": {
         "name": "dp_vojtech_last_letter",
@@ -119,7 +131,10 @@
       "kind": "dialogue",
       "role": "witness",
       "confidence": 20,
-      "nextLead": "reveal_target"
+      "placement": "on_event",
+      "discoverableWithoutHint": false,
+      "hintsUnlockedBy": ["vojtech_belongings"],
+      "reveals": ["suspect_identified"]
     }
   ],
   "text": {

@@ -62,6 +62,8 @@ if ((Test-Path -LiteralPath $modulePath) -and
         -SourceName (Split-Path -Leaf $casePath))
 
     Add-Result ($errors.Count -eq 0) 'authored Pritoky CaseSpec validates'
+    Add-Result ([int]$case.schemaVersion -eq 2) `
+        'CaseSpec uses nonlinear evidence schema version 2'
     Add-Result ($case.id -eq 'convenient_accident') `
         'CaseSpec preserves stable case id'
     Add-Result ([int]$case.code -eq 1001) `
@@ -147,6 +149,73 @@ if ((Test-Path -LiteralPath $modulePath) -and
     ) 'unsupported settlement is rejected'
 
     $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+
+    Add-Result (
+        @($missingTraveler.evidence | Where-Object {
+            [string]::IsNullOrWhiteSpace([string]$_.placement) -or
+            $null -eq $_.PSObject.Properties['discoverableWithoutHint'] -or
+            $null -eq $_.PSObject.Properties['hintsUnlockedBy'] -or
+            $null -eq $_.PSObject.Properties['reveals']
+        }).Count -eq 0
+    ) 'every evidence source declares nonlinear discovery metadata'
+
+    $invalidPlacement = Copy-JsonObject $missingTraveler
+    $invalidPlacement.evidence[1] | Add-Member `
+        -NotePropertyName placement `
+        -NotePropertyValue 'runtime_magic' `
+        -Force
+    $placementErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $invalidPlacement `
+        -Bindings $bindings `
+        -SourceName 'invalid-placement.json')
+    Add-Result (
+        $placementErrors -contains (
+            "invalid-placement.json: evidence 'matej_guest_ledger' " +
+            "placement must be 'case_start' or 'on_event'"
+        )
+    ) 'unknown evidence placement is rejected'
+
+    $missingPlacement = Copy-JsonObject $missingTraveler
+    $missingPlacement.evidence[1].PSObject.Properties.Remove('placement')
+    $missingPlacementErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $missingPlacement `
+        -Bindings $bindings `
+        -SourceName 'missing-placement.json')
+    Add-Result (
+        $missingPlacementErrors -contains (
+            "missing-placement.json: evidence 'matej_guest_ledger' " +
+            "placement must be 'case_start' or 'on_event'"
+        )
+    ) 'missing evidence placement returns a validation error'
+
+    $unknownKind = Copy-JsonObject $missingTraveler
+    $unknownKind.evidence[1].kind = 'telepathy'
+    $kindErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $unknownKind `
+        -Bindings $bindings `
+        -SourceName 'unknown-kind.json')
+    Add-Result (
+        $kindErrors -contains (
+            "unknown-kind.json: evidence 'matej_guest_ledger' " +
+            "kind 'telepathy' is not supported"
+        )
+    ) 'unknown evidence kind is rejected'
+
+    $unknownHint = Copy-JsonObject $missingTraveler
+    $unknownHint.evidence[1] | Add-Member `
+        -NotePropertyName hintsUnlockedBy `
+        -NotePropertyValue @('missing_clue') `
+        -Force
+    $hintErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $unknownHint `
+        -Bindings $bindings `
+        -SourceName 'unknown-hint.json')
+    Add-Result (
+        $hintErrors -contains (
+            "unknown-hint.json: evidence 'matej_guest_ledger' " +
+            "references unknown hint source 'missing_clue'"
+        )
+    ) 'unknown hint source is rejected'
 
     $mismatchedLocalization = Copy-JsonObject $missingTraveler
     $mismatchedLocalization.localization.en.PSObject.Properties.Remove(
