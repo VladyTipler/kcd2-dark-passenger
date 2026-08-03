@@ -230,10 +230,6 @@ function DarkPassengerOverheardEvidence.ApplyAvailability(
     local overheard = snapshot ~= nil and snapshot.caseTemplate ~= nil and
         snapshot.caseTemplate.overheard or nil
     if overheard == nil then
-        local selected = snapshot ~= nil and snapshot.caseTemplate or nil
-        if selected ~= nil and selected.overheard ~= nil then
-            RemoveAllSignals(selected.overheard)
-        end
         return false, reason or "overheard_unavailable"
     end
     if available ~= true or

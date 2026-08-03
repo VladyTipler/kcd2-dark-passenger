@@ -93,14 +93,17 @@ Add-Result (
     $document.Contains('DarkPassengerCaseEvidence.ResolveActive("document")') -and
     $document.Contains('resolved.binding.containerGuid') -and
     $document.Contains('resolved.binding.documentGuid') -and
-    $document.Contains('resolved.evidence.confidence') -and
+    $document.Contains('resolved.evidence.code') -and
     $document.Contains('resolved.evidence.id') -and
+    $document.Contains('DarkPassengerEvidenceRegistry.Discover(') -and
     -not $document.Contains('EVIDENCE_ID = "vojtech_belongings"')
 ) 'document handler resolves item, container, reward, and ID dynamically'
 Add-Result (
     $witness.Contains('DarkPassengerCaseEvidence.ResolveActive("witness")') -and
+    $witness.Contains('resolved.evidence.code') -and
     $witness.Contains('resolved.evidence.confidence') -and
-    $witness.Contains('resolved.evidence.id') -and
+    $witness.Contains('DarkPassengerEvidenceRegistry.Discover(') -and
+    $witness.Contains('IsDiscovered(generation, resolved)') -and
     -not $witness.Contains('WITNESS_ENTITY_NAME = "kpri_woman_10"') -and
     -not $witness.Contains('SOURCE_SETTLEMENT = "pritoky"')
 ) 'witness handler resolves the active witness evidence dynamically'
@@ -108,7 +111,7 @@ Add-Result (
 foreach ($source in @(
     @{ Name = 'rumor'; Text = $rumor; Guard = 'already_awarded' },
     @{ Name = 'document'; Text = $document; Guard = 'already_read' },
-    @{ Name = 'witness'; Text = $witness; Guard = 'already_awarded' }
+    @{ Name = 'witness'; Text = $witness; Guard = 'already_discovered' }
 )) {
     Add-Result (
         $source.Text.Contains($source.Guard) -and

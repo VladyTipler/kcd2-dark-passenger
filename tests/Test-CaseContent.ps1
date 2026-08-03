@@ -113,8 +113,8 @@ Add-Result (
 
 Add-Result (
     $evidence.Contains('DarkPassengerCaseContent.GetSelected(') -and
-    $evidence.Contains('selectedRumor.confidence') -and
-    $evidence.Contains('selectedRumor.id')
+    $evidence.Contains('selectedRumor.code') -and
+    $evidence.Contains('DarkPassengerEvidenceRegistry.Discover(')
 ) 'evidence consumes the persisted selected rumor contract'
 Add-Result (-not $evidence.Contains('CONFIDENCE_REWARD = 30')) `
     'legacy hard-coded rumor reward is removed'

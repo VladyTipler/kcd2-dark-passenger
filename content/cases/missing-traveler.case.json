@@ -39,7 +39,6 @@
       "decisionAlias": "darkPassenger_missingTravelerOverheard",
       "sequenceName": "missing_traveler_overheard",
       "cluePort": "clue_spoken",
-      "availableLabel": "Missing traveler overheard clue available",
       "clueLabel": "Missing traveler clue spoken",
       "hearingDistance": 15,
       "repeatAfterSeconds": 20,
