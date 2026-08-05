@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 2,
+  "id": "tavern-witness",
+  "scenePreset": "standing-conversation",
+  "variants": [
+    {
+      "id": "default",
+      "presentationId": "default",
+      "promptAsset": "dialogue.witness.prompt",
+      "turns": [
+        {"speaker": "henry", "asset": "dialogue.witness.henryWorking"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidManyNights"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryLetter"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidFool"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryDead"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidStream"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryHeard"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidThreat"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryWho"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidName"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryWhere"},
+        {"speaker": "witness", "asset": "dialogue.witness.maidLocation"}
+      ]
+    }
+  ],
+  "localizationKeys": [
+    "dialogue.witness.root",
+    "dialogue.witness.prompt",
+    "dialogue.witness.henryWorking",
+    "dialogue.witness.maidManyNights",
+    "dialogue.witness.henryLetter",
+    "dialogue.witness.maidFool",
+    "dialogue.witness.henryDead",
+    "dialogue.witness.maidStream",
+    "dialogue.witness.henryHeard",
+    "dialogue.witness.maidThreat",
+    "dialogue.witness.henryWho",
+    "dialogue.witness.maidName",
+    "dialogue.witness.henryWhere",
+    "dialogue.witness.maidLocation"
+  ]
+}

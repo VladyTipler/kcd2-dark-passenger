@@ -206,6 +206,12 @@ function ConvertTo-CaseKitWorldContainer {
     $capabilities = [System.Collections.Generic.List[string]]::new()
     $capabilities.Add('container')
     $capabilities.Add('container.stash')
+    if ((Get-CaseKitPropertyValue `
+        -InputObject $Container -Name 'shopStash' -DefaultValue $false
+    ) -eq $true) {
+        $capabilities.Add('container.shop')
+        $capabilities.Add('container.trade')
+    }
     $layer = [string]$Container.editorLayer
     if ($layer -match '(?i)/(inn|tavern)(?:/|$)') {
         $capabilities.Add('place.inn')
@@ -214,6 +220,8 @@ function ConvertTo-CaseKitWorldContainer {
     return [ordered]@{
         kind = 'container'
         entityName = [string]$Container.entityName
+        entityId = [string](Get-CaseKitPropertyValue `
+            -InputObject $Container -Name 'entityId' -DefaultValue '')
         entityGuid = [string]$Container.entityGuid
         soulGuid = ''
         characterName = ''
@@ -228,6 +236,7 @@ function ConvertTo-CaseKitWorldContainer {
         identityMode = 'not_applicable'
         capabilities = @(Get-CaseKitSortedStrings -Value $capabilities)
         policyFlags = @()
+        relations = @()
     }
 }
 

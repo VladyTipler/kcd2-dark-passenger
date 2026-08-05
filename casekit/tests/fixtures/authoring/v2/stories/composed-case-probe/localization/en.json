@@ -1,0 +1,16 @@
+{
+  "direction.paper": "Question {{rumorSource.directionLabel}} or search the records.",
+  "direction.witness": "Find {{witness.directionLabel}} and verify the discovery.",
+  "dialogue.innkeeper.prompt": "Ask about the missing traveler",
+  "dialogue.innkeeper.response": "He vanished, though he meant to return before dark.",
+  "dialogue.witness.prompt": "Ask about the man from the letter",
+  "dialogue.witness.response": "I saw him with the traveler on the final evening.",
+  "dialogue.confession.prompt": "You knew why I came.",
+  "dialogue.confession.response": "I did what the others never dared to do.",
+  "document.letter.name": "Unsent Letter",
+  "document.letter.info": "The letter connects the disappearance to a local man.",
+  "document.letter.body": "If I do not return, seek the man who promised a shorter road.",
+  "journal.rumor": "The traveler vanished under strange circumstances.",
+  "journal.letter": "The letter points to a local man.",
+  "journal.witness": "A witness identified the man who was with the traveler."
+}

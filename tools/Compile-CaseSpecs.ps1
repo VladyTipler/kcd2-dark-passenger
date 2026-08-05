@@ -1,4 +1,5 @@
 param(
+    [string]$CaseVariantRoot,
     [string]$CaseRoot,
     [string]$BindingPath,
     [string]$LocalizationRoot,
@@ -8,11 +9,37 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($CaseRoot)) {
-    $CaseRoot = Join-Path $repoRoot 'content\cases'
+$compiledDefinitionsPath = $null
+if (-not [string]::IsNullOrWhiteSpace($CaseVariantRoot)) {
+    if (-not [string]::IsNullOrWhiteSpace($CaseRoot) -or
+        -not [string]::IsNullOrWhiteSpace($BindingPath)) {
+        throw 'CaseVariantRoot cannot be combined with CaseRoot or BindingPath.'
+    }
+    $manifestPath = Join-Path $CaseVariantRoot 'casekit-manifest.json'
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw "CaseVariantRoot manifest not found: $manifestPath"
+    }
+    $manifest = [System.IO.File]::ReadAllText($manifestPath) |
+        ConvertFrom-Json -Depth 100
+    if ([int]$manifest.schemaVersion -ne 1 -or
+        [string]$manifest.sourceFormat -ne
+            'casekit-kcd2-compiler-input-v1') {
+        throw "Unsupported CaseVariantRoot contract: $manifestPath"
+    }
+    $CaseRoot = Join-Path $CaseVariantRoot ([string]$manifest.caseRoot)
+    $BindingPath = Join-Path $CaseVariantRoot ([string]$manifest.bindingFile)
+    if (-not [string]::IsNullOrWhiteSpace(
+        [string]$manifest.compiledDefinitionsFile
+    )) {
+        $compiledDefinitionsPath = Join-Path $CaseVariantRoot `
+            ([string]$manifest.compiledDefinitionsFile)
+    }
 }
-if ([string]::IsNullOrWhiteSpace($BindingPath)) {
-    $BindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+else {
+    if ([string]::IsNullOrWhiteSpace($CaseRoot) -or
+        [string]::IsNullOrWhiteSpace($BindingPath)) {
+        throw 'Pass CaseVariantRoot or both CaseRoot and BindingPath.'
+    }
 }
 if ([string]::IsNullOrWhiteSpace($BuildRoot)) {
     $BuildRoot = Join-Path $repoRoot 'build'
@@ -31,6 +58,12 @@ $bindings = Read-DpCaseSettlementBindings -LiteralPath $BindingPath
 
 $catalogPath = Join-Path $BuildRoot `
     'mod\Data\Scripts\mods\generated\dp_case_catalog.lua'
+$variantCatalogPath = Join-Path $BuildRoot `
+    'mod\Data\Scripts\mods\generated\dp_case_variant_catalog.lua'
+$questItemPlacementCatalogPath = Join-Path $BuildRoot `
+    'mod\Data\Scripts\mods\generated\dp_quest_item_placement_catalog.lua'
+$questItemCatalogPath = Join-Path $BuildRoot `
+    'mod\Data\Scripts\mods\generated\dp_quest_item_catalog.lua'
 $reportPath = Join-Path $BuildRoot `
     'generated\cases\case-compatibility.json'
 $nativeManifestPath = Join-Path $BuildRoot `
@@ -52,6 +85,40 @@ foreach ($parent in @(
 $catalog = ConvertTo-DpCaseCatalogLua `
     -CaseSpecs $cases `
     -Bindings $bindings
+$compiledDefinitions = if (
+    -not [string]::IsNullOrWhiteSpace($compiledDefinitionsPath) -and
+    (Test-Path -LiteralPath $compiledDefinitionsPath -PathType Leaf)
+) {
+    [System.IO.File]::ReadAllText($compiledDefinitionsPath) |
+        ConvertFrom-Json -Depth 100
+}
+else {
+    [pscustomobject]@{ stories = @(); variants = @() }
+}
+$candidateConfigPath = Join-Path $repoRoot 'config\victim-candidates.json'
+$candidateConfig = [System.IO.File]::ReadAllText($candidateConfigPath) |
+    ConvertFrom-Json -Depth 100
+$questItemPlacementSignals = @(Get-DpQuestItemPlacementSignals `
+    -CaseSpecs $cases `
+    -Bindings $bindings `
+    -CompiledDefinitions $compiledDefinitions)
+$variantCatalog = ConvertTo-DpCaseVariantCatalogLua `
+    -CompiledDefinitions $compiledDefinitions `
+    -CaseSpecs $cases `
+    -Candidates @($candidateConfig.candidates) `
+    -Bindings $bindings `
+    -QuestItemPlacementSignals $questItemPlacementSignals
+$questItemPlacementCatalog = ConvertTo-DpQuestItemPlacementCatalogLua `
+    -Signals $questItemPlacementSignals
+$baseQuestItemCatalog = if (
+    Test-Path -LiteralPath $questItemCatalogPath -PathType Leaf
+) {
+    [System.IO.File]::ReadAllText($questItemCatalogPath)
+}
+else { '' }
+$questItemCatalog = Merge-DpQuestItemCatalogLua `
+    -BaseCatalog $baseQuestItemCatalog `
+    -Signals $questItemPlacementSignals
 $report = ConvertTo-DpCaseCompatibilityReport -CaseSpecs $cases
 $reportJson = ($report | ConvertTo-Json -Depth 100) + "`n"
 $nativeRegions = [System.Collections.Generic.List[object]]::new()
@@ -101,6 +168,14 @@ $nativeManifest = [ordered]@{
             witnessObjectiveNodes = $_.witnessObjectiveNodes
             witnessType = $_.witnessType
             witnessObjective = $_.witnessObjective
+            questItemPlacementNodes =
+                ConvertTo-DpQuestItemPlacementNodesXml `
+                    -Signals $questItemPlacementSignals `
+                    -Region ([string]$_.region)
+            questItemPlacementAssets =
+                ConvertTo-DpQuestItemPlacementAssetsXml `
+                    -Signals $questItemPlacementSignals `
+                    -Region ([string]$_.region)
             dialogueFiles = @($_.dialogues.fileName)
         }
     })
@@ -118,7 +193,8 @@ foreach ($language in @(
     $localizationXml = ConvertTo-DpLocalizationXml `
         -BaseLiteralPath $baseLocalizationPath `
         -CaseSpecs $cases `
-        -Language $language.Code
+        -Language $language.Code `
+        -CompiledDefinitions $compiledDefinitions
     [System.IO.File]::WriteAllText(
         $localizationOutputPath,
         $localizationXml,
@@ -140,12 +216,24 @@ $stageTransforms = @(
     },
     @{
         Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpDialogueRoleTableXml `
+                -BaseXml $xml `
+                -CaseSpecs $cases `
+                -Bindings $bindings
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
             'mod\Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml'
         Transform = {
             param($xml)
             ConvertTo-DpScriptContextXml `
                 -BaseXml $xml `
-                -CaseSpecs $cases
+                -CaseSpecs $cases `
+                -Signals $questItemPlacementSignals
         }
     },
     @{
@@ -156,7 +244,8 @@ $stageTransforms = @(
             ConvertTo-DpItemTableXml `
                 -BaseXml $xml `
                 -CaseSpecs $cases `
-                -Bindings $bindings
+                -Bindings $bindings `
+                -CompiledDefinitions $compiledDefinitions
         }
     },
     @{
@@ -218,6 +307,26 @@ $stageTransforms = @(
                 -BaseXml $xml `
                 -CaseSpecs $cases
         }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpQuestItemPlacementTagXml `
+                -BaseXml $xml `
+                -Signals $questItemPlacementSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpQuestItemPlacementBuffXml `
+                -BaseXml $xml `
+                -Signals $questItemPlacementSignals
+        }
     }
 )
 foreach ($stageTransform in $stageTransforms) {
@@ -231,6 +340,21 @@ foreach ($stageTransform in $stageTransforms) {
 }
 
 [System.IO.File]::WriteAllText($catalogPath, $catalog, $utf8NoBom)
+[System.IO.File]::WriteAllText(
+    $variantCatalogPath,
+    $variantCatalog,
+    $utf8NoBom
+)
+[System.IO.File]::WriteAllText(
+    $questItemPlacementCatalogPath,
+    $questItemPlacementCatalog,
+    $utf8NoBom
+)
+[System.IO.File]::WriteAllText(
+    $questItemCatalogPath,
+    $questItemCatalog,
+    $utf8NoBom
+)
 [System.IO.File]::WriteAllText($reportPath, $reportJson, $utf8NoBom)
 [System.IO.File]::WriteAllText(
     $nativeManifestPath,
@@ -240,6 +364,9 @@ foreach ($stageTransform in $stageTransforms) {
 
 Write-Host "Compiled $($cases.Count) CaseSpec(s)."
 Write-Host "Runtime catalog: $catalogPath"
+Write-Host "Runtime variant catalog: $variantCatalogPath"
+Write-Host "Quest-item placement catalog: $questItemPlacementCatalogPath"
+Write-Host "Quest-item protection catalog: $questItemCatalogPath"
 Write-Host "Compatibility report: $reportPath"
 Write-Host "Native wiring: $nativeManifestPath"
 Write-Host "Generated localization: $generatedLocalizationRoot"

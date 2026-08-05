@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "id": "courtyard-gossip",
+  "scenePreset": "standing-conversation",
+  "variants": [
+    {
+      "id": "default",
+      "presentationId": "default",
+      "turns": [
+        {"speaker": "speakerA", "asset": "dialogue.overheard.matejArgument"},
+        {"speaker": "speakerB", "asset": "dialogue.overheard.widowMoney"},
+        {"speaker": "speakerA", "asset": "dialogue.overheard.goneByDawn"}
+      ]
+    }
+  ],
+  "localizationKeys": [
+    "dialogue.overheard.root",
+    "dialogue.overheard.matejArgument",
+    "dialogue.overheard.widowMoney",
+    "dialogue.overheard.goneByDawn"
+  ]
+}

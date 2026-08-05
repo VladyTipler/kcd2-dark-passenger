@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "id": "composed-case-probe",
+  "status": "active",
+  "archetypes": ["paper-trail", "witness-web"],
+  "truth": {
+    "innocentVictim": {"id": "missing-traveler"},
+    "crime": {"id": "murder"},
+    "motive": {"id": "greed"},
+    "coverStory": {"id": "false-departure"},
+    "escapedJustice": {"id": "no-body"}
+  },
+  "facts": [
+    {"id": "traveler_missing", "category": "crime"},
+    {"id": "letter_links_target", "category": "corroboration"},
+    {"id": "target_identified", "category": "identity", "hardIdentity": true}
+  ],
+  "reveal": {
+    "confidence": 70,
+    "requiredFacts": ["target_identified"]
+  }
+}

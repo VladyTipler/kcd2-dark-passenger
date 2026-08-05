@@ -20,6 +20,8 @@ $plannerPath = Join-Path $repoRoot `
 $stormRolesPath = Join-Path $repoRoot `
     'src\Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $roleTablePath = Join-Path $repoRoot `
+    'build\mod\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
+$sourceRoleTablePath = Join-Path $repoRoot `
     'src\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
 $contextPath = Join-Path $repoRoot `
     'src\Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml'
@@ -63,6 +65,7 @@ $belongings = Read-OptionalText $belongingsPath
 $planner = Read-OptionalText $plannerPath
 $stormRoles = Read-OptionalText $stormRolesPath
 $roles = Read-OptionalText $roleTablePath
+$sourceRoles = Read-OptionalText $sourceRoleTablePath
 $contexts = Read-OptionalText $contextPath
 $buffTags = Read-OptionalText $buffTagPath
 $buffs = Read-OptionalText $buffPath
@@ -83,8 +86,9 @@ Add-Result (
 Add-Result (
     $roles.Contains('role_id="5fa9523d-330b-42a1-8b04-1fd7fe5fb84b"') -and
     $roles.Contains('role_name="DP_TAVERN_WITNESS"') -and
-    $roles.Contains('metarole_name="NPC"')
-) 'tavern-witness NPC role is registered'
+    $roles.Contains('metarole_name="NPC"') -and
+    -not $sourceRoles.Contains('role_name="DP_TAVERN_WITNESS"')
+) 'compiler owns and registers the tavern-witness NPC role'
 
 Add-Result (
     $buffTags.Contains(
@@ -219,7 +223,7 @@ foreach ($fragment in
     '<BuffTagTrigger Name="witnessAvailableTrigger">',
     '<tavern_witness_dialog_k Name="tavernWitnessDialog">',
     '<Constant Name="Context" Value="dp_witness_heard_kutnohorsko" />',
-    '<State Name="evidenceProgress" TypeT="DP_EvidenceProgress">',
+    '<State Name="evidenceProgress" TypeT="DP_KutnohorskoEvidenceProgress">',
     'Name="Directions1102_1103"',
     'StringName="dp_case_1001_directions_1102_1103"'
 ) {

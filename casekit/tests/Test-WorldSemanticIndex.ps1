@@ -86,9 +86,11 @@ try {
     Add-Result (
         $container.kind -eq 'container' -and
         'container.stash' -in @($container.capabilities) -and
+        'container.shop' -in @($container.capabilities) -and
+        'container.trade' -in @($container.capabilities) -and
         'place.inn' -in @($container.capabilities) -and
         'container.evidence' -notin @($container.capabilities)
-    ) 'stash is indexed without assuming evidence suitability'
+    ) 'shop stash is indexed as trade storage without evidence suitability'
 
     $jsonA = $index | ConvertTo-Json -Depth 12
     $jsonB = (New-CaseKitWorldIndex `

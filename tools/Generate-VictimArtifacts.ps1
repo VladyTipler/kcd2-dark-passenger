@@ -3,6 +3,7 @@ param(
     [string]$AreaManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
     [string]$TemplatePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k.xml.template'),
     [string]$NativeWiringPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\generated\cases\native-wiring.json'),
+    [string]$PoseProbeDialogSourcePath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Quests\darkpassengertest\pose_probe_male.xml'),
     [string]$EnglishLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\English\text__darkpassengertest.xml'),
     [string]$RussianLocalizationPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'localization\Russian\text__darkpassengertest.xml'),
     [string]$KuttenbergQuestOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'),
@@ -93,6 +94,8 @@ function New-RegionalQuest {
         [string]$RegionId,
         [string]$QuestName,
         [string]$SearchProgressTypeName,
+        [string]$EvidenceProgressTypeName,
+        [string]$CleanupProgressTypeName,
         [string]$SelectedTargetTypeName,
         [string]$TargetProgressTypeName,
         [string]$SearchObjectiveName,
@@ -104,7 +107,8 @@ function New-RegionalQuest {
         [string]$TargetDeathContext,
         [string]$OutputPath,
         [string]$Template,
-        $NativeWiring
+        $NativeWiring,
+        [string]$PoseProbeDialogSourcePath
     )
 
     if ($Candidates.Count -gt $MaxCandidatesPerRegion) {
@@ -140,10 +144,16 @@ function New-RegionalQuest {
     $evidenceStateEdges = ''
     $evidenceType = ''
     $evidenceLogs = ''
+    $evidenceResetPort = 'SetNone'
     $evidenceWitnessEdge = ''
     $witnessObjectiveNodes = ''
     $witnessType = ''
     $witnessObjective = ''
+    $confessionProbeDefinition = ''
+    $confessionProbeNodes = ''
+    $questItemPlacementNodes = ''
+    $questItemPlacementAssets = ''
+    $confessionProbeAssets = ''
 
     if ($null -ne $NativeWiring) {
         $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
@@ -153,12 +163,116 @@ function New-RegionalQuest {
         $overheardAssets = [string]$NativeWiring.overheardAssets
         $evidenceStateNodes = [string]$NativeWiring.evidenceStateNodes
         $evidenceStateEdges = [string]$NativeWiring.evidenceStateEdges
+        $questItemPlacementNodes = [string]$NativeWiring.questItemPlacementNodes
+        $questItemPlacementAssets = [string]$NativeWiring.questItemPlacementAssets
         $evidenceType = [string]$NativeWiring.evidenceType
         $evidenceLogs = [string]$NativeWiring.evidenceLogs
+        $initialEvidenceStates = @(
+            $NativeWiring.journalStates |
+                Where-Object { [int]$_.code -eq 0 }
+        )
+        if ($initialEvidenceStates.Count -ne 1) {
+            throw "Region '$RegionId' requires exactly one initial evidence state."
+        }
+        $evidenceResetPort = 'Set' + [string]$initialEvidenceStates[0].state_name
         $evidenceWitnessEdge = [string]$NativeWiring.evidenceWitnessEdge
         $witnessObjectiveNodes = [string]$NativeWiring.witnessObjectiveNodes
         $witnessType = [string]$NativeWiring.witnessType
         $witnessObjective = [string]$NativeWiring.witnessObjective
+    }
+
+    if ($RegionId -eq 'trosecko') {
+        if (-not (Test-Path -LiteralPath $PoseProbeDialogSourcePath)) {
+            throw "Confession probe dialog not found: $PoseProbeDialogSourcePath"
+        }
+        $definitionsEnd = '      </Definitions>'
+        if (-not $rumorDialogDefinition.Contains($definitionsEnd)) {
+            throw "Trosky native wiring lacks a Definitions terminator."
+        }
+        $rumorDialogDefinition = $rumorDialogDefinition.Replace(
+            $definitionsEnd,
+            "        <Definition File=`"dark_within_t/pose_probe_male.xml`" />`n$definitionsEnd"
+        )
+        $confessionProbeNodes = @'
+        <MakeArray Name="confessionProbeTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="120" />
+        </MakeArray>
+        <MakeArray Name="confessionProbeStanceTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="121" />
+        </MakeArray>
+        <BuffTagTrigger Name="confessionProbeTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="confessionProbeTags.Array" To="BuffTags" />
+          <Edge From="watcherActive.State" To="IsActive" />
+        </BuffTagTrigger>
+        <BuffTagTrigger Name="confessionProbeStanceTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="confessionProbeStanceTags.Array" To="BuffTags" />
+          <Edge From="watcherActive.State" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="confessionProbeActive" TypeT="bool">
+          <Edge From="confessionProbeTrigger.OnAdded" To="SetTrue" />
+          <Edge From="confessionProbeTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="confessionProbeSceneFinished.OnFinished" To="SetFalse" />
+        </State>
+        <State Name="confessionProbeStanceActive" TypeT="bool">
+          <Edge From="confessionProbeStanceTrigger.OnAdded" To="SetTrue" />
+          <Edge From="confessionProbeStanceTrigger.OnRemoved" To="SetFalse" />
+        </State>
+        <Function Name="confessionProbeDialogParams" MethodName="wh::dialogmodule::CreateDialogParams" DeclaringType="wh::dialogmodule">
+          <Asset Name="Participants" Alias="poseProbeLavrentiy" />
+          <Constant Name="EnableEnding" Value="true" />
+          <Constant Name="MovePlayer" Value="true" />
+          <Constant Name="RotateParticipants" Value="true" />
+          <Constant Name="HideNearbyNPCs" Value="false" />
+        </Function>
+        <EnableBehavior Name="confessionProbeLyingBehavior" Signature="empty" EventSet="">
+          <Constant Name="Behavior" Value="lyingHarmed" />
+          <Constant Name="ForceKick" Value="true" />
+          <Asset Name="SmartEntity" Alias="confessionProbeLyingSpot" />
+          <Asset Name="NPC" Alias="poseProbeLavrentiy" />
+          <Edge From="confessionProbeStanceActive.State" To="IsActive" />
+        </EnableBehavior>
+        <InstantSendMessage Name="confessionProbeHolsterWeapon" MessageType="player:holsterWeapon">
+          <Asset Name="Receiver" Alias="player" />
+          <Constant Name="Content_keepTorch" Value="true" />
+          <Edge From="confessionProbeTrigger.OnAdded" To="Exec" />
+        </InstantSendMessage>
+        <pose_probe_male Name="confessionProbeDialog">
+          <Asset Name="DialogueHolder" Alias="confessionProbeDialogueHolder" />
+          <Edge From="confessionProbeActive.State" To="available" />
+          <Edge From="confessionProbeDialogParams.DialogParams" To="DialogParams" />
+          <Edge From="confessionProbeHolsterWeapon.OnExec" To="EnqueueDialogue" />
+        </pose_probe_male>
+        <SceneFinishedWaiter Name="confessionProbeSceneFinished">
+          <Edge From="confessionProbeDialog.started" To="Enqueue" />
+        </SceneFinishedWaiter>
+        <Function Name="removeConfessionProbeBuff" MethodName="wh::rpgmodule::RemoveBuff" DeclaringType="wh::rpgmodule">
+          <Asset Name="Souls" Alias="player" />
+          <Constant Name="Buff" Value="d0c1935f-2d7a-4f4e-bb5c-9ce734d99271" />
+          <Edge From="confessionProbeSceneFinished.OnFinished" To="Exec" />
+        </Function>
+        <Function Name="returnLavrentiyToUnconsciousness" MethodName="wh::rpgmodule::AddBuff" DeclaringType="wh::rpgmodule">
+          <Asset Name="Souls" Alias="poseProbeLavrentiy" />
+          <Constant Name="Buff" Value="f8d60fe4-e2c1-420a-946a-213e1cd09265" />
+          <Edge From="confessionProbeSceneFinished.OnFinished" To="Exec" />
+        </Function>
+        <Timer Name="confessionProbeReleaseStanceDelay">
+          <Constant Name="Duration" Value="500ms" />
+          <Constant Name="TimeType" Value="GameTime" />
+          <Edge From="confessionProbeSceneFinished.OnFinished" To="SetRunning" />
+        </Timer>
+        <Function Name="removeConfessionProbeStanceBuff" MethodName="wh::rpgmodule::RemoveBuff" DeclaringType="wh::rpgmodule">
+          <Asset Name="Souls" Alias="player" />
+          <Constant Name="Buff" Value="5138624d-76d9-42de-ae19-e144031249cc" />
+          <Edge From="confessionProbeReleaseStanceDelay.OnFinished" To="Exec" />
+        </Function>
+'@
+        $confessionProbeAssets = @'
+        <SoulAsset Name="poseProbeLavrentiy" SharedSoulGuids="449022cc-0fbf-ffa4-021b-2b4b13e113be" />
+        <DialogueHolderAsset Name="confessionProbeDialogueHolder" />
+        <SmartObjectAsset Name="confessionProbeLyingSpot" />
+'@
     }
 
     $candidateSlots = @($Candidates | ForEach-Object { [int]$_.slot })
@@ -306,6 +420,7 @@ function New-RegionalQuest {
         $detectionNodes.Add('          <Constant Name="Duration" Value="1s" />')
         $detectionNodes.Add('          <Constant Name="TimeType" Value="GameTime" />')
         $detectionNodes.Add('          <Edge From="targetTagTrigger.OnAdded" To="SetRunning" />')
+        $detectionNodes.Add('          <Edge From="questProgress.OnActive" To="SetRunning" />')
         $detectionNodes.Add('        </Timer>')
         $detectionNodes.Add("        <If Name=`"$($slotNode)Tagged`">")
         $detectionNodes.Add("          <Edge From=`"$($slotNode)TagCheck.HaveBuffTag`" To=`"Condition`" />")
@@ -342,15 +457,21 @@ function New-RegionalQuest {
         '{{DP_QUEST_NAME}}' = $QuestName
         '{{DP_REGION_ID}}' = $RegionId
         '{{DP_SEARCH_PROGRESS_TYPE}}' = $SearchProgressTypeName
+        '{{DP_EVIDENCE_PROGRESS_TYPE}}' = $EvidenceProgressTypeName
+        '{{DP_CLEANUP_PROGRESS_TYPE}}' = $CleanupProgressTypeName
+        '{{DP_EVIDENCE_RESET_PORT}}' = $evidenceResetPort
         '{{DP_SELECTED_TARGET_TYPE}}' = $SelectedTargetTypeName
         '{{DP_TARGET_PROGRESS_TYPE}}' = $TargetProgressTypeName
         '{{DP_REQUEST_CONTEXT}}' = $RequestContext
         '{{DP_TARGET_DEATH_CONTEXT}}' = $TargetDeathContext
         '{{DP_RUMOR_DIALOG_DEFINITION}}' = $rumorDialogDefinition.TrimEnd()
+        '{{DP_CONFESSION_PROBE_DEFINITION}}' = $confessionProbeDefinition
         '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
         '{{DP_WITNESS_NODES}}' = $witnessNodes.TrimEnd()
         '{{DP_OVERHEARD_NODES}}' = $overheardNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_NODES}}' = $evidenceStateNodes.TrimEnd()
+        '{{DP_CONFESSION_PROBE_NODES}}' = $confessionProbeNodes.TrimEnd()
+        '{{DP_QUEST_ITEM_PLACEMENT_NODES}}' = $questItemPlacementNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_EDGES}}' = $evidenceStateEdges.TrimEnd()
         '{{DP_EVIDENCE_TYPE_ENUMS}}' = $evidenceType.TrimEnd()
         '{{DP_EVIDENCE_LOGS}}' = $evidenceLogs.TrimEnd()
@@ -367,6 +488,8 @@ function New-RegionalQuest {
         '{{DP_SEARCH_TYPE_ENUMS}}' = $searchTypeEnumerations -join "`n"
         '{{DP_SEARCH_STATE_EDGES}}' = $searchStateEdges -join "`n"
         '{{DP_SEARCH_AREA_ASSETS}}' = $searchAreaAssets -join "`n"
+        '{{DP_QUEST_ITEM_PLACEMENT_ASSETS}}' =
+            $questItemPlacementAssets.TrimEnd()
         '{{DP_SEARCH_LOGS}}' = $searchLogs -join "`n"
         '{{DP_SELECTED_TYPE_ENUMS}}' = $selectedTypeEnumerations -join "`n"
         '{{DP_TARGET_TYPE_ENUMS}}' = $targetTypeEnumerations -join "`n"
@@ -381,6 +504,7 @@ function New-RegionalQuest {
         '{{DP_TARGET_DEATH_NODES}}' = $deathNodes -join "`n"
         '{{DP_TARGET_ASSETS}}' = $assets -join "`n"
         '{{DP_OVERHEARD_ASSETS}}' = $overheardAssets.TrimEnd()
+        '{{DP_CONFESSION_PROBE_ASSETS}}' = $confessionProbeAssets.TrimEnd()
         '{{DP_TARGET_LOGS}}' = $logs -join "`n"
     }
 
@@ -426,6 +550,15 @@ function New-RegionalQuest {
                 -LiteralPath (Join-Path $dialogOutputRoot ([string]$fileName)) `
                 -Content ([System.IO.File]::ReadAllText($dialogSourcePath))
         }
+    }
+    if ($RegionId -eq 'trosecko') {
+        $probeDialogOutputRoot = Join-Path (Split-Path -Parent $OutputPath) `
+            'dark_within_t'
+        Write-Utf8NoBom `
+            -LiteralPath (Join-Path $probeDialogOutputRoot 'pose_probe_male.xml') `
+            -Content ([System.IO.File]::ReadAllText(
+                $PoseProbeDialogSourcePath
+            ))
     }
     Write-Host "Generated $RegionId graph: $($Candidates.Count) candidates, $questBytes bytes."
 }
@@ -516,6 +649,8 @@ $regionSpecifications = @(
         region = 'kutnohorsko'
         quest = 'dark_within_k'
         searchProgressType = 'DP_SearchProgress'
+        evidenceProgressType = 'DP_KutnohorskoEvidenceProgress'
+        cleanupProgressType = 'DP_KutnohorskoCleanupProgress'
         selectedTargetType = 'DP_SelectedTarget'
         targetProgressType = 'DP_TargetProgress'
         searchObjective = 'dark_within_objk'
@@ -531,6 +666,8 @@ $regionSpecifications = @(
         region = 'trosecko'
         quest = 'dark_within_t'
         searchProgressType = 'DP_TroseckoSearchProgress'
+        evidenceProgressType = 'DP_TroseckoEvidenceProgress'
+        cleanupProgressType = 'DP_TroseckoCleanupProgress'
         selectedTargetType = 'DP_TroseckoSelectedTarget'
         targetProgressType = 'DP_TroseckoTargetProgress'
         searchObjective = 'dark_within_objt'
@@ -566,6 +703,8 @@ foreach ($specification in $regionSpecifications) {
         -RegionId $specification.region `
         -QuestName $specification.quest `
         -SearchProgressTypeName $specification.searchProgressType `
+        -EvidenceProgressTypeName $specification.evidenceProgressType `
+        -CleanupProgressTypeName $specification.cleanupProgressType `
         -SelectedTargetTypeName $specification.selectedTargetType `
         -TargetProgressTypeName $specification.targetProgressType `
         -SearchObjectiveName $specification.searchObjective `
@@ -577,6 +716,7 @@ foreach ($specification in $regionSpecifications) {
         -TargetDeathContext $specification.targetDeathContext `
         -OutputPath $specification.output `
         -Template $template `
+        -PoseProbeDialogSourcePath $PoseProbeDialogSourcePath `
         -NativeWiring $(
             if ($regionalNativeWiring.Count -eq 1) {
                 $regionalNativeWiring[0]

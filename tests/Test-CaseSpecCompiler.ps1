@@ -5,10 +5,11 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
 $casePath = Join-Path $repoRoot `
-    'content\cases\convenient-accident.case.json'
+    'content\migration\legacy-cases\convenient-accident.case.json'
 $missingTravelerPath = Join-Path $repoRoot `
-    'content\cases\missing-traveler.case.json'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+    'content\migration\legacy-cases\missing-traveler.case.json'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -49,6 +50,7 @@ $requiredCommands = @(
     'ConvertTo-DpOverheardTagXml',
     'ConvertTo-DpOverheardBuffXml',
     'ConvertTo-DpStormRoleXml',
+    'ConvertTo-DpDialogueRoleTableXml',
     'ConvertTo-DpScriptContextXml',
     'ConvertTo-DpItemTableXml'
 )
@@ -109,6 +111,23 @@ if ((Test-Path -LiteralPath $modulePath) -and
         return $Value | ConvertTo-Json -Depth 30 | ConvertFrom-Json
     }
 
+    $missingRoleBindings = Copy-JsonObject $bindings
+    $missingRoleBindings.dialogueRoles = @(
+        $missingRoleBindings.dialogueRoles | Where-Object {
+            [string]$_.name -ne 'DP_INNKEEPER_RUMOR'
+        }
+    )
+    $missingRoleErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $case `
+        -Bindings $missingRoleBindings `
+        -SourceName 'missing-dialogue-role.json')
+    Add-Result (
+        $missingRoleErrors -contains (
+            "missing-dialogue-role.json: dialogue role 'DP_INNKEEPER_RUMOR' " +
+            'must have one registry definition'
+        )
+    ) 'missing RPG dialogue role definition is rejected'
+
     $withoutId = Copy-JsonObject $case
     $withoutId.id = ''
     $idErrors = @(Get-DpCaseSpecValidationErrors `
@@ -155,6 +174,19 @@ if ((Test-Path -LiteralPath $modulePath) -and
     ) 'unsupported settlement is rejected'
 
     $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+
+    $missingTravelerRuntimeCatalog = ConvertTo-DpCaseCatalogLua `
+        -CaseSpecs @($missingTraveler) `
+        -Bindings $bindings
+    Add-Result (
+        $missingTravelerRuntimeCatalog -match (
+            '(?s)id = "matej_guest_ledger",.*?item = \{.*?' +
+            'name = "dp_matej_guest_ledger",.*?' +
+            'classification = "quest",.*?' +
+            'retention = "case",.*?' +
+            'contentKey = "dp_mt_ledger_content",'
+        )
+    ) 'runtime catalog preserves document item metadata'
 
     $missingTravelerRumor = @($missingTraveler.native.dialogues |
         Where-Object kind -eq 'rumor')[0]

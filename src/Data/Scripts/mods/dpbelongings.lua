@@ -9,6 +9,7 @@ local KEYS = {
     schema = "dp_belongings_schema_version",
     placedGeneration = "dp_belongings_placed_generation",
     readGeneration = "dp_belongings_read_generation",
+    cleanupGeneration = "dp_belongings_cleanup_generation",
 }
 
 local function Log(message)
@@ -46,7 +47,11 @@ local function WriteScalar(key, value)
 end
 
 local function DefaultState()
-    return { placedGeneration = 0, readGeneration = 0 }
+    return {
+        placedGeneration = 0,
+        readGeneration = 0,
+        cleanupGeneration = 0,
+    }
 end
 
 local function CopyState(state)
@@ -55,6 +60,8 @@ local function CopyState(state)
             tonumber(state ~= nil and state.placedGeneration) or 0,
         readGeneration =
             tonumber(state ~= nil and state.readGeneration) or 0,
+        cleanupGeneration =
+            tonumber(state ~= nil and state.cleanupGeneration) or 0,
     }
 end
 
@@ -68,6 +75,8 @@ local function ReadState()
             tonumber(ReadScalar(KEYS.placedGeneration)) or 0,
         readGeneration =
             tonumber(ReadScalar(KEYS.readGeneration)) or 0,
+        cleanupGeneration =
+            tonumber(ReadScalar(KEYS.cleanupGeneration)) or 0,
     }
 end
 
@@ -76,6 +85,7 @@ local function PersistState(state)
         WriteScalar(KEYS.schema, DarkPassengerBelongings.SCHEMA_VERSION),
         WriteScalar(KEYS.placedGeneration, state.placedGeneration),
         WriteScalar(KEYS.readGeneration, state.readGeneration),
+        WriteScalar(KEYS.cleanupGeneration, state.cleanupGeneration),
     }
     for _, succeeded in ipairs(results) do
         if not succeeded then return false end
@@ -124,7 +134,14 @@ local function CurrentGenerationMatches(generation)
 end
 
 local function InventoryHas(inventory, itemGuid)
-    if inventory == nil or inventory.FindItem == nil then return false end
+    if inventory == nil then return false end
+    if inventory.GetCountOfClass ~= nil then
+        local ok, count = pcall(function()
+            return inventory:GetCountOfClass(itemGuid)
+        end)
+        if ok then return (tonumber(count) or 0) > 0 end
+    end
+    if inventory.FindItem == nil then return false end
     local ok, itemId = pcall(function()
         return inventory:FindItem(itemGuid)
     end)
@@ -159,6 +176,14 @@ local function PlayerInventoryHas(itemGuid)
     return actor ~= nil and InventoryHas(actor.inventory, itemGuid)
 end
 
+local function IsQuestItemDefinition(resolved, documentGuid)
+    local item = resolved ~= nil and resolved.evidence ~= nil and
+        resolved.evidence.item or nil
+    if item ~= nil and item.classification == "quest" then return true end
+    return type(DarkPassengerQuestItemCatalog) == "table" and
+        DarkPassengerQuestItemCatalog[documentGuid] == true
+end
+
 local function DeleteAllFromInventory(inventory, itemGuid)
     if inventory == nil or inventory.FindItem == nil or
        inventory.DeleteItem == nil then
@@ -177,22 +202,6 @@ local function DeleteAllFromInventory(inventory, itemGuid)
         removed = removed + 1
     end
     return removed
-end
-
-local function WasOpened(generation)
-    local resolved = ResolveDocument(generation)
-    local documentGuid = resolved ~= nil and
-        resolved.binding.documentGuid or nil
-    if documentGuid == nil then return nil end
-    if Minigame == nil or Minigame.WasBookOpened == nil then return nil end
-    local ok, opened = pcall(function()
-        return Minigame.WasBookOpened(documentGuid)
-    end)
-    if not ok then
-        Log("read probe failed error=" .. tostring(opened))
-        return nil
-    end
-    return opened == true or opened == 1
 end
 
 local function ResolveChest(generation)
@@ -215,37 +224,70 @@ local function EnsurePlaced(generation)
     local state = ReadState()
     if state.readGeneration == generation then return true end
 
-    local opened = WasOpened(generation)
-    if state.placedGeneration == generation and opened == true then
-        return true
-    end
-
     local chest = ResolveChest(generation)
-    if chest == nil or chest.inventory == nil or
-       chest.inventory.CreateItem == nil then
+    if chest == nil or chest.inventory == nil then
         Log("placement deferred: bedside chest unavailable")
         return false
     end
 
-    local exists = InventoryHas(
-        chest.inventory,
-        documentGuid
-    ) or PlayerInventoryHas(documentGuid)
+    local exists = InventoryHas(chest.inventory, documentGuid)
     if state.placedGeneration == generation and exists then return true end
-    if opened == true then
-        Log("placement blocked: vanilla document was already opened")
+    if state.placedGeneration == generation and PlayerInventoryHas(documentGuid) then
+        return true
+    end
+
+    if state.cleanupGeneration ~= generation then
+        local actor = PlayerEntity()
+        if actor ~= nil and actor.inventory ~= nil then
+            DeleteAllFromInventory(actor.inventory, documentGuid)
+        end
+        DeleteAllFromInventory(chest.inventory, documentGuid)
+        if DarkPassengerQuestItemPlacement ~= nil and
+           DarkPassengerQuestItemPlacement.Cancel ~= nil then
+            DarkPassengerQuestItemPlacement.Cancel(documentGuid)
+        end
+        state.cleanupGeneration = generation
+        if not PersistState(state) then return false end
+        Log(
+            "document cleanup staged generation=" ..
+            tostring(generation)
+        )
         return false
     end
+
+    exists = InventoryHas(chest.inventory, documentGuid)
     if not exists then
-        local ok, result = pcall(function()
-            return chest.inventory:CreateItem(
+        if IsQuestItemDefinition(resolved, documentGuid) then
+            if DarkPassengerQuestItemPlacement == nil or
+               DarkPassengerQuestItemPlacement.Request == nil then
+                Log("placement deferred: native quest-item bridge unavailable")
+                return false
+            end
+            local placed, reason = DarkPassengerQuestItemPlacement.Request(
                 documentGuid,
-                1,
-                1
+                chest,
+                0
             )
-        end)
-        if not ok then
-            Log("placement failed error=" .. tostring(result))
+            if not placed then
+                Log("placement deferred reason=" .. tostring(reason))
+                return false
+            end
+        else
+            if chest.inventory.CreateItem == nil then return false end
+            local ok, result = pcall(function()
+                return chest.inventory:CreateItem(documentGuid, 1, 1)
+            end)
+            if not ok then
+                Log("placement failed error=" .. tostring(result))
+                return false
+            end
+        end
+        exists = InventoryHas(chest.inventory, documentGuid)
+        if not exists then
+            Log(
+                "placement deferred: inventory count not confirmed item=" ..
+                tostring(documentGuid)
+            )
             return false
         end
     end
@@ -358,6 +400,45 @@ local function AwardReadEvidence(generation)
     return true
 end
 
+function DarkPassengerBelongings.OnDocumentRead(documentGuid)
+    local investigation =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local generation = tonumber(
+        investigation ~= nil and investigation.generation
+    )
+    if investigation == nil or investigation.active ~= true or
+       generation == nil or generation <= 0 then
+        Log(
+            "document read ignored: no active case item=" ..
+            tostring(documentGuid)
+        )
+        return false
+    end
+    local resolved = ResolveDocument(generation)
+    local expectedGuid = resolved ~= nil and
+        resolved.binding.documentGuid or nil
+    if expectedGuid == nil or documentGuid == nil or
+       tostring(expectedGuid):lower() ~= tostring(documentGuid):lower() then
+        Log(
+            "document read ignored: item mismatch actual=" ..
+            tostring(documentGuid) ..
+            " expected=" .. tostring(expectedGuid)
+        )
+        return false
+    end
+    local state = ReadState()
+    if state.placedGeneration ~= generation then
+        Log(
+            "document read ignored: item was not placed for generation=" ..
+            tostring(generation)
+        )
+        return false
+    end
+    return AwardReadEvidence(generation)
+end
+
 local function EnsureReaction(generation)
     if DarkPassengerEvidenceReaction == nil or
        DarkPassengerEvidenceReaction.Restore == nil then
@@ -396,8 +477,7 @@ function DarkPassengerBelongings.Poll(payload, timerId)
     if not DarkPassengerBelongings.EnsurePlaced(generation) then
         return Schedule(generation, timerSerial)
     end
-    if WasOpened(generation) == true then return AwardReadEvidence(generation) end
-    return Schedule(generation, timerSerial)
+    return true
 end
 
 function DarkPassengerBelongings.Start(generation)
@@ -420,12 +500,14 @@ function DarkPassengerBelongings.Start(generation)
     DarkPassengerBelongings.timerSerial =
         DarkPassengerBelongings.timerSerial + 1
     local timerSerial = DarkPassengerBelongings.timerSerial
-    DarkPassengerBelongings.EnsurePlaced(generation)
+    local placed = DarkPassengerBelongings.EnsurePlaced(generation)
     Log(
         "poll started generation=" .. tostring(generation) ..
-        " serial=" .. tostring(timerSerial) ..
-        " opened=" .. tostring(WasOpened(generation))
+        " serial=" .. tostring(timerSerial)
     )
+    if not placed then
+        return Schedule(generation, timerSerial)
+    end
     return DarkPassengerBelongings.Poll(
         { generation = generation, timerSerial = timerSerial }
     )
@@ -441,8 +523,9 @@ function DarkPassengerBelongings.Status()
     Log(
         "status placedGeneration=" .. tostring(state.placedGeneration) ..
         " readGeneration=" .. tostring(state.readGeneration) ..
+        " cleanupGeneration=" .. tostring(state.cleanupGeneration) ..
         " timerSerial=" .. tostring(DarkPassengerBelongings.timerSerial) ..
-        " opened=" .. tostring(WasOpened(generation))
+        " activeGeneration=" .. tostring(generation)
     )
     return state
 end
@@ -472,14 +555,6 @@ function DarkPassengerBelongings.ResetCanary(generation)
     local openerConfidence =
         resolved.selected ~= nil and resolved.selected.rumor ~= nil and
         tonumber(resolved.selected.rumor.confidence) or 0
-    if WasOpened(generation) == true then
-        Log(
-            "canary reset rejected: native opened state cannot be cleared " ..
-            "for document=" .. tostring(documentGuid)
-        )
-        return false
-    end
-
     local chest = ResolveChest(generation)
     local actor = PlayerEntity()
     if chest == nil or chest.inventory == nil or
@@ -518,15 +593,15 @@ function DarkPassengerBelongings.ResetCanary(generation)
         )
     end
 
-    if not PersistState(DefaultState()) then return false end
+    local resetState = DefaultState()
+    resetState.cleanupGeneration = generation
+    if not PersistState(resetState) then return false end
     if DarkPassengerEvidenceReaction ~= nil and
        DarkPassengerEvidenceReaction.Reset ~= nil then
         DarkPassengerEvidenceReaction.Reset(
             resolved.evidence.id
         )
     end
-    if not EnsurePlaced(generation) then return false end
-
     DarkPassengerBelongings.timerSerial =
         DarkPassengerBelongings.timerSerial + 1
     local serial = DarkPassengerBelongings.timerSerial

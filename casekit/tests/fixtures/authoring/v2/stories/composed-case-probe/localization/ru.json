@@ -1,0 +1,16 @@
+{
+  "direction.paper": "Расспросить {{rumorSource.directionLabel}} или поискать записи.",
+  "direction.witness": "Найти {{witness.directionLabel}} и проверить найденное.",
+  "dialogue.innkeeper.prompt": "Спросить о пропавшем путнике",
+  "dialogue.innkeeper.response": "Он исчез, хотя собирался вернуться до темноты.",
+  "dialogue.witness.prompt": "Спросить о человеке из письма",
+  "dialogue.witness.response": "Я видел его рядом с путником в последний вечер.",
+  "dialogue.confession.prompt": "Ты знал, зачем я пришёл.",
+  "dialogue.confession.response": "Я сделал то, на что остальные не решились бы.",
+  "document.letter.name": "Неотправленное письмо",
+  "document.letter.info": "Письмо связывает исчезновение с местным жителем.",
+  "document.letter.body": "Если я не вернусь, ищите того, кто обещал короткую дорогу.",
+  "journal.rumor": "Путник исчез при странных обстоятельствах.",
+  "journal.letter": "Письмо указывает на местного жителя.",
+  "journal.witness": "Свидетель опознал человека, бывшего с путником."
+}

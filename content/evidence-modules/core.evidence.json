@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "modules": [
     {
       "id": "source-dialogue",
@@ -16,6 +16,7 @@
     {
       "id": "document-in-container",
       "stepKind": "search",
+      "physicalItem": true,
       "bindingPorts": {
         "container": {
           "entityType": "container",

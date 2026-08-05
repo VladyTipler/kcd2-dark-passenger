@@ -13,7 +13,8 @@ if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 $candidatePath = Join-Path $repoRoot 'config\victim-candidates.json'
 $policyPath = Join-Path $repoRoot 'config\victim-policy.json'
 $evidencePath = Join-Path $repoRoot 'evidence\zhelejov-case-bindings.md'

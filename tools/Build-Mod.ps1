@@ -11,8 +11,17 @@ $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
 $caseCompilerPath = Join-Path $PSScriptRoot 'Compile-CaseSpecs.ps1'
-$caseRoot = Join-Path $repoRoot 'content\cases'
-$caseBindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$caseKitCompilerPath = Join-Path $repoRoot `
+    'casekit\cli\Compile-CaseKit.ps1'
+$archetypeRoot = Join-Path $repoRoot 'content\archetypes'
+$storyRoot = Join-Path $repoRoot 'content\stories'
+$evidenceModuleRoot = Join-Path $repoRoot 'content\evidence-modules'
+$worldIndexPath = Join-Path $repoRoot 'config\world-semantic-index.json'
+$settlementProfileRoot = Join-Path $repoRoot 'config\settlements'
+$stableIdRegistryPath = Join-Path $repoRoot 'config\casekit-stable-ids.json'
+$kcd2AdapterPath = Join-Path $repoRoot 'config\casekit-kcd2-native.json'
+$caseVariantRoot = Join-Path $buildParent `
+    'generated\casekit\compiler-input'
 $areaBindingGeneratorPath =
     Join-Path $PSScriptRoot 'Generate-SettlementAreaBindings.ps1'
 $levelRegistryMergeModulePath =
@@ -74,9 +83,19 @@ foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force) {
     Copy-Item -LiteralPath $item.FullName -Destination $resolvedBuildRoot -Recurse
 }
 
+& $caseKitCompilerPath `
+    -ArchetypeRoot $archetypeRoot `
+    -StoryRoot $storyRoot `
+    -EvidenceModuleRoot $evidenceModuleRoot `
+    -WorldIndexPath $worldIndexPath `
+    -SettlementProfileRoot $settlementProfileRoot `
+    -StableIdRegistryPath $stableIdRegistryPath `
+    -Kcd2AdapterPath $kcd2AdapterPath `
+    -MaxVariantsPerCombination 8 `
+    -OutputRoot $caseVariantRoot
+
 & $caseCompilerPath `
-    -CaseRoot $caseRoot `
-    -BindingPath $caseBindingPath `
+    -CaseVariantRoot $caseVariantRoot `
     -BuildRoot $buildParent
 
 if (-not (Test-Path -LiteralPath $rawEvidencePath)) {
@@ -266,17 +285,65 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
     else {
         0
     }
+    $confessionHolderDefinition =
+        "asset['confessionProbeDialogueHolder']"
+    $confessionLyingSpotDefinition =
+        "asset['confessionProbeLyingSpot']"
+    $confessionHolderGuid = 'cd93a0b2-762f-4d22'
+    $confessionLyingSpotGuid = '8f827fee-38a5-41db'
+    $confessionCameraGuids = @(
+        '50df1113-ed8f-4845'
+        'dc816990-06f3-4036'
+        '9d3ae907-8eea-47d2'
+        'b1e60d2c-7930-4c86'
+        '454d309c-d364-4f1d'
+        'f8c192db-9392-4871'
+    )
     if (
         @($assetLinks | Where-Object {
             $definition = [string]$_.LinkDefinition
-            [string]$_.SourceId -ne $questHolderGuid -or
-            (
-                $definition -notmatch
-                    "^asset\['DP_SearchArea_[A-Za-z0-9_]+'\]$" -and
-                -not (
-                    $region -eq 'kutnohorsko' -and
-                    $definition -eq $legacyPritokyDefinition
-                )
+            $sourceGuid = [string]$_.SourceId
+            $targetGuid = [string]$_.TargetId
+            $isSettlementLink =
+                $sourceGuid -eq $questHolderGuid -and
+                $definition -match
+                    "^asset\['DP_SearchArea_[A-Za-z0-9_]+'\]$"
+            $isEvidenceStashLink =
+                $sourceGuid -eq $questHolderGuid -and
+                $definition -match
+                    "^asset\['DP_EvidenceStash_[A-Za-z0-9_]+'\]$"
+            $isLegacyPritokyLink =
+                $region -eq 'kutnohorsko' -and
+                $sourceGuid -eq $questHolderGuid -and
+                $definition -eq $legacyPritokyDefinition
+            $isConfessionHolderLink =
+                $region -eq 'trosecko' -and
+                $sourceGuid -eq $questHolderGuid -and
+                $targetGuid -eq $confessionHolderGuid -and
+                $definition -eq $confessionHolderDefinition
+            $isConfessionLyingSpotLink =
+                $region -eq 'trosecko' -and
+                $sourceGuid -eq $questHolderGuid -and
+                $targetGuid -eq $confessionLyingSpotGuid -and
+                $definition -eq $confessionLyingSpotDefinition
+            $isLyingSpotHolderLink =
+                $region -eq 'trosecko' -and
+                $sourceGuid -eq $confessionLyingSpotGuid -and
+                $targetGuid -eq $confessionHolderGuid -and
+                $definition -eq 'dialogueHolder'
+            $isConfessionCameraLink =
+                $region -eq 'trosecko' -and
+                $sourceGuid -eq $confessionHolderGuid -and
+                $targetGuid -in $confessionCameraGuids -and
+                $definition -eq 'cameraOverride'
+            -not (
+                $isSettlementLink -or
+                $isEvidenceStashLink -or
+                $isLegacyPritokyLink -or
+                $isConfessionHolderLink -or
+                $isConfessionLyingSpotLink -or
+                $isLyingSpotHolderLink -or
+                $isConfessionCameraLink
             )
         }).Count -gt 0 -or
         $legacyPritokyLinks.Count -ne $expectedLegacyPritokyLinks
@@ -294,8 +361,9 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
             '(?s)<Entity\b.*?</Entity>'
         )
     )
-    if ($missionObjectEntries.Count -ne 1) {
-        throw 'Dark Passenger mission-object patch must contain only the Quest holder.'
+    $expectedMissionObjectCount = if ($region -eq 'trosecko') { 9 } else { 1 }
+    if ($missionObjectEntries.Count -ne $expectedMissionObjectCount) {
+        throw "Dark Passenger $region mission-object patch has an unexpected entity count."
     }
     try {
         $missionObjectsPatch = [xml]$missionObjectsPatchText
@@ -303,7 +371,11 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
     catch {
         throw "Dark Passenger $region mission-object patch is invalid XML: $($_.Exception.Message)"
     }
-    $questHolder = @($missionObjectsPatch.Objects.Entity)
+    $missionEntities = @($missionObjectsPatch.Objects.Entity)
+    $questHolder = @(
+        $missionEntities |
+            Where-Object { [string]$_.EntityGuid -eq $questHolderGuid }
+    )
     if (
         $questHolder.Count -ne 1 -or
         [string]$questHolder[0].EntityClass -ne 'SmartObjectHolder' -or
@@ -311,9 +383,44 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
     ) {
         throw "Dark Passenger $region mission-object patch does not match its waitinglinks quest holder."
     }
-    $questHolderEntityId = [string]$questHolder[0].EntityId
-    $questHolderName = [string]$questHolder[0].Name
-
+    if ($region -eq 'trosecko') {
+        $confessionHolder = @(
+            $missionEntities |
+                Where-Object {
+                    [string]$_.EntityGuid -eq $confessionHolderGuid
+                }
+        )
+        $confessionLyingSpot = @(
+            $missionEntities |
+                Where-Object {
+                    [string]$_.EntityGuid -eq $confessionLyingSpotGuid
+                }
+        )
+        $confessionCameras = @(
+            $missionEntities |
+                Where-Object {
+                    [string]$_.EntityClass -eq 'CameraSource' -and
+                    [string]$_.Name -like 'DP_ConfessionCameraRig_*'
+                }
+        )
+        if (
+            $confessionHolder.Count -ne 1 -or
+            [string]$confessionHolder[0].EntityClass -ne
+                'DialogueHolder' -or
+            $confessionLyingSpot.Count -ne 1 -or
+            [string]$confessionLyingSpot[0].EntityClass -ne
+                'SO_LyingHarmed' -or
+            [string]$confessionLyingSpot[0].Properties.guidSmartObjectType -ne
+                'fac19edd-46e9-4dd5-914f-72502c70af07' -or
+            $confessionCameras.Count -ne 6 -or
+            @($confessionCameras | Where-Object {
+                $null -eq $_.Properties.DialogueCamera -or
+                $null -eq $_.CameraProxy
+            }).Count -gt 0
+        ) {
+            throw 'Dark Passenger Trosky confession staging entities are invalid.'
+        }
+    }
     $objectsMissionPath =
         Join-Path $regionalLevelRoot 'objects_mission0.xml'
     & $sevenZip e -y "-o$regionalLevelRoot" $baseLevelPak `
@@ -328,10 +435,17 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
 
     $objectsMissionText =
         [System.IO.File]::ReadAllText($objectsMissionPath)
-    if ($objectsMissionText.Contains("EntityGuid=`"$questHolderGuid`"") -or
-        $objectsMissionText.Contains("EntityId=`"$questHolderEntityId`"") -or
-        $objectsMissionText.Contains("Name=`"$questHolderName`"")) {
-        throw "Base $region mission objects already contain a Dark Passenger concept-graph identity."
+    foreach ($missionEntity in $missionEntities) {
+        $entityGuid = [string]$missionEntity.EntityGuid
+        $entityId = [string]$missionEntity.EntityId
+        $entityName = [string]$missionEntity.Name
+        if (
+            $objectsMissionText.Contains("EntityGuid=`"$entityGuid`"") -or
+            $objectsMissionText.Contains("EntityId=`"$entityId`"") -or
+            $objectsMissionText.Contains("Name=`"$entityName`"")
+        ) {
+            throw "Base $region mission objects already contain a Dark Passenger concept-graph identity."
+        }
     }
     $missionObjectBlock = @(
         $missionObjectEntries | ForEach-Object { $_.Value.Trim() }

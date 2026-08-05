@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "innkeeper",
+  "scenePreset": "standing-conversation",
+  "localizationKeys": [
+    "dialogue.innkeeper.prompt",
+    "dialogue.innkeeper.response"
+  ]
+}

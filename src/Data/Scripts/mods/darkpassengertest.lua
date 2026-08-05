@@ -22,10 +22,16 @@ Script.ReloadScript("Scripts/mods/generated/dp_candidate_catalog.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_investigation_area_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpinvestigation.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_quest_item_catalog.lua")
+Script.ReloadScript("Scripts/mods/generated/dp_quest_item_placement_catalog.lua")
+Script.ReloadScript("Scripts/mods/dpquestitemplacement.lua")
 Script.ReloadScript("Scripts/mods/dpinteractions.lua")
 Script.ReloadScript("Scripts/mods/generated/dp_case_catalog.lua")
+Script.ReloadScript("Scripts/mods/generated/dp_case_variant_catalog.lua")
 Script.ReloadScript("Scripts/mods/dpcasecontent.lua")
+Script.ReloadScript("Scripts/mods/dpcaselifecycle.lua")
 Script.ReloadScript("Scripts/mods/dpcasesnapshot.lua")
+Script.ReloadScript("Scripts/mods/dptrophy.lua")
+Script.ReloadScript("Scripts/mods/dpcasescenedirector.lua")
 Script.ReloadScript("Scripts/mods/dpcaseevidence.lua")
 Script.ReloadScript("Scripts/mods/dpevidenceregistry.lua")
 Script.ReloadScript("Scripts/mods/dpoverheardevidence.lua")
@@ -36,6 +42,7 @@ Script.ReloadScript("Scripts/mods/dpbelongings.lua")
 Script.ReloadScript("Scripts/mods/dpevidenceseeder.lua")
 Script.ReloadScript("Scripts/mods/dpevidence.lua")
 Script.ReloadScript("Scripts/mods/dpburial.lua")
+Script.ReloadScript("Scripts/mods/dpposeprobe.lua")
 
 -- %line hands the console command handler the ENTIRE remainder of the line
 -- as one string (e.g. "40 rumor"), not separate Lua arguments. Split it
@@ -67,10 +74,15 @@ DarkPassengerTarget.ACTIVE_TARGET_SLOT_KEY = "dp_active_target_slot"
 DarkPassengerTarget.QUEST_SELECTION_SCHEMA_KEY =
     "dp_quest_selection_schema"
 DarkPassengerTarget.QUEST_SELECTION_SCHEMA_VERSION = 1
-DarkPassengerTarget.MAX_SELECTION_ATTEMPTS = 3
 DarkPassengerTarget.cases = DarkPassengerTarget.cases or {}
 DarkPassengerTarget.questSelectionMigrationScheduled =
     DarkPassengerTarget.questSelectionMigrationScheduled or false
+DarkPassengerTarget.RESTORE_REARM_DELAY_MS = 1000
+DarkPassengerTarget.RESTORE_REPUBLISH_DELAY_MS = 1500
+DarkPassengerTarget.restorePresentationPending =
+    DarkPassengerTarget.restorePresentationPending or false
+DarkPassengerTarget.restorePresentationRearmScheduled =
+    DarkPassengerTarget.restorePresentationRearmScheduled or false
 
 local function TargetLog(message)
     System.LogAlways("[DarkPassengerTarget] " .. tostring(message))
@@ -107,28 +119,6 @@ local function IsPolicyCandidate(candidate, gameRegion, settlement)
     if candidate.immortal == true then return false end
     if candidate.dead == true then return false end
     return true
-end
-
-local function WeightedCandidate(eligible)
-    local totalWeight = 0
-    for _, entry in ipairs(eligible) do
-        local weight = tonumber(entry.candidate.weight) or 0
-        if weight > 0 then
-            totalWeight = totalWeight + weight
-        end
-    end
-    if totalWeight <= 0 then return nil end
-
-    local roll = (random(1, 1000000) / 1000000) * totalWeight
-    local cursor = 0
-    for _, entry in ipairs(eligible) do
-        local weight = tonumber(entry.candidate.weight) or 0
-        if weight > 0 then
-            cursor = cursor + weight
-            if roll <= cursor then return entry end
-        end
-    end
-    return eligible[#eligible]
 end
 
 local function HasStaticCandidate(gameRegion, settlement)
@@ -282,7 +272,24 @@ function DarkPassengerTarget.ReapplyTargetBuffForQuestMigration(
     end
 
     DarkPassengerTarget.targetBuffHandle = handleOrError
+    DarkPassengerTarget.restorePresentationPending = false
     if not MarkQuestSelectionSchemaCurrent() then return false end
+    local restoredState =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local restoredGeneration =
+        restoredState ~= nil and tonumber(restoredState.generation) or nil
+    if restoredGeneration ~= nil and Script ~= nil and
+       Script.SetTimerForFunction ~= nil then
+        pcall(function()
+            Script.SetTimerForFunction(
+                DarkPassengerTarget.RESTORE_REPUBLISH_DELAY_MS,
+                "DarkPassengerTarget.RepublishRestoredCase",
+                { generation = restoredGeneration }
+            )
+        end)
+    end
     if DarkPassengerAreaBridge ~= nil and
        DarkPassengerAreaBridge.StartPolling ~= nil then
         DarkPassengerAreaBridge.StartPolling(
@@ -324,6 +331,7 @@ local function ScheduleQuestSelectionMigration(candidate, entity)
     end
 
     DarkPassengerTarget.questSelectionMigrationScheduled = true
+    DarkPassengerTarget.restorePresentationPending = false
     local scheduled, timerOrError = pcall(function()
         return Script.SetTimerForFunction(
             1000,
@@ -333,6 +341,7 @@ local function ScheduleQuestSelectionMigration(candidate, entity)
     end)
     if not scheduled then
         DarkPassengerTarget.questSelectionMigrationScheduled = false
+        DarkPassengerTarget.restorePresentationPending = true
         pcall(function()
             entity.soul:AddBuff(DarkPassengerTarget.TARGET_BUFF_GUID)
         end)
@@ -347,6 +356,202 @@ local function ScheduleQuestSelectionMigration(candidate, entity)
     TargetLog(
         "quest selection migration scheduled slot=" ..
         tostring(candidate.slot)
+    )
+    return true
+end
+
+function DarkPassengerTarget.BeginRestoreCycle(reason)
+    if DarkPassengerTarget.restorePresentationPending or
+       DarkPassengerTarget.restorePresentationRearmScheduled then
+        TargetLog(
+            "restore presentation cycle coalesced reason=" ..
+            tostring(reason)
+        )
+        return false
+    end
+
+    DarkPassengerTarget.restorePresentationPending = true
+    TargetLog(
+        "restore presentation cycle armed reason=" .. tostring(reason)
+    )
+    return true
+end
+
+function DarkPassengerTarget.RepublishRestoredCase(userData, timerId)
+    local generation =
+        userData ~= nil and tonumber(userData.generation) or nil
+    if generation == nil or
+       DarkPassengerInvestigation == nil or
+       DarkPassengerInvestigation.GetState == nil then
+        return false
+    end
+
+    local state = DarkPassengerInvestigation.GetState()
+    if state == nil or state.active ~= true or
+       tonumber(state.generation) ~= generation then
+        TargetLog(
+            "restore presentation republish stale generation=" ..
+            tostring(generation)
+        )
+        return false
+    end
+
+    if DarkPassengerCaseLifecycle == nil or
+       DarkPassengerCaseLifecycle.PrepareCaseGeneration == nil then
+        TargetLog("restore presentation republish lifecycle unavailable")
+        return false
+    end
+
+    local prepared =
+        DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
+    TargetLog(
+        "restore presentation republished generation=" ..
+        tostring(generation) .. " prepared=" .. tostring(prepared)
+    )
+    return prepared == true
+end
+
+
+local function ScheduleRestoredCaseRepublish(generation)
+    if generation == nil or Script == nil or
+       Script.SetTimerForFunction == nil then
+        return false
+    end
+    local scheduled, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            DarkPassengerTarget.RESTORE_REPUBLISH_DELAY_MS,
+            "DarkPassengerTarget.RepublishRestoredCase",
+            { generation = tonumber(generation) }
+        )
+    end)
+    if not scheduled then
+        TargetLog(
+            "restore presentation republish scheduling failed error=" ..
+            tostring(timerOrError)
+        )
+        return false
+    end
+    return true
+end
+
+
+function DarkPassengerTarget.ReapplyRestoredTargetPresentation(
+    userData,
+    timerId
+)
+    DarkPassengerTarget.restorePresentationRearmScheduled = false
+    local expectedSlot =
+        userData ~= nil and tonumber(userData.slot) or nil
+    local generation =
+        userData ~= nil and tonumber(userData.generation) or nil
+    local candidate = FindCandidateBySlot(expectedSlot)
+    local currentCandidate = DarkPassengerTarget.targetCandidate
+    if candidate == nil or currentCandidate == nil or
+       tonumber(currentCandidate.slot) ~= expectedSlot then
+        DarkPassengerTarget.restorePresentationPending = true
+        return false
+    end
+
+    local entity = System.GetEntityByName(candidate.entityName)
+    if entity == nil or entity.soul == nil or
+       entity.soul.AddBuff == nil then
+        DarkPassengerTarget.restorePresentationPending = true
+        TargetLog(
+            "restore presentation reapply deferred slot=" ..
+            tostring(expectedSlot)
+        )
+        return false
+    end
+
+    local added, handleOrError = pcall(function()
+        return entity.soul:AddBuff(DarkPassengerTarget.TARGET_BUFF_GUID)
+    end)
+    if not added or handleOrError == nil then
+        DarkPassengerTarget.restorePresentationPending = true
+        TargetLog(
+            "restore presentation reapply failed slot=" ..
+            tostring(expectedSlot) .. " error=" ..
+            tostring(handleOrError)
+        )
+        return false
+    end
+
+    DarkPassengerTarget.targetBuffHandle = handleOrError
+    DarkPassengerTarget.restorePresentationPending = false
+    ScheduleRestoredCaseRepublish(generation)
+    TargetLog(
+        "restore presentation rearmed slot=" ..
+        tostring(expectedSlot) .. " generation=" ..
+        tostring(generation)
+    )
+    return true
+end
+
+
+local function ScheduleRestoredTargetPresentationRearm(candidate, entity)
+    if not DarkPassengerTarget.restorePresentationPending or
+       DarkPassengerTarget.restorePresentationRearmScheduled then
+        return false
+    end
+    if candidate == nil or entity == nil or entity.soul == nil or
+       entity.soul.RemoveAllBuffsByGuid == nil or
+       Script == nil or Script.SetTimerForFunction == nil then
+        return false
+    end
+
+    local investigationState =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local generation =
+        investigationState ~= nil and
+        tonumber(investigationState.generation) or nil
+    if generation == nil or generation <= 0 then return false end
+
+    local removed, removeError = pcall(function()
+        entity.soul:RemoveAllBuffsByGuid(
+            DarkPassengerTarget.TARGET_BUFF_GUID
+        )
+    end)
+    if not removed then
+        TargetLog(
+            "restore presentation remove failed slot=" ..
+            tostring(candidate.slot) .. " error=" ..
+            tostring(removeError)
+        )
+        return false
+    end
+
+    DarkPassengerTarget.restorePresentationRearmScheduled = true
+    DarkPassengerTarget.restorePresentationPending = false
+    local scheduled, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            DarkPassengerTarget.RESTORE_REARM_DELAY_MS,
+            "DarkPassengerTarget.ReapplyRestoredTargetPresentation",
+            {
+                slot = tonumber(candidate.slot),
+                generation = generation,
+            }
+        )
+    end)
+    if not scheduled then
+        DarkPassengerTarget.restorePresentationRearmScheduled = false
+        DarkPassengerTarget.restorePresentationPending = true
+        pcall(function()
+            entity.soul:AddBuff(DarkPassengerTarget.TARGET_BUFF_GUID)
+        end)
+        TargetLog(
+            "restore presentation scheduling failed slot=" ..
+            tostring(candidate.slot) .. " error=" ..
+            tostring(timerOrError)
+        )
+        return false
+    end
+
+    TargetLog(
+        "restore presentation rearm scheduled slot=" ..
+        tostring(candidate.slot) .. " generation=" ..
+        tostring(generation)
     )
     return true
 end
@@ -385,7 +590,11 @@ local function BindRecoveredTarget(candidate, entity)
     }
     RememberTarget(candidate)
     DarkPassengerInvestigation.Restore(candidate, entity)
-    ScheduleQuestSelectionMigration(candidate, entity)
+    local migrationScheduled =
+        ScheduleQuestSelectionMigration(candidate, entity)
+    if not migrationScheduled then
+        ScheduleRestoredTargetPresentationRearm(candidate, entity)
+    end
     if DarkPassengerAreaBridge ~= nil and
        DarkPassengerAreaBridge.StartPolling ~= nil then
         DarkPassengerAreaBridge.StartPolling(
@@ -405,10 +614,16 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
             System.GetEntityByName(runtimeCandidate.entityName)
         if HasTargetBuff(runtimeEntity) then
             if IsRecoveredTargetBound(runtimeCandidate, runtimeEntity) then
-                ScheduleQuestSelectionMigration(
+                local migrationScheduled = ScheduleQuestSelectionMigration(
                     runtimeCandidate,
                     runtimeEntity
                 )
+                if not migrationScheduled then
+                    ScheduleRestoredTargetPresentationRearm(
+                        runtimeCandidate,
+                        runtimeEntity
+                    )
+                end
                 return true
             end
             BindRecoveredTarget(runtimeCandidate, runtimeEntity)
@@ -481,7 +696,13 @@ local function OrderedSettlements(gameRegion, playerPosition)
 
     for _, settlement in ipairs(DarkPassengerGeneratedSettlements) do
         if settlement.gameRegion == gameRegion and
-           HasStaticCandidate(gameRegion, settlement.id) then
+           HasStaticCandidate(gameRegion, settlement.id) and
+           DarkPassengerCaseContent ~= nil and
+           DarkPassengerCaseContent.IsSettlementSupported ~= nil and
+           DarkPassengerCaseContent.IsSettlementSupported(
+               gameRegion,
+               settlement.id
+           ) then
             local dx = playerPosition.x - settlement.x
             local dy = playerPosition.y - settlement.y
             local distanceSquared = dx * dx + dy * dy
@@ -540,6 +761,20 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
         return false
     end
 
+    local previousInvestigation =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    if previousInvestigation ~= nil and
+       tonumber(previousInvestigation.generation) ~= nil and
+       tonumber(previousInvestigation.generation) > 0 and
+       DarkPassengerCaseLifecycle ~= nil and
+       DarkPassengerCaseLifecycle.ClearCaseArtifacts ~= nil then
+        DarkPassengerCaseLifecycle.ClearCaseArtifacts(
+            previousInvestigation.generation,
+            "target_replacement"
+        )
+    end
     DarkPassengerTarget.Clear()
 
     if DarkPassengerGeneratedCandidates == nil then
@@ -548,14 +783,17 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
     end
 
     local eligible = {}
+    local candidateBySlot = {}
     for _, candidate in ipairs(DarkPassengerGeneratedCandidates) do
         if IsPolicyCandidate(candidate, gameRegion, settlement) then
             local ent = System.GetEntityByName(candidate.entityName)
             if IsLivingCandidate(ent) then
-                table.insert(eligible, {
+                local entry = {
                     candidate = candidate,
                     entity = ent,
-                })
+                }
+                table.insert(eligible, entry)
+                candidateBySlot[tonumber(candidate.slot)] = entry
             end
         end
     end
@@ -568,48 +806,51 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
         return false
     end
 
-    local attempts = 0
-    local selectedEntry = nil
-    local selectedBuffHandle = nil
-    while attempts < DarkPassengerTarget.MAX_SELECTION_ATTEMPTS and
-          #eligible > 0 do
-        attempts = attempts + 1
-        local candidateEntry = WeightedCandidate(eligible)
-        if candidateEntry == nil then break end
-
-        local tagged, buffHandleOrError = pcall(function()
-            return candidateEntry.entity.soul:AddBuff(
-                DarkPassengerTarget.TARGET_BUFF_GUID
-            )
-        end)
-        if tagged and buffHandleOrError ~= nil then
-            selectedEntry = candidateEntry
-            selectedBuffHandle = buffHandleOrError
-            break
-        end
-
-        TargetLog(
-            "tag attempt=" .. tostring(attempts) ..
-            " failed candidate=" ..
-            tostring(candidateEntry.candidate.entityName) ..
-            " error=" .. tostring(buffHandleOrError)
-        )
-        for index, entry in ipairs(eligible) do
-            if entry == candidateEntry then
-                table.remove(eligible, index)
-                break
-            end
-        end
+    if DarkPassengerCaseContent == nil or
+       DarkPassengerCaseContent.PrepareVariant == nil or
+       DarkPassengerInvestigation == nil or
+       DarkPassengerInvestigation.GetState == nil then
+        TargetLog("select failed: CaseKit runtime unavailable")
+        return false
     end
-
+    local investigationState = DarkPassengerInvestigation.GetState()
+    local generation = (tonumber(investigationState.generation) or 0) + 1
+    local prepared, prepareReason =
+        DarkPassengerCaseContent.PrepareVariant(
+            generation,
+            {
+                region = gameRegion,
+                settlement = settlement,
+                candidateBySlot = candidateBySlot,
+            },
+            nil
+        )
+    local selectedEntry = prepared ~= nil and prepared.candidateEntry or nil
     if selectedEntry == nil then
         TargetLog(
-            "select failed after attempts=" .. tostring(attempts) ..
-            " region=" .. tostring(gameRegion) ..
-            " settlement=" .. tostring(settlement)
+            "select failed: no compiled live variant region=" ..
+            tostring(gameRegion) .. " settlement=" .. tostring(settlement) ..
+            " reason=" .. tostring(prepareReason)
         )
         return false
     end
+
+    -- CaseInstance identity and every concrete binding are durable before the
+    -- first target buff, journal update, marker, area or evidence placement.
+    local tagged, buffHandleOrError = pcall(function()
+        return selectedEntry.entity.soul:AddBuff(
+            DarkPassengerTarget.TARGET_BUFF_GUID
+        )
+    end)
+    if not tagged or buffHandleOrError == nil then
+        TargetLog(
+            "target presentation deferred variant=" ..
+            tostring(prepared.variantId) .. " error=" ..
+            tostring(buffHandleOrError)
+        )
+        return false
+    end
+    local selectedBuffHandle = buffHandleOrError
 
     local selected = selectedEntry.entity
     local selectedCandidate = selectedEntry.candidate
@@ -797,6 +1038,23 @@ function DarkPassengerTarget.OnTargetDeath(gameRegion, settlement, slot)
             return g_localActor:GetWorldPos()
         end)
         if ok then deathPosition = positionOrError end
+    end
+    local investigationState =
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local trophyGeneration =
+        investigationState ~= nil and investigationState.generation or nil
+    if DarkPassengerTrophy ~= nil and
+       DarkPassengerTrophy.OnTargetDeath ~= nil then
+        local trophyOk, trophyReason =
+            DarkPassengerTrophy.OnTargetDeath(
+                targetEntity,
+                trophyGeneration
+            )
+        TargetLog(
+            "target trophy result=" .. tostring(trophyOk) ..
+            " reason=" .. tostring(trophyReason)
+        )
     end
     DarkPassengerInvestigation.OnTargetDeath()
     if deathPosition == nil or DarkPassengerAftermath == nil or
@@ -1265,6 +1523,7 @@ function DarkPassengerQuestBridge.StartPolling(reason)
     DarkPassengerQuestBridge.lastRumorStates = {}
     DarkPassengerQuestBridge.lastWitnessStates = {}
     DarkPassengerQuestBridge.lastOverheardStates = {}
+    DarkPassengerQuestBridge.lastDocumentReadStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
         " generation=" .. tostring(DarkPassengerQuestBridge.pollGeneration)
@@ -1338,6 +1597,53 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
     if killRequestBecameActive and
        DarkPassengerTest.OnOrdinaryHumanKillObserved ~= nil then
         DarkPassengerTest.OnOrdinaryHumanKillObserved()
+    end
+
+    for itemGuid, entry in pairs(
+        DarkPassengerQuestItemPlacementCatalog or {}
+    ) do
+        local readContext = entry ~= nil and entry.read_context or nil
+        if readContext ~= nil and readContext ~= "" then
+            local hasReadRequest = false
+            if playerEntity ~= nil and playerEntity.soul ~= nil and
+               playerEntity.soul.HasScriptContext ~= nil then
+                local ok, contextOrError = pcall(function()
+                    return playerEntity.soul:HasScriptContext(readContext)
+                end)
+                if ok then
+                    hasReadRequest = contextOrError == true or
+                        contextOrError == 1
+                else
+                    TargetLog(
+                        "document-read context check failed item=" ..
+                        tostring(itemGuid) ..
+                        " error=" .. tostring(contextOrError)
+                    )
+                end
+            end
+            local previousReadState =
+                DarkPassengerQuestBridge.lastDocumentReadStates[
+                    readContext
+                ]
+            local readRequestBecameActive =
+                hasReadRequest and previousReadState ~= true
+            if previousReadState ~= hasReadRequest then
+                DarkPassengerQuestBridge.lastDocumentReadStates[
+                    readContext
+                ] = hasReadRequest
+                TargetLog(
+                    "document-read context item=" .. tostring(itemGuid) ..
+                    " active=" .. tostring(hasReadRequest)
+                )
+            end
+            if readRequestBecameActive and
+               DarkPassengerBelongings ~= nil and
+               DarkPassengerBelongings.OnDocumentRead ~= nil then
+                DarkPassengerBelongings.OnDocumentRead(
+                    entry.item_guid or itemGuid
+                )
+            end
+        end
     end
 
     for _, request in ipairs(DarkPassengerQuestBridge.REQUESTS) do
@@ -2739,7 +3045,12 @@ if PlayerEventDispatcher ~= nil then
         PlayerEventDispatcher:Register("BasicAIActionsOnGrabCorpse",  function(...) return DarkPassengerTest.OnGrabCorpse(...) end)
         PlayerEventDispatcher:Register("OnReloadEvent", function(...)
             EnsureVictimAwareActionHooks()
+            DarkPassengerTarget.BeginRestoreCycle("player_reload")
             DarkPassengerAreaBridge.StartPolling("player_reload")
+            if DarkPassengerTrophy ~= nil and
+               DarkPassengerTrophy.Restore ~= nil then
+                DarkPassengerTrophy.Restore()
+            end
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_reload")
@@ -2752,7 +3063,12 @@ if PlayerEventDispatcher ~= nil then
         end)
         PlayerEventDispatcher:Register("OnInitEvent", function(...)
             EnsureVictimAwareActionHooks()
+            DarkPassengerTarget.BeginRestoreCycle("player_init")
             DarkPassengerAreaBridge.StartPolling("player_init")
+            if DarkPassengerTrophy ~= nil and
+               DarkPassengerTrophy.Restore ~= nil then
+                DarkPassengerTrophy.Restore()
+            end
             if DarkPassengerHunger ~= nil and
                DarkPassengerHunger.StartEvaluation ~= nil then
                 DarkPassengerHunger.StartEvaluation("player_init")

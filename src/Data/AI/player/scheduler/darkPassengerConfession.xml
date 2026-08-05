@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<BehaviorTrees>
+  <BehaviorTree name="darkPassengerConfession_GoToPlayer" is_function="0">
+    <Variables>
+      <Variable name="distanceMeTarget" type="_float" values="" isPersistent="0" form="single" />
+    </Variables>
+    <Parameters>
+      <Variable name="tagpoint" type="_wuid" values="" isPersistent="0" form="single" requirementType="In" />
+    </Parameters>
+    <Root OneTimeOnly="false" FailState="Recoverable" saveVersion="2">
+      <Behavior canSkip="1">
+        <Parallel successMode="Any" failureMode="Any">
+          <EntityContextElement context="crime_escalationLevel_looking" target="">
+            <CrimeFollower Target="$__player" Mode="DontBackOff" Role="Main" RelativeSpeedLimit="dash" DisableGhosting="true" />
+          </EntityContextElement>
+          <Loop count="-1">
+            <Sequence>
+              <Wait duration="&apos;0ms&apos;" timeType="GameTime" doFail="false" variation="" skipInLOD="true" />
+              <MeasureDistance position1="$this.id" position2="$__player" mode="ThreeDimensions" result="$distanceMeTarget" />
+              <IfCondition failOnCondition="false" condition="$distanceMeTarget &lt; 3">
+                <Wait duration="&apos;5s&apos;" timeType="GameTime" doFail="true" variation="" />
+              </IfCondition>
+            </Sequence>
+          </Loop>
+        </Parallel>
+      </Behavior>
+    </Root>
+    <ForestContainer />
+  </BehaviorTree>
+</BehaviorTrees>

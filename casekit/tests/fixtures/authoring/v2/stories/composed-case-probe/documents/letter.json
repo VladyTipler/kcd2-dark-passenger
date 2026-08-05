@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "letter",
+  "localizationKeys": [
+    "document.letter.name",
+    "document.letter.info",
+    "document.letter.body"
+  ]
+}

@@ -4,9 +4,10 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $compilerPath = Join-Path $repoRoot 'tools\Compile-CaseSpecs.ps1'
-$caseRoot = Join-Path $repoRoot 'content\cases'
+$caseRoot = Join-Path $repoRoot 'content\migration\legacy-cases'
 $casePath = Join-Path $caseRoot 'convenient-accident.case.json'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 $goldenDialogRoot = Join-Path $repoRoot `
     'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k'
 $testRoot = Join-Path $repoRoot (

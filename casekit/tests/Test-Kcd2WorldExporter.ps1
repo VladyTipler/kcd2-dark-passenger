@@ -53,6 +53,10 @@ try {
         $raw.containers[0].entityClass -eq 'Stash' -and
         $raw.containers[0].settlementHint -eq 'fixture'
     ) 'exporter includes settlement stashes as world containers'
+    Add-Result (
+        $raw.containers[0].entityId -eq '42' -and
+        $raw.containers[0].shopStash -eq $true
+    ) 'exporter identifies native shopStash targets'
 }
 catch {
     Add-Result $false "KCD2 world exporter runs: $($_.Exception.Message)"

@@ -148,6 +148,7 @@ end
 
 local function SetRumorAvailability(available)
     if available then
+        RemoveBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
         return AddBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
     end
     return RemoveBuff(DarkPassengerEvidence.RUMOR_AVAILABLE_BUFF_GUID)
@@ -413,8 +414,11 @@ function DarkPassengerEvidence.OnInvestigationOpened(generation)
     if not result.accepted then return false end
     RemoveBuff(DarkPassengerEvidence.FIRST_LEAD_BUFF_GUID)
     PersistState(nextState)
-    if DarkPassengerLeadPlanner ~= nil and
-       DarkPassengerLeadPlanner.Apply ~= nil then
+    if DarkPassengerCaseLifecycle ~= nil and
+       DarkPassengerCaseLifecycle.PrepareCaseGeneration ~= nil then
+        DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
+    elseif DarkPassengerLeadPlanner ~= nil and
+           DarkPassengerLeadPlanner.Apply ~= nil then
         DarkPassengerLeadPlanner.Apply(generation)
     end
     return true
@@ -444,8 +448,11 @@ function DarkPassengerEvidence.Restore(investigationState)
     end
     if not MigrateLegacyDiscovery(generation, state) then return false end
     state = ReadState()
-    if DarkPassengerLeadPlanner ~= nil and
-       DarkPassengerLeadPlanner.Apply ~= nil then
+    if DarkPassengerCaseLifecycle ~= nil and
+       DarkPassengerCaseLifecycle.PrepareCaseGeneration ~= nil then
+        DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
+    elseif DarkPassengerLeadPlanner ~= nil and
+           DarkPassengerLeadPlanner.Apply ~= nil then
         DarkPassengerLeadPlanner.Apply(generation)
     else
         SetRumorAvailability(

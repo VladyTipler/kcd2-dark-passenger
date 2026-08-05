@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="us-ascii"?>
 <database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="../database.xsd">
   <roles>
-    <role role_id="8fe584ca-7b9b-48b3-a5c0-fa10122c25c2" metarole_name="NPC" role_name="DP_INNKEEPER_RUMOR" />
-    <role role_id="5fa9523d-330b-42a1-8b04-1fd7fe5fb84b" metarole_name="NPC" role_name="DP_TAVERN_WITNESS" />
+    <role role_id="7203330e-8f65-403b-a5a7-8ad97d0aa010" metarole_name="NPC" role_name="RANENY_NA_ZEMI_MUZ" />
+    <role role_id="7a5be5ff-fb3c-43ae-9812-5320ef0c9c88" metarole_name="NPC" role_name="RANENY_NA_ZEMI_ZENA" />
+    <role role_id="c59b1fe0-0871-4d72-8f4e-e7a72577b89a" metarole_name="NPC" role_name="DP_CONFESSION_PROBE_MALE" />
   </roles>
 </database>

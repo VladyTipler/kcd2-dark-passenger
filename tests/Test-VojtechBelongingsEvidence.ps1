@@ -19,8 +19,9 @@ $englishLocalizationPath = Join-Path $repoRoot `
 $russianLocalizationPath = Join-Path $repoRoot `
     'localization\Russian\text__darkpassengertest.xml'
 $caseSpecPath = Join-Path $repoRoot `
-    'content\cases\convenient-accident.case.json'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+    'content\migration\legacy-cases\convenient-accident.case.json'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -85,8 +86,8 @@ foreach ($token in
     'dp_belongings_placed_generation',
     'dp_belongings_read_generation',
     'System.GetEntityByTextGUID(',
-    'chest.inventory:CreateItem(',
-    'Minigame.WasBookOpened(',
+    'DarkPassengerQuestItemPlacement.Request(',
+    'DarkPassengerBelongings.OnDocumentRead(',
     'Script.SetTimerForFunction(',
     'DarkPassengerEvidenceRegistry.Discover('
 ) {
@@ -108,10 +109,15 @@ Add-Result (
 Add-Result (Test-Path -LiteralPath $itemPath) `
     'custom Vojtech quest-document table exists'
 Add-Result (
-    -not $questItemCatalog.Contains(
+    $questItemCatalog.Contains(
         '73762008-de9b-4c42-b509-235e63e60840'
     )
-) 'runtime-created Vojtech document is excluded from the quest-item catalog'
+) 'Vojtech document is included in the native quest-item catalog'
+Add-Result (
+    $belongings.Contains(
+        'DarkPassengerQuestItemCatalog[documentGuid] == true'
+    )
+) 'native quest-item catalog prevents manual creation fallback'
 
 if (Test-Path -LiteralPath $itemPath) {
     try {
@@ -123,9 +129,10 @@ if (Test-Path -LiteralPath $itemPath) {
             'custom Vojtech document row is registered'
         Add-Result (
             $null -ne $document -and
-            [string]$document.IsQuestItem -ne 'true' -and
-            $belongings.Contains('chest.inventory:CreateItem(')
-        ) 'runtime-created Vojtech document is not flagged as a quest item'
+            [string]$document.IsQuestItem -eq 'true' -and
+            $belongings.Contains('DarkPassengerQuestItemPlacement.Request(') -and
+            $belongings.Contains('item.classification == "quest"')
+        ) 'Vojtech document uses native quest-item placement'
         Add-Result (
             $null -ne $document -and
             [string]$document.UIName -eq 'dp_vojtech_letter_name' -and
@@ -194,9 +201,19 @@ Add-Result (
     $belongings.Contains('document placement repaired generation=')
 ) 'persisted placement is repaired when the selected chest has no document'
 Add-Result (
-    $belongings.Contains('or PlayerInventoryHas(documentGuid)') -and
-    $belongings.Contains('if not exists then')
-) 'placement never duplicates a document already held by Henry'
+    $belongings.Contains('dp_belongings_cleanup_generation') -and
+    $belongings.Contains('document cleanup staged generation=') -and
+    $belongings -match '(?s)DeleteAllFromInventory\(actor\.inventory, documentGuid\).*DeleteAllFromInventory\(chest\.inventory, documentGuid\).*return false'
+) 'new generations defer native creation until old copies finish deleting'
+Add-Result (
+    $belongings.Contains('inventory:GetCountOfClass(itemGuid)') -and
+    -not $belongings.Contains('exists = true')
+) 'placement success is verified by a real inventory count'
+Add-Result (
+    $belongings.Contains('state.placedGeneration == generation and PlayerInventoryHas(documentGuid)') -and
+    $belongings.Contains('DarkPassengerQuestItemPlacement.Request(') -and
+    $belongings.Contains('documentGuid,')
+) 'restored placement accepts collected documents while pending native creation is count-safe'
 
 Add-Result (
     $belongings -match '(?s)EvidenceRegistry\.Discover\(\s*generation,\s*resolved\.evidence\.code' -and
@@ -237,6 +254,9 @@ Add-Result (
     $belongings.Contains('EnsureRegistryDiscovery(generation)') -and
     $belongings.Contains('state.readGeneration == generation')
 ) 'save-load migrates an already-read document into the registry'
+Add-Result (
+    -not $belongings.Contains('Minigame.WasBookOpened(')
+) 'repeatable evidence never uses global vanilla book-open history'
 
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
 $belongingsReload = 'Script.ReloadScript("Scripts/mods/dpbelongings.lua")'

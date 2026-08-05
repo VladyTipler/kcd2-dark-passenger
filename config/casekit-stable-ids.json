@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "stories": [
+    {
+      "storyId": "convenient-accident",
+      "caseId": "convenient_accident",
+      "caseCode": 1001,
+      "weight": 1,
+      "evidence": [
+        {"threadId": "paper-trail", "stepId": "ask-innkeeper", "legacyId": "pritoky_innkeeper_strong_suspicion", "code": 1101},
+        {"threadId": "paper-trail", "stepId": "read-letter", "legacyId": "vojtech_belongings", "code": 1102},
+        {"threadId": "witness-web", "stepId": "question-witness", "legacyId": "tavern_witness", "code": 1103}
+      ]
+    },
+    {
+      "storyId": "missing-traveler",
+      "caseId": "missing_traveler",
+      "caseCode": 2001,
+      "weight": 1,
+      "evidence": [
+        {"threadId": "paper-trail", "stepId": "ask-innkeeper", "legacyId": "zelejov_innkeeper_missing_traveler", "code": 2101},
+        {"threadId": "paper-trail", "stepId": "read-ledger", "legacyId": "matej_guest_ledger", "code": 2102},
+        {"threadId": "horse-witness", "stepId": "question-witness", "legacyId": "zelejov_stablehand_witness", "code": 2103},
+        {"threadId": "courtyard-gossip", "stepId": "overhear-argument", "legacyId": "zelejov_inn_yard_whisper", "code": 2104}
+      ]
+    }
+  ]
+}

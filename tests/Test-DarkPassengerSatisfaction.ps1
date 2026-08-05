@@ -40,6 +40,8 @@ $evidenceLuaPath = "$stageRoot\Data\Scripts\mods\dpevidence.lua"
 $witnessLuaPath = "$stageRoot\Data\Scripts\mods\dpwitness.lua"
 $witnessDetectorLuaPath = "$stageRoot\Data\Scripts\mods\dpwitnessdetector.lua"
 $runtimeLuaPath = "$stageRoot\Data\Scripts\mods\darkpassengertest.lua"
+$caseContentLuaPath = "$stageRoot\Data\Scripts\mods\dpcasecontent.lua"
+$trophyLuaPath = "$stageRoot\Data\Scripts\mods\dptrophy.lua"
 $pakPath = "$stageRoot\Data\darkpassengertest.pak"
 $kuttenbergLevelRoot = "$stageRoot\Data\Levels\kutnohorsko"
 $kuttenbergLevelPakPath = "$stageRoot\Data\Levels\kutnohorsko\darkpassengertest.pak"
@@ -271,6 +273,10 @@ $scriptContextText = Read-OptionalText -LiteralPath $scriptContextPath
 $smartEntityText = Read-OptionalText -LiteralPath $smartEntityPath
 $questText = Read-OptionalText -LiteralPath $questPath
 $questTemplateText = Read-OptionalText -LiteralPath $questTemplatePath
+$removeResetDelayText = [regex]::Match(
+    $questText,
+    '(?s)<Timer Name="removeResetDelay">.*?</Timer>'
+).Value
 $questBridgeModuleText = Read-OptionalText -LiteralPath $questBridgeModulePath
 $schedulerBridgeText = Read-OptionalText -LiteralPath $schedulerBridgePath
 $generatedCatalogLuaText = Read-OptionalText -LiteralPath $generatedCatalogLuaPath
@@ -297,6 +303,8 @@ $witnessLuaText = Read-OptionalText -LiteralPath $witnessLuaPath
 $witnessDetectorLuaText =
     Read-OptionalText -LiteralPath $witnessDetectorLuaPath
 $runtimeLuaText = Read-OptionalText -LiteralPath $runtimeLuaPath
+$caseContentLuaText = Read-OptionalText -LiteralPath $caseContentLuaPath
+$trophyLuaText = Read-OptionalText -LiteralPath $trophyLuaPath
 $questItemCatalogLuaText =
     Read-OptionalText -LiteralPath $questItemCatalogLuaPath
 $buildScriptText = Read-OptionalText -LiteralPath $buildScriptPath
@@ -797,7 +805,12 @@ foreach ($bindingSpec in $areaBindingSpecs) {
                     "$([string]$_.SourceId)|$([string]$_.TargetId)|$([string]$_.LinkDefinition)"
                 }
         )
-        $sourceHolder = @($sourceMissionObjectsXml.Objects.Entity)
+        $sourceHolder = @(
+            $sourceMissionObjectsXml.Objects.Entity |
+                Where-Object {
+                    [string]$_.EntityGuid -eq $bindingSpec.questHolderGuid
+                }
+        )
         if (
             $sourceHolder.Count -ne 1 -or
             [string]$sourceHolder[0].Name -ne $bindingSpec.questHolderName -or
@@ -808,8 +821,10 @@ foreach ($bindingSpec in $areaBindingSpecs) {
                 $bindingSpec.smartEntityGuid -or
             $sourceMissionObjectsText.Contains('EntityClass="LevelHolder"') -or
             $sourceMissionObjectsText.Contains('EntityClass="TriggerArea"') -or
-            @($actualSourceLinks).Count -ne $expectedLinks.Count -or
-            @(Compare-Object $expectedLinks $actualSourceLinks).Count -ne 0
+            @($actualSourceLinks | Group-Object | Where-Object Count -gt 1).Count -ne 0 -or
+            @($expectedLinks | Where-Object {
+                $_ -notin $actualSourceLinks
+            }).Count -ne 0
         ) {
             $sourceAreaBindingsComplete = $false
         }
@@ -856,7 +871,9 @@ foreach ($bindingSpec in $areaBindingSpecs) {
                 }
         )
         if (
-            $actualBuiltLinks.Count -ne ($baseWaitingLinksCount + $expectedLinks.Count) -or
+            $actualBuiltLinks.Count -ne (
+                $baseWaitingLinksCount + $actualSourceLinks.Count
+            ) -or
             ([regex]::Matches(
                 $builtWaitingLinksText,
                 '<StreamableTarget '
@@ -902,7 +919,12 @@ foreach ($bindingSpec in $areaBindingSpecs) {
         $builtAreaBindingsComplete = $false
         continue
     }
-    $expectedAssetLinkCount = $expectedLinks.Count - 1
+    $expectedAssetLinkCount = @(
+        $actualSourceLinks | Where-Object {
+            $_.StartsWith("$($bindingSpec.questHolderGuid)|") -and
+            $_.Contains("|asset['")
+        }
+    ).Count
     if (([regex]::Matches(
         $questHolderBlock,
         'Name="asset\['
@@ -1327,6 +1349,36 @@ Add-Result ($questText.Contains('satisfactionTrigger.OnRemoved')) 'quest reacts 
 Add-Result ($questText.Contains('To="SetNone"')) 'buff removal resets repeatable quest state'
 Add-Result ($questText.Contains('removeResetDelay.OnFinished')) 'quest reactivation is delayed after reset'
 Add-Result ($questText.Contains('To="SetActive"')) 'quest can reactivate after reset'
+Add-Result (
+    $questText -match (
+        '(?s)<BuffTagTrigger Name="targetTagTrigger">.*?' +
+        '<Edge From="watcherActive.State" To="IsActive" />.*?' +
+        '</BuffTagTrigger>'
+    )
+) 'target readiness is observed while the quest is dormant'
+Add-Result (
+    $removeResetDelayText.Contains(
+        '<Edge From="targetTagTrigger.OnAdded" To="SetRunning" />'
+    ) -and
+    -not $removeResetDelayText.Contains('satisfactionTrigger.OnRemoved') -and
+    -not $removeResetDelayText.Contains('coldStartQuestNotActive.True')
+) 'quest shell activates only after target selection succeeds'
+Add-Result (
+    $questText -match (
+        '(?s)<State Name="selectionRequestActive".*?' +
+        '<Edge From="satisfactionTrigger.OnRemoved" To="SetTrue" />.*?' +
+        '<Edge From="coldStartQuestNotActive.True" To="SetTrue" />.*?' +
+        '</State>'
+    )
+) 'selection request starts before quest presentation'
+Add-Result (
+    $questText -match (
+        '(?s)<Timer Name="targetSlot\d+ValidationDelay">.*?' +
+        '<Edge From="targetTagTrigger.OnAdded" To="SetRunning" />.*?' +
+        '<Edge From="questProgress.OnActive" To="SetRunning" />.*?' +
+        '</Timer>'
+    )
+) 'selected target state is restored after quest activation reset'
 Add-Result ($questText.Contains('<Timer Name="bootDelay">')) 'quest contains cold-start boot timer'
 Add-Result ($questText.Contains('<Constant Name="Duration" Value="2s"')) 'cold-start boot check waits two seconds'
 Add-Result ($questText.Contains('<Edge From="arm" To="SetRunning"')) 'arming lifecycle starts cold-start timer'
@@ -1354,8 +1406,8 @@ Add-Result (
     $questText.Contains('<Edge From="coldStartQuestNotActive.True" To="SetNone"')
 ) 'eligible cold start enters repeatable quest reset path'
 Add-Result (
-    $questText.Contains('<Edge From="coldStartQuestNotActive.True" To="SetRunning"')
-) 'eligible cold start schedules delayed activation'
+    $questText.Contains('<Edge From="coldStartQuestNotActive.True" To="SetTrue"')
+) 'eligible cold start schedules target-selection preflight'
 
 Add-Result (
     $questText.Contains('<SoulAsset Name="RegionalTargetSouls" SharedSoulGuids=')
@@ -1404,13 +1456,13 @@ Add-Result (
 ) 'selected victim death completes the generated hunt objective'
 Add-Result (
     $questText.Contains(
-        '<State Name="cleanupProgress" TypeT="DP_CleanupProgress">'
+        '<State Name="cleanupProgress" TypeT="DP_KutnohorskoCleanupProgress">'
     ) -and
     $questText.Contains(
         '<dark_within_cleanupk Name="cleanupVisual">'
     ) -and
     $questText.Contains(
-        '<Objective TypeT="DP_CleanupProgress" Name="dark_within_cleanupk">'
+        '<Objective TypeT="DP_KutnohorskoCleanupProgress" Name="dark_within_cleanupk">'
     )
 ) 'selected victim death hands off to a tracked cleanup objective'
 Add-Result (
@@ -1554,12 +1606,15 @@ Add-Result (
     $hungerLuaText.Contains('soul:AddBuff(desiredGuid)')
 ) 'hunger evaluation keeps exactly one tier buff active'
 Add-Result (
+    $hungerLuaText -notmatch (
+        'if DarkPassengerHunger\.currentTier == tier then return true end'
+    ) -and
     $hungerLuaText -match (
-        '(?s)function DarkPassengerHunger\.ApplyTier\(soul, tier\).*?' +
-        'if DarkPassengerHunger\.currentTier == tier then return true end.*?' +
-        'soul:AddBuff\(desiredGuid\)'
+        '(?s)function DarkPassengerHunger\.Set\(argsLine\).*?' +
+        'DarkPassengerHunger\.InvalidateAppliedState\(\).*?' +
+        'DarkPassengerHunger\.Evaluate\(\)'
     )
-) 'repeated hunger evaluation leaves the current tier buff untouched'
+) 'explicit hunger override invalidates stale tier and gate caches'
 Add-Result (
     $hungerLuaText -match (
         '(?s)function DarkPassengerHunger\.ApplyTier.*?' +
@@ -1791,6 +1846,29 @@ Add-Result (
         'DarkPassengerTarget\.Clear\(\)'
     )
 ) 'target death notifies investigation before target state is cleared'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.OnTargetDeath.*?' +
+        'DarkPassengerTrophy\.OnTargetDeath\(.*?' +
+        'DarkPassengerInvestigation\.OnTargetDeath\(.*?' +
+        'DarkPassengerTarget\.Clear\(\)'
+    )
+) 'target death places the compiled trophy before investigation and binding cleanup'
+Add-Result (
+    $trophyLuaText.Contains('STATUS_PENDING = "pending"') -and
+    $trophyLuaText.Contains('STATUS_PLACED = "placed"') -and
+    $trophyLuaText.Contains('STATUS_COLLECTED = "collected"') -and
+    $trophyLuaText.Contains('corpse.inventory:CreateItem(') -and
+    $trophyLuaText.Contains(
+        'PlayerInventoryCount(trophy.item_guid) > state.playerBaseline'
+    ) -and
+    -not $trophyLuaText.Contains('DarkPassengerQuestItemPlacement.Request(')
+) 'trophy runtime persists one pending placed collected inventory lifecycle'
+Add-Result (
+    $trophyLuaText.Contains('if state.status == STATUS_PLACED then') -and
+    $trophyLuaText.Contains('return false, "already_placed"') -and
+    $trophyLuaText.Contains('DarkPassengerCaseSnapshot.Get(generation)')
+) 'trophy restore repairs streamed state without duplicating placed collectibles'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)function DarkPassengerTarget\.Clear\(\).*?' +
@@ -2371,11 +2449,17 @@ Add-Result (
     $questItemCatalogLuaText.Contains(
         'DarkPassengerQuestItemCatalog = {'
     ) -and
-    ([regex]::Matches($questItemCatalogLuaText, '= true')).Count -eq 293 -and
-    -not $questItemCatalogLuaText.Contains(
+    ([regex]::Matches($questItemCatalogLuaText, '= true')).Count -eq 295 -and
+    $questItemCatalogLuaText.Contains(
         '73762008-de9b-4c42-b509-235e63e60840'
+    ) -and
+    $questItemCatalogLuaText.Contains(
+        'd5833fd4-f7bf-4957-86f5-d661db38bcf3'
+    ) -and
+    -not $questItemCatalogLuaText.Contains(
+        '22f71f71-cc7c-0607-46b1-67e9925a3874'
     )
-) 'quest-item catalog contains only the 293 authoritative base classes'
+) 'quest-item catalog protects 293 vanilla and 2 compiled quest item classes'
 Add-Result (
     Test-Path -LiteralPath $burialLuaPath
 ) 'global corpse burial Lua module exists'
@@ -2477,6 +2561,15 @@ $burialCanBuryMatch = [regex]::Match(
     [System.Text.RegularExpressions.RegexOptions]::Multiline
 )
 $burialCanBuryText = $burialCanBuryMatch.Value
+Add-Result (
+    $burialCanBuryMatch.Success -and
+    $burialCanBuryText.Contains(
+        'DarkPassengerTrophy.CanBuryCorpse(corpse)'
+    ) -and
+    $burialCanBuryText.Contains(
+        'return false, "@dp_burial_trophy_pending"'
+    )
+) 'burial blocks the selected target until its trophy is collected'
 Add-Result (
     $burialLuaText.Contains(
         'local function IsInCombatDanger(actor)'
@@ -2678,13 +2771,19 @@ Add-Result (
 ) 'Lua excludes the player from victim candidates'
 Add-Result (
     $runtimeLuaText.Contains(
-        'candidateEntry.entity.soul:AddBuff('
+        'selectedEntry.entity.soul:AddBuff('
     )
 ) 'Lua tags the selected runtime victim'
 Add-Result (
-    $runtimeLuaText.Contains('local function WeightedCandidate') -and
-    $runtimeLuaText.Contains('random(1, 1000000)')
-) 'Lua performs weighted random selection over eligible candidates'
+    $caseContentLuaText.Contains('local function WeightedChoice') -and
+    $caseContentLuaText.Contains(
+        'DarkPassengerCaseContent.BuildReplayCaseChoices('
+    ) -and
+    $caseContentLuaText.Contains(
+        'DarkPassengerCaseContent.GetStoryReplayWeight('
+    ) -and
+    -not $runtimeLuaText.Contains('local function WeightedCandidate')
+) 'CaseKit performs weighted story selection after live-candidate filtering'
 
 Add-Result (
     $runtimeLuaText.Contains(
@@ -2716,14 +2815,16 @@ Add-Result (
     $runtimeLuaText.Contains('ent.id == g_localActor.id')
 ) 'Lua metadata selector rejects the player'
 Add-Result (
-    $runtimeLuaText.Contains('local function WeightedCandidate') -and
-    $runtimeLuaText.Contains('candidate.weight')
-) 'Lua performs weighted random selection'
+    $caseContentLuaText.Contains(
+        'function DarkPassengerCaseContent.SelectVariant('
+    ) -and
+    $caseContentLuaText.Contains('candidateBySlot[targetSlot] ~= nil')
+) 'CaseKit selects only compiled variants with live policy-approved targets'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)function DarkPassengerTarget\.Select\(gameRegion, settlement\).*?' +
         'DarkPassengerTarget\.Clear\(\).*?' +
-        'candidateEntry\.entity\.soul:AddBuff\('
+        'selectedEntry\.entity\.soul:AddBuff\('
     )
 ) 'Lua clears the previous target before tagging exactly one selected candidate'
 Add-Result (
@@ -2857,11 +2958,13 @@ Add-Result (
 ) 'generated quest no longer performs XML random victim selection'
 
 Add-Result (
-    $runtimeLuaText.Contains('DarkPassengerTarget.MAX_SELECTION_ATTEMPTS = 3') -and
-    $runtimeLuaText.Contains(
-        'while attempts < DarkPassengerTarget.MAX_SELECTION_ATTEMPTS'
-    )
-) 'Lua selection retries are explicitly bounded'
+    $runtimeLuaText.Contains('target presentation deferred variant=') -and
+    $caseContentLuaText -match (
+        '(?s)if current\.generation == generation then.*?' +
+        'return restored, "restored"'
+    ) -and
+    -not $runtimeLuaText.Contains('MAX_SELECTION_ATTEMPTS')
+) 'presentation retries restore the persisted variant without rerolling'
 Add-Result (
     $runtimeLuaText.Contains(
         'function DarkPassengerTarget.Revalidate(gameRegion, settlement, slot)'
@@ -3340,16 +3443,18 @@ $areaBridgeLuaParses = $false
 if (
     (Test-Path -LiteralPath $luaCompilerPath) -and
     (Test-Path -LiteralPath $runtimeLuaPath) -and
-    (Test-Path -LiteralPath $investigationAreaCatalogLuaPath)
+    (Test-Path -LiteralPath $investigationAreaCatalogLuaPath) -and
+    (Test-Path -LiteralPath $trophyLuaPath)
 ) {
     & $luaCompilerPath -p `
         $runtimeLuaPath `
-        $investigationAreaCatalogLuaPath *> $null
+        $investigationAreaCatalogLuaPath `
+        $trophyLuaPath *> $null
     $areaBridgeLuaParses = $LASTEXITCODE -eq 0
 }
 Add-Result (
     $areaBridgeLuaParses
-) 'runtime bridge and generated investigation area catalog pass LuaCompiler'
+) 'runtime bridge, area catalog and trophy lifecycle pass LuaCompiler'
 
 Add-Result (
     $buildScriptText.Contains('function Set-ReproducibleTimestamps') -and
@@ -3525,7 +3630,7 @@ foreach ($localizationText in @($englishText, $russianText)) {
     }
 }
 Add-Result (
-    $questTemplateText.Contains('<State Name="cleanupProgress" TypeT="DP_CleanupProgress">') -and
+    $questTemplateText.Contains('<State Name="cleanupProgress" TypeT="{{DP_CLEANUP_PROGRESS_TYPE}}">') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />') -and
     $questTemplateText.Contains('<StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />') -and
@@ -3545,6 +3650,7 @@ foreach ($key in @(
     'dp_burial_no_shovel',
     'dp_burial_bad_ground',
     'dp_burial_quest_item',
+    'dp_burial_trophy_pending',
     'dp_burial_busy',
     'dp_burial_in_combat',
     'dp_burial_skiptime'

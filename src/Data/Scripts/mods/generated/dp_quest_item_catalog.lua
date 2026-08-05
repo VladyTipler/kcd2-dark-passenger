@@ -127,6 +127,7 @@ DarkPassengerQuestItemCatalog = {
     ["721c3333-c48e-4306-8709-69b085bba566"] = true,
     ["73404591-f72d-44a5-91ed-e729ef7a3cef"] = true,
     ["735b8e98-48df-44d7-ab02-05ccef87f35e"] = true,
+    ["73762008-de9b-4c42-b509-235e63e60840"] = true,
     ["7584e83a-4329-4fcb-94a6-eb3c9af2390c"] = true,
     ["75ed6ef0-ba24-45c4-95f6-1602aeb2c816"] = true,
     ["76d8cec6-eb5b-4030-a568-f6fb63f99d86"] = true,

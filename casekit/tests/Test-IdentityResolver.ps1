@@ -126,6 +126,32 @@ try {
         ) "reviewed evidence container $guid is centrally profiled"
     }
 
+    $relationProfile = [pscustomobject]@{
+        schemaVersion = 1
+        region = 'trosecko'
+        settlement = 'zelejov'
+        entities = @(
+            [pscustomobject]@{
+                entityGuid = 'aaf89994-e94b-0309'
+                relations = @(
+                    [pscustomobject]@{
+                        type = 'home-container-of'
+                        targetEntityName = 'tzel_vavrinec'
+                    }
+                )
+            }
+        )
+    }
+    $related = Merge-CaseKitSettlementProfile `
+        -WorldIndex $profiled -Profile $relationProfile
+    $relatedChest = $related.entities |
+        Where-Object entityGuid -eq 'aaf89994-e94b-0309'
+    Add-Result (
+        @($relatedChest.relations).Count -eq 1 -and
+        $relatedChest.relations[0].type -eq 'home-container-of' -and
+        $relatedChest.relations[0].targetEntityName -eq 'tzel_vavrinec'
+    ) 'profile preserves reviewed actor-container relations'
+
     $missingProfile = [pscustomobject]@{
         schemaVersion = 1
         region = 'trosecko'

@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 2,
+  "storyId": "composed-case-probe",
+  "threads": [
+    {
+      "id": "paper-trail",
+      "archetypeId": "paper-trail",
+      "lead": {
+        "mode": "case_start",
+        "requiresFacts": [],
+        "directionAsset": "direction.paper"
+      },
+      "entryStepIds": ["ask-innkeeper"],
+      "steps": [
+        {
+          "id": "ask-innkeeper",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "source-dialogue",
+            "bindings": {"source": "rumorSource"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.innkeeper.prompt",
+                "responses": ["dialogue.innkeeper.response"],
+                "journal": "journal.rumor"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["traveler_missing"],
+            "nextStepIds": ["read-letter"],
+            "unlockThreadIds": []
+          }
+        },
+        {
+          "id": "read-letter",
+          "kind": "search",
+          "action": {
+            "evidenceModule": "document-in-container",
+            "bindings": {"container": "evidenceContainer"},
+            "placement": {"mode": "world-container"},
+            "item": {
+              "classification": "quest",
+              "retention": "case"
+            }
+          },
+          "requiresFacts": ["traveler_missing"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "name": "document.letter.name",
+                "info": "document.letter.info",
+                "body": "document.letter.body",
+                "journal": "journal.letter"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["letter_links_target"],
+            "nextStepIds": [],
+            "unlockThreadIds": ["witness-web"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "witness-web",
+      "archetypeId": "witness-web",
+      "lead": {
+        "mode": "fact",
+        "requiresFacts": ["letter_links_target"],
+        "directionAsset": "direction.witness"
+      },
+      "entryStepIds": ["question-witness"],
+      "steps": [
+        {
+          "id": "question-witness",
+          "kind": "communication",
+          "action": {
+            "evidenceModule": "witness-dialogue",
+            "bindings": {"witness": "witness"}
+          },
+          "requiresFacts": ["letter_links_target"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.witness.prompt",
+                "responses": ["dialogue.witness.response"],
+                "journal": "journal.witness"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["target_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -111,6 +111,16 @@
       "role": "document",
       "confidence": 30,
       "placement": "case_start",
+      "destination": {
+        "qualifiedId": "paper-trail/read-letter",
+        "mode": "world-container",
+        "actorSlot": "",
+        "actorEntityName": "",
+        "actorEntityGuid": "",
+        "containerSlot": "evidenceContainer",
+        "containerEntityName": "stash[Chest/chest119_8a251500-3764-482f-aa61-7c397aa24bf0]",
+        "containerEntityGuid": "277db45d-28ac-0286"
+      },
       "discoverableWithoutHint": true,
       "hintsUnlockedBy": ["pritoky_innkeeper_strong_suspicion"],
       "reveals": [
@@ -123,6 +133,8 @@
       },
       "item": {
         "name": "dp_vojtech_last_letter",
+        "classification": "quest",
+        "retention": "case",
         "nameKey": "dp_vojtech_letter_name",
         "infoKey": "dp_vojtech_letter_info",
         "contentKey": "dp_vojtech_letter_content"

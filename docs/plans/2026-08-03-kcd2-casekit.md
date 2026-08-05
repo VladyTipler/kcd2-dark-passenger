@@ -13,6 +13,11 @@
 ## Guardrails
 
 - Keep one universal regional quest container; do not generate a quest graph per story.
+- Treat `CaseDefinition` and `SceneDefinition` as build-time content, and
+  `CaseInstance` and `SceneInstance` as persisted runtime state.
+- Runtime may resolve live actors, place predefined evidence and activate
+  compiled assets; it must not generate dialogue, roles, cameras or quest XML.
+- Let one StoryPack compose several `InvestigationArchetype` mini-chains.
 - Keep existing numeric codes, enum values and aliases as save schema.
 - Preserve `tools/CaseSpecCompiler.psm1` as native backend until parity passes.
 - Generated files are disposable; authored files are the source of truth.
@@ -399,7 +404,41 @@ git add -- casekit content/archetypes content/stories content/evidence-modules
 git commit -m "feat: add typed casebuilder contracts"
 ```
 
-### Task 5: Implement deterministic compatibility solving
+### Task 5: Extend authoring to compositional StoryPack schema v2
+
+**Status:** Done. Schema v1 remains readable and normalizes to v2; the focused
+contract suite passes 41 checks.
+
+**Files:**
+- Modify: `casekit/core/CaseKit.Authoring.psm1`
+- Modify: `casekit/core/CaseKit.Model.psm1`
+- Modify: `casekit/tests/Test-CaseBuilderContracts.ps1`
+- Create: `casekit/tests/fixtures/authoring/v2/`
+
+**TDD contract:**
+
+1. Write failing tests for a package split across `case.json`, `threads.json`,
+   dialogues, documents and exact RU/EN localization parity.
+2. Require composition of several `InvestigationArchetype` ids, a connected
+   fact graph, reachable confidence and at least one reachable hard identity
+   fact.
+3. Validate semantic scene presets without exposing native GUIDs or animation
+   names to StoryPack content.
+4. Keep schema v1 readable as a migration input; emit normalized schema v2.
+
+**Verification:**
+
+```powershell
+pwsh -NoProfile -File '.\casekit\tests\Test-CaseBuilderContracts.ps1'
+```
+
+Expected: v1 still passes; valid v2 normalizes deterministically; invalid
+graph, localization or scene preset fails with an exact source path.
+
+### Task 6: Implement deterministic compatibility solving
+
+**Status:** Done. The isolated solver passes 16 focused checks; all 11 CaseKit
+suites pass 102 checks without changing shipping artifacts or save state.
 
 **Files:**
 - Create: `casekit/core/CaseKit.Compatibility.psm1`
@@ -416,6 +455,10 @@ Test a matrix with:
 - one actor incorrectly proposed for conflicting source and target slots;
 - one story-critical or dead target;
 - deterministic variant ranking and a configurable cap.
+- one StoryPack composing several archetypes with intersecting threads;
+- one settlement rejection that does not fail the complete build;
+- one active StoryPack with zero variants that does fail the build;
+- one draft pack and explicit regional coverage contracts.
 
 Expected report shape:
 
@@ -445,8 +488,10 @@ The solver must:
 2. allocate slots without conflicts;
 3. render and validate both languages against the candidate binding;
 4. prove playable evidence and confidence reachability;
-5. sort by authored preference, identity quality and stable GUID;
-6. emit at most `MaxVariantsPerCombination`.
+5. prove at least one reachable hard identity fact;
+6. enforce StoryPack and deck-level coverage contracts;
+7. sort by authored preference, identity quality and stable GUID;
+8. emit at most `MaxVariantsPerCombination`.
 
 Use deterministic variant IDs derived from the full binding seed through the
 existing stable GUID/hash convention.
@@ -466,7 +511,12 @@ git add -- casekit/core/CaseKit.Compatibility.psm1 casekit/tests
 git commit -m "feat: solve compatible case bindings"
 ```
 
-### Task 6: Materialize neutral variants through the proven native backend
+### Task 7: Materialize neutral variants through the proven native backend
+
+**Status:** Done. The neutral materializer passes 13 checks; the disk/compiler
+parity suite proves byte-identical native artifacts for cases 1001 and 2001.
+All 12 CaseKit suites pass. `Build-Mod.ps1` now routes through a generated
+CaseVariant root while legacy CaseSpecs remain the migration source.
 
 **Files:**
 - Create: `casekit/adapters/kcd2/CaseKit.Kcd2Materializer.psm1`
@@ -514,6 +564,12 @@ Map neutral variants into the legacy normalized CaseSpec object expected by
 Update `Build-Mod.ps1` to call `casekit/cli/Compile-CaseKit.ps1`, then pass its
 variant output into the existing native compiler.
 
+Emit shared dialogue, localization, document and semantic scene definitions
+once where possible. Per-settlement variants contain concrete bindings and
+stable aliases rather than duplicate an entire native registry without need.
+The first semantic scene adapter is `lying-interrogation`, built from the
+live-proven lying-character camera rig.
+
 **Step 4: Run focused integration sequentially**
 
 ```powershell
@@ -533,7 +589,12 @@ git add -- casekit tools/Compile-CaseSpecs.ps1 tools/Build-Mod.ps1 tests/Test-Ca
 git commit -m "feat: materialize casekit variants"
 ```
 
-### Task 7: Migrate both authored cases and remove per-case world bindings
+### Task 8: Migrate both authored cases and remove per-case world bindings - completed
+
+Completed with exact native artifact parity. Production builds now start from
+schema-v2 StoryPacks, settlement profiles, stable IDs and the KCD2 adapter. The
+old CaseSpecs and binding manifest remain only under `content/migration` as
+explicit regression fixtures.
 
 **Files:**
 - Create: `content/stories/convenient-accident.story.json`
@@ -587,7 +648,15 @@ git add -A -- content config tests/Test-CaseContentMigration.ps1
 git commit -m "refactor: author cases through casekit"
 ```
 
-### Task 8: Select and persist multiple compiled variants at runtime
+### Task 9: Select variants and materialize scenes at runtime
+
+**Status:** Done. The production build emits 32 finite variants from the two
+current StoryPacks; 16 are `native_ready` for their reviewed native region.
+Runtime selection filters policy-valid living candidates, applies target
+anti-repeat, persists schema-v3 variant identity before presentation, and
+restores without reroll. `SceneDirector` builds bound scene instances, delegates
+to the proven idempotent evidence/lead adapters, and retries streamed-out actors.
+The packaged master contract passes 912 checks.
 
 **Files:**
 - Modify: `src/Data/Scripts/mods/dpcasecontent.lua`
@@ -596,6 +665,7 @@ git commit -m "refactor: author cases through casekit"
 - Modify: `tests/Test-CaseContent.ps1`
 - Modify: `tests/Test-TargetRestoreIdempotency.ps1`
 - Create: `tests/Test-CaseVariantSelection.ps1`
+- Create: `tests/Test-CaseSceneMaterialization.ps1`
 
 **Step 1: Write failing runtime contract tests**
 
@@ -608,10 +678,22 @@ Assert selection:
 - never rerolls after save/load, movement, Lua reload or streaming retry;
 - migrates existing case 1001/2001 snapshots without replacing the target.
 
+Assert scene materialization:
+
+- resolves the nearest supported settlement before reading its variant pool;
+- creates one persisted `CaseInstance` from one compiled `CaseDefinition`;
+- binds live actors, places and containers to each `SceneInstance`;
+- places predefined evidence idempotently;
+- activates only compiled dialogue, role, quest, marker, area and camera assets;
+- restores scene and evidence state without reroll or duplicate confidence;
+- offers `pre-execution-interrogation` once under its approved target,
+  consciousness and Cockeral conditions.
+
 **Step 2: Run and verify failure**
 
 ```powershell
 pwsh -NoProfile -File '.\tests\Test-CaseVariantSelection.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseSceneMaterialization.ps1'
 ```
 
 Expected: FAIL because runtime catalogs assume one authored case per region.
@@ -619,8 +701,8 @@ Expected: FAIL because runtime catalogs assume one authored case per region.
 **Step 3: Implement minimal variant selection**
 
 Keep the runtime policy small: filter, weighted choose, persist snapshot, then
-invoke existing evidence and presentation systems. Do not add runtime template
-rendering or native graph mutation.
+invoke a small `SceneDirector` over the existing evidence and presentation
+systems. Do not add runtime template rendering or native graph mutation.
 
 **Step 4: Run runtime regression tests**
 
@@ -642,7 +724,89 @@ git add -- src/Data/Scripts/mods tests
 git commit -m "feat: persist compiled case variants"
 ```
 
-### Task 9: Finish build integration, docs and extraction readiness
+The known standing-to-unconscious fall after the interrogation is a deferred
+presentation bug. It does not block the mechanical contract; later work should
+replace the exit pose/state transition without changing scene domain logic.
+
+### Task 10: Compile and place one victim trophy after target death
+
+**Status:** Done. Both active StoryPacks compile a semantic `bird-feather`
+trophy into every concrete variant. The native backend emits 32 stable,
+non-divisible item definitions plus Russian and English copy. On target death,
+`dptrophy.lua` persists `pending -> placed -> collected`, places the item before
+the target binding is cleared, restores the corpse through the immutable case
+snapshot after streaming, and never changes investigation or aftermath
+semantics. Focused contracts pass 13/13 compiler and 28/28 runtime checks;
+native parity passes 11/11 and the packaged master suite passes 916 checks.
+Actual corpse presentation, pickup and save/load remain the live acceptance
+test; static/build integration is complete.
+
+**Files:**
+- Modify: `casekit/core/CaseKit.Authoring.psm1`
+- Modify: `casekit/adapters/kcd2/CaseKit.Kcd2Materializer.psm1`
+- Modify: `tools/CaseSpecCompiler.psm1`
+- Create: `src/Data/Scripts/mods/dptrophy.lua`
+- Create: `tests/Test-CaseTrophyCompiler.ps1`
+- Create: `tests/Test-TargetTrophyRuntime.ps1`
+
+**TDD contract:**
+
+1. Add an optional semantic `TrophyDefinition` to a compiled CaseVariant.
+2. Generate one unique, non-stackable item row and RU/EN description per
+   concrete variant through a central `bird-feather` asset preset.
+   Canonical labels: **"Трофей - Окровавленное перо"** and
+   **"Trophy - Bloodied Feather"**.
+3. On selected-target death, create the item in that corpse inventory before
+   clearing the target binding.
+4. Persist `pending -> placed -> collected`; detect the item in the corpse or
+   Henry inventory and repair stale state without duplication.
+5. Prove repeated death signals, save/load, Lua reload and streaming retry do
+   not create a second trophy.
+6. Keep confidence, satisfaction, aftermath and Case completion unchanged.
+
+The initial icon/model may be an ordinary vanilla bird feather. The later
+bloodied-feather icon replaces only the central asset preset, not StoryPacks or
+runtime logic. A deferred Lua follow-up blocks burial while the selected target
+corpse still holds its trophy and shows **"Я ещё не взял то, за чем пришёл."**
+Do not mix that polish into this core slice.
+
+**Verification:**
+
+```powershell
+pwsh -NoProfile -File '.\tests\Test-CaseTrophyCompiler.ps1'
+pwsh -NoProfile -File '.\tests\Test-TargetTrophyRuntime.ps1'
+```
+
+Expected: exactly one collectible appears on the selected target corpse and
+survives state restoration without duplication.
+
+### Task 11: Prove the rich StoryPack model with the love-triangle case
+
+**Files:**
+- Create: `content/stories/love-triangle/case.json`
+- Create: `content/stories/love-triangle/threads.json`
+- Create: `content/stories/love-triangle/dialogues/`
+- Create: `content/stories/love-triangle/documents/`
+- Create: `content/stories/love-triangle/localization/ru.json`
+- Create: `content/stories/love-triangle/localization/en.json`
+- Create: `casekit/tests/Test-LoveTriangleStoryPack.ps1`
+
+**TDD contract:**
+
+1. Encode the approved canonical truth and several intersecting investigation
+   routes without concrete world GUIDs.
+2. Require `confidence >= 70` and at least one hard identity fact before target
+   reveal.
+3. Compile wherever settlement capabilities fit; do not require both regions
+   unless the StoryPack explicitly declares that coverage.
+4. Include the optional authored pre-execution confession scene.
+5. Prove one complete route and selected alternate clue orders automatically;
+   live-test only new scene or evidence boundaries.
+
+Content prose, dialogue branches and clue wording remain subject to explicit
+review before implementation.
+
+### Task 12: Finish build integration, docs and extraction readiness
 
 **Files:**
 - Modify: `casekit/README.md`

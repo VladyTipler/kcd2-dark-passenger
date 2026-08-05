@@ -3,8 +3,10 @@ param()
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$casePath = Join-Path $repoRoot 'content\cases\missing-traveler.case.json'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$casePath = Join-Path $repoRoot `
+    'content\migration\legacy-cases\missing-traveler.case.json'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 $modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
 
 $script:checks = 0

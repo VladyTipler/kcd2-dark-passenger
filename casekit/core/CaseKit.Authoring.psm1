@@ -3,6 +3,40 @@ Set-StrictMode -Version Latest
 $templateModulePath = Join-Path $PSScriptRoot 'CaseKit.Templates.psm1'
 Import-Module $templateModulePath -Force
 
+$script:CaseKitScenePresets = @(
+    'standing-conversation',
+    'seated-tavern',
+    'lying-interrogation'
+)
+$script:CaseKitTrophyPresets = @(
+    'bird-feather'
+)
+$script:CaseKitItemClassifications = @(
+    'quest',
+    'loot'
+)
+$script:CaseKitItemRetentions = @(
+    'case',
+    'permanent'
+)
+$script:CaseKitEvidencePlacementModes = @(
+    'world-container',
+    'actor-inventory',
+    'actor-container',
+    'actor-home-container'
+)
+$script:CaseKitForbiddenNativeFields = @(
+    'animation',
+    'animationName',
+    'cameraGuid',
+    'coordinates',
+    'entityGuid',
+    'guid',
+    'modelPath',
+    'soulGuid',
+    'worldPosition'
+)
+
 function Read-CaseKitAuthoringJson {
     param([Parameter(Mandatory)][string]$LiteralPath)
 
@@ -179,6 +213,784 @@ function Assert-CaseKitEvidenceModules {
             throw "Evidence module '$($module.id)' in '$($entry.path)' has " +
                 'an invalid confidence range.'
         }
+    }
+}
+
+function Assert-CaseKitNoNativeAuthoringFields {
+    param(
+        [Parameter(Mandatory)]$Value,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    if ($Value -is [string] -or $Value -is [ValueType]) {
+        return
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        foreach ($key in $Value.Keys) {
+            if ($script:CaseKitForbiddenNativeFields -icontains [string]$key) {
+                throw "StoryPack contains forbidden native field '$key' in " +
+                    "'$SourcePath'."
+            }
+            Assert-CaseKitNoNativeAuthoringFields -Value $Value[$key] `
+                -SourcePath $SourcePath
+        }
+        return
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        foreach ($item in $Value) {
+            Assert-CaseKitNoNativeAuthoringFields -Value $item `
+                -SourcePath $SourcePath
+        }
+        return
+    }
+    foreach ($property in $Value.PSObject.Properties) {
+        if ($script:CaseKitForbiddenNativeFields -icontains $property.Name) {
+            throw "StoryPack contains forbidden native field " +
+                "'$($property.Name)' in '$SourcePath'."
+        }
+        Assert-CaseKitNoNativeAuthoringFields -Value $property.Value `
+            -SourcePath $SourcePath
+    }
+}
+
+function Read-CaseKitDefinitionDirectory {
+    param(
+        [Parameter(Mandatory)][string]$LiteralPath,
+        [Parameter(Mandatory)][string]$Kind
+    )
+
+    if (-not (Test-Path -LiteralPath $LiteralPath -PathType Container)) {
+        throw "CaseKit v2 $Kind directory not found: $LiteralPath"
+    }
+    return @(Get-ChildItem -LiteralPath $LiteralPath -Filter '*.json' -File |
+        Sort-Object FullName | ForEach-Object {
+            $value = Read-CaseKitAuthoringJson -LiteralPath $_.FullName
+            Assert-CaseKitNoNativeAuthoringFields -Value $value `
+                -SourcePath $_.FullName
+            [pscustomobject]@{
+                path = $_.FullName
+                value = $value
+            }
+        })
+}
+
+function Assert-CaseKitV2Localization {
+    param(
+        [Parameter(Mandatory)]$Russian,
+        [Parameter(Mandatory)]$English,
+        [Parameter(Mandatory)][string]$RussianPath,
+        [Parameter(Mandatory)][string]$EnglishPath
+    )
+
+    $ruKeys = @(Get-CaseKitPropertyNames -Value $Russian | Sort-Object)
+    $enKeys = @(Get-CaseKitPropertyNames -Value $English | Sort-Object)
+    foreach ($key in $ruKeys) {
+        if ($enKeys -notcontains $key) {
+            throw "StoryPack is missing English localization key '$key' in " +
+                "'$EnglishPath'."
+        }
+    }
+    foreach ($key in $enKeys) {
+        if ($ruKeys -notcontains $key) {
+            throw "StoryPack is missing Russian localization key '$key' in " +
+                "'$RussianPath'."
+        }
+    }
+}
+
+function Assert-CaseKitV2TrophyDefinition {
+    param(
+        [Parameter(Mandatory)]$Case,
+        [Parameter(Mandatory)]$AssetKeys,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $definition = Get-CaseKitProperty `
+        -Value $Case -Name 'trophyDefinition'
+    if ($null -eq $definition) { return }
+
+    $preset = [string](Get-CaseKitProperty `
+        -Value $definition -Name 'preset')
+    if ($script:CaseKitTrophyPresets -notcontains $preset) {
+        throw "Story '$($Case.id)' uses unknown trophy preset '$preset' " +
+            "in '$SourcePath'."
+    }
+    $descriptionAsset = [string](Get-CaseKitProperty `
+        -Value $definition -Name 'descriptionAsset')
+    Assert-CaseKitAssetReference -AssetKey $descriptionAsset `
+        -AssetKeys $AssetKeys `
+        -Context "Story '$($Case.id)' TrophyDefinition" `
+        -SourcePath $SourcePath
+
+    $item = Get-CaseKitProperty -Value $definition -Name 'item'
+    if ($null -eq $item) {
+        throw "Story '$($Case.id)' TrophyDefinition requires item semantics " +
+            "in '$SourcePath'."
+    }
+    $classification = [string](Get-CaseKitProperty `
+        -Value $item -Name 'classification')
+    if ($classification -ne 'loot') {
+        throw "Story '$($Case.id)' TrophyDefinition must use loot item " +
+            "classification in '$SourcePath'."
+    }
+    $retention = [string](Get-CaseKitProperty `
+        -Value $item -Name 'retention')
+    if ($retention -ne 'permanent') {
+        throw "Story '$($Case.id)' TrophyDefinition must use permanent " +
+            "retention in '$SourcePath'."
+    }
+    $weight = Get-CaseKitProperty -Value $item -Name 'weight'
+    if ($null -eq $weight -or [double]$weight -ne 0) {
+        throw "Story '$($Case.id)' TrophyDefinition must have zero weight " +
+            "in '$SourcePath'."
+    }
+}
+
+function Assert-CaseKitV2PhysicalItem {
+    param(
+        [Parameter(Mandatory)]$Step,
+        [Parameter(Mandatory)]$Module,
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $physicalItem = Get-CaseKitProperty -Value $Module -Name 'physicalItem'
+    if ($physicalItem -ne $true) { return }
+
+    $item = Get-CaseKitProperty -Value $Step.action -Name 'item'
+    $classification = if ($null -eq $item) { '' } else {
+        [string](Get-CaseKitProperty -Value $item -Name 'classification')
+    }
+    if ([string]::IsNullOrWhiteSpace($classification)) {
+        throw "$Context physical item requires explicit classification in " +
+            "'$SourcePath'."
+    }
+    if ($script:CaseKitItemClassifications -notcontains $classification) {
+        throw "$Context uses unknown item classification '$classification' " +
+            "in '$SourcePath'."
+    }
+    $retention = [string](Get-CaseKitProperty `
+        -Value $item -Name 'retention')
+    if ($script:CaseKitItemRetentions -notcontains $retention) {
+        throw "$Context uses unknown item retention '$retention' in " +
+            "'$SourcePath'."
+    }
+}
+
+function Assert-CaseKitV2EvidencePlacement {
+    param(
+        [Parameter(Mandatory)]$Step,
+        [Parameter(Mandatory)]$Module,
+        [Parameter(Mandatory)]$Slots,
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $physicalItem = Get-CaseKitProperty -Value $Module -Name 'physicalItem'
+    $placement = Get-CaseKitProperty -Value $Step.action -Name 'placement'
+    if ($physicalItem -ne $true) {
+        if ($null -ne $placement) {
+            throw "$Context declares placement for non-physical evidence " +
+                "in '$SourcePath'."
+        }
+        return
+    }
+    if ($null -eq $placement) {
+        throw "$Context physical item requires explicit placement in " +
+            "'$SourcePath'."
+    }
+
+    $mode = [string](Get-CaseKitProperty -Value $placement -Name 'mode')
+    if ($script:CaseKitEvidencePlacementModes -notcontains $mode) {
+        throw "$Context uses unknown placement mode '$mode' in " +
+            "'$SourcePath'."
+    }
+    if ($mode -eq 'world-container') { return }
+
+    $actorSlotName = [string](Get-CaseKitProperty `
+        -Value $placement -Name 'actor')
+    if ([string]::IsNullOrWhiteSpace($actorSlotName)) {
+        throw "$Context placement mode '$mode' requires actor slot in " +
+            "'$SourcePath'."
+    }
+    $actorSlot = $Slots.PSObject.Properties[$actorSlotName]
+    if ($null -eq $actorSlot) {
+        throw "$Context placement references unknown actor slot " +
+            "'$actorSlotName' in '$SourcePath'."
+    }
+    if ([string]$actorSlot.Value.entityType -ne 'actor') {
+        throw "$Context placement slot '$actorSlotName' is not an actor in " +
+            "'$SourcePath'."
+    }
+}
+
+function Assert-CaseKitV2DefinitionAssets {
+    param(
+        [Parameter(Mandatory)][object[]]$Entries,
+        [Parameter(Mandatory)]$AssetKeys,
+        [Parameter(Mandatory)][bool]$RequireScenePreset
+    )
+
+    foreach ($entry in $Entries) {
+        $definition = $entry.value
+        if ($RequireScenePreset) {
+            $preset = [string](Get-CaseKitProperty `
+                -Value $definition -Name 'scenePreset')
+            if ($script:CaseKitScenePresets -notcontains $preset) {
+                throw "Definition '$($definition.id)' uses unknown scene " +
+                    "preset '$preset' in '$($entry.path)'."
+            }
+        }
+        foreach ($key in @($definition.localizationKeys)) {
+            Assert-CaseKitAssetReference -AssetKey ([string]$key) `
+                -AssetKeys $AssetKeys `
+                -Context "Definition '$($definition.id)'" `
+                -SourcePath $entry.path
+        }
+    }
+}
+
+function Read-CaseKitV2StoryPackage {
+    param([Parameter(Mandatory)][string]$CasePath)
+
+    $packageRoot = Split-Path -Parent $CasePath
+    $threadsPath = Join-Path $packageRoot 'threads.json'
+    $russianPath = Join-Path $packageRoot 'localization\ru.json'
+    $englishPath = Join-Path $packageRoot 'localization\en.json'
+    foreach ($requiredPath in @($threadsPath, $russianPath, $englishPath)) {
+        if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+            throw "CaseKit v2 package file not found: $requiredPath"
+        }
+    }
+
+    $case = Read-CaseKitAuthoringJson -LiteralPath $CasePath
+    $threads = Read-CaseKitAuthoringJson -LiteralPath $threadsPath
+    $russian = Read-CaseKitAuthoringJson -LiteralPath $russianPath
+    $english = Read-CaseKitAuthoringJson -LiteralPath $englishPath
+    foreach ($source in @(
+        [pscustomobject]@{ value = $case; path = $CasePath },
+        [pscustomobject]@{ value = $threads; path = $threadsPath }
+    )) {
+        Assert-CaseKitNoNativeAuthoringFields -Value $source.value `
+            -SourcePath $source.path
+    }
+    if ([int]$case.schemaVersion -ne 2 -or
+        [int]$threads.schemaVersion -ne 2) {
+        throw "CaseKit v2 package requires schemaVersion 2 in '$CasePath'."
+    }
+    if ([string]$threads.storyId -ne [string]$case.id) {
+        throw "threads.json storyId '$($threads.storyId)' does not match " +
+            "'$($case.id)' in '$threadsPath'."
+    }
+
+    Assert-CaseKitV2Localization -Russian $russian -English $english `
+        -RussianPath $russianPath -EnglishPath $englishPath
+    Assert-CaseKitV2TrophyDefinition -Case $case `
+        -AssetKeys $russian.PSObject.Properties.Name `
+        -SourcePath $CasePath
+    $dialogueEntries = @(Read-CaseKitDefinitionDirectory `
+        -LiteralPath (Join-Path $packageRoot 'dialogues') -Kind 'dialogues')
+    $documentEntries = @(Read-CaseKitDefinitionDirectory `
+        -LiteralPath (Join-Path $packageRoot 'documents') -Kind 'documents')
+    $null = New-CaseKitEntryMap -Entries $dialogueEntries `
+        -Kind 'dialogue definition'
+    $null = New-CaseKitEntryMap -Entries $documentEntries `
+        -Kind 'document definition'
+    $assetKeys = $russian.PSObject.Properties.Name
+    Assert-CaseKitV2DefinitionAssets -Entries $dialogueEntries `
+        -AssetKeys $assetKeys -RequireScenePreset $true
+    Assert-CaseKitV2DefinitionAssets -Entries $documentEntries `
+        -AssetKeys $assetKeys -RequireScenePreset $false
+
+    return [pscustomobject][ordered]@{
+        schemaVersion = 2
+        id = [string]$case.id
+        status = [string]$case.status
+        archetypes = @($case.archetypes)
+        truth = $case.truth
+        facts = @($case.facts)
+        reveal = $case.reveal
+        trophyDefinition = Get-CaseKitProperty `
+            -Value $case -Name 'trophyDefinition'
+        threads = @($threads.threads)
+        dialogues = @($dialogueEntries.value | Sort-Object id)
+        documents = @($documentEntries.value | Sort-Object id)
+        assets = [pscustomobject][ordered]@{
+            ru = $russian
+            en = $english
+        }
+        packageSources = [pscustomobject][ordered]@{
+            case = $CasePath
+            threads = $threadsPath
+            russian = $russianPath
+            english = $englishPath
+        }
+    }
+}
+
+function ConvertTo-CaseKitNormalizedStory {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)][int]$SourceSchemaVersion
+    )
+
+    $normalized = ($Story | ConvertTo-Json -Depth 100) |
+        ConvertFrom-Json -Depth 100
+    $archetypeCompositions = if ($SourceSchemaVersion -eq 1) {
+        @($Story.compatibleArchetypes | ForEach-Object {
+            [pscustomobject][ordered]@{
+                id = "legacy-$([string]$_)"
+                archetypeIds = @([string]$_)
+            }
+        })
+    }
+    else {
+        @([pscustomobject][ordered]@{
+            id = 'default'
+            archetypeIds = @($Story.archetypes | ForEach-Object {
+                [string]$_
+            })
+        })
+    }
+    $normalized | Add-Member -NotePropertyName schemaVersion `
+        -NotePropertyValue 2 -Force
+    $normalized | Add-Member -NotePropertyName sourceSchemaVersion `
+        -NotePropertyValue $SourceSchemaVersion -Force
+    $normalized | Add-Member -NotePropertyName archetypeCompositions `
+        -NotePropertyValue $archetypeCompositions -Force
+    if ($null -eq $normalized.PSObject.Properties['dialogues']) {
+        $normalized | Add-Member -NotePropertyName dialogues `
+            -NotePropertyValue @()
+    }
+    if ($null -eq $normalized.PSObject.Properties['documents']) {
+        $normalized | Add-Member -NotePropertyName documents `
+            -NotePropertyValue @()
+    }
+    return $normalized
+}
+
+function Merge-CaseKitV2ArchetypeSlots {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$ArchetypeMap,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $slots = [ordered]@{}
+    foreach ($archetypeId in @($Story.archetypes)) {
+        if (-not $ArchetypeMap.Contains([string]$archetypeId)) {
+            throw "Story '$($Story.id)' references unknown archetype " +
+                "'$archetypeId' in '$SourcePath'."
+        }
+        $archetype = $ArchetypeMap[[string]$archetypeId].value
+        foreach ($slot in $archetype.slots.PSObject.Properties) {
+            if (-not $slots.Contains($slot.Name)) {
+                $slots[$slot.Name] = $slot.Value
+                continue
+            }
+            $existing = $slots[$slot.Name] | ConvertTo-Json -Depth 20 -Compress
+            $candidate = $slot.Value | ConvertTo-Json -Depth 20 -Compress
+            if ($existing -ne $candidate) {
+                throw "Composed archetypes define incompatible slot " +
+                    "'$($slot.Name)' in '$SourcePath'."
+            }
+        }
+    }
+    return [pscustomobject]$slots
+}
+
+function Get-CaseKitV2Reachability {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$ArchetypeMap
+    )
+
+    $knownFacts = [System.Collections.Generic.HashSet[string]]::new()
+    $activeThreads = [System.Collections.Generic.HashSet[string]]::new()
+    $unlockedThreads = [System.Collections.Generic.HashSet[string]]::new()
+    $scoredSteps = [System.Collections.Generic.HashSet[string]]::new()
+    $structuralSteps = [ordered]@{}
+    foreach ($thread in @($Story.threads)) {
+        $stepMap = [ordered]@{}
+        foreach ($step in @($thread.steps)) {
+            $stepMap[[string]$step.id] = $step
+        }
+        $reachable = [System.Collections.Generic.HashSet[string]]::new()
+        $pending = [System.Collections.Generic.Queue[string]]::new()
+        foreach ($entryStepId in @($thread.entryStepIds)) {
+            $pending.Enqueue([string]$entryStepId)
+        }
+        while ($pending.Count -gt 0) {
+            $stepId = $pending.Dequeue()
+            if (-not $reachable.Add($stepId)) {
+                continue
+            }
+            foreach ($nextStepId in @($stepMap[$stepId].result.nextStepIds)) {
+                $pending.Enqueue([string]$nextStepId)
+            }
+        }
+        $structuralSteps[[string]$thread.id] = $reachable
+    }
+
+    $total = 0
+    $changed = $true
+    while ($changed) {
+        $changed = $false
+        foreach ($thread in @($Story.threads)) {
+            $threadId = [string]$thread.id
+            if (-not $activeThreads.Contains($threadId)) {
+                $leadFacts = @($thread.lead.requiresFacts)
+                $leadSatisfied = $true
+                foreach ($factId in $leadFacts) {
+                    if (-not $knownFacts.Contains([string]$factId)) {
+                        $leadSatisfied = $false
+                        break
+                    }
+                }
+                $mode = [string]$thread.lead.mode
+                $startsNaturally = $mode -in @('case_start', 'ambient')
+                $startsFromFact = $mode -eq 'fact' -and $leadFacts.Count -gt 0
+                if ($leadSatisfied -and (
+                    $startsNaturally -or $startsFromFact -or
+                    $unlockedThreads.Contains($threadId)
+                )) {
+                    $null = $activeThreads.Add($threadId)
+                    $changed = $true
+                }
+            }
+            if (-not $activeThreads.Contains($threadId)) {
+                continue
+            }
+
+            $archetype = $ArchetypeMap[
+                [string]$thread.archetypeId
+            ].value
+            foreach ($step in @($thread.steps)) {
+                $stepId = [string]$step.id
+                $stepKey = "$threadId/$stepId"
+                if ($scoredSteps.Contains($stepKey) -or
+                    -not $structuralSteps[$threadId].Contains($stepId)) {
+                    continue
+                }
+                $requirements = @($thread.lead.requiresFacts) +
+                    @($step.requiresFacts)
+                $canRun = $true
+                foreach ($factId in $requirements) {
+                    if (-not $knownFacts.Contains([string]$factId)) {
+                        $canRun = $false
+                        break
+                    }
+                }
+                if (-not $canRun) {
+                    continue
+                }
+                $null = $scoredSteps.Add($stepKey)
+                $rule = $archetype.evidenceRules.PSObject.Properties[
+                    [string]$step.action.evidenceModule
+                ]
+                $total += [int]$rule.Value.confidence
+                foreach ($factId in @($step.result.revealsFacts)) {
+                    $null = $knownFacts.Add([string]$factId)
+                }
+                foreach ($unlockedId in @($step.result.unlockThreadIds)) {
+                    $null = $unlockedThreads.Add([string]$unlockedId)
+                }
+                $changed = $true
+            }
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        maximumReachableConfidence = $total
+        knownFacts = @($knownFacts | Sort-Object)
+        activeThreads = @($activeThreads | Sort-Object)
+    }
+}
+
+function Assert-CaseKitV2StoryContract {
+    param(
+        [Parameter(Mandatory)]$StoryEntry,
+        [Parameter(Mandatory)]$ArchetypeMap,
+        [Parameter(Mandatory)]$ModuleMap
+    )
+
+    $story = $StoryEntry.value
+    $casePath = [string]$story.packageSources.case
+    $threadsPath = [string]$story.packageSources.threads
+    $factMap = [ordered]@{}
+    foreach ($fact in @($story.facts)) {
+        $factId = [string]$fact.id
+        if ([string]::IsNullOrWhiteSpace($factId)) {
+            throw "Story '$($story.id)' contains a fact without id in " +
+                "'$casePath'."
+        }
+        if ($factMap.Contains($factId)) {
+            throw "Duplicate fact '$factId' in '$casePath'."
+        }
+        $factMap[$factId] = $fact
+    }
+    Assert-CaseKitFactsExist -FactIds @($story.reveal.requiredFacts) `
+        -FactMap $factMap -Context "Story '$($story.id)' reveal" `
+        -SourcePath $casePath
+    foreach ($factId in @($story.reveal.requiredFacts)) {
+        $hardIdentity = Get-CaseKitProperty -Value $factMap[[string]$factId] `
+            -Name 'hardIdentity'
+        if ($hardIdentity -ne $true) {
+            throw "Story '$($story.id)' required reveal fact '$factId' is " +
+                "not a hard identity fact in '$casePath'."
+        }
+    }
+
+    $mergedSlots = Merge-CaseKitV2ArchetypeSlots -Story $story `
+        -ArchetypeMap $ArchetypeMap -SourcePath $casePath
+    $templateArchetype = [pscustomobject]@{ slots = $mergedSlots }
+    Assert-CaseKitTemplateContract -Story $story `
+        -Archetype $templateArchetype -SourcePath $casePath
+
+    $threadMap = [ordered]@{}
+    foreach ($thread in @($story.threads)) {
+        $threadId = [string]$thread.id
+        if ([string]::IsNullOrWhiteSpace($threadId)) {
+            throw "Story '$($story.id)' contains a thread without id in " +
+                "'$threadsPath'."
+        }
+        if ($threadMap.Contains($threadId)) {
+            throw "Duplicate thread '$threadId' in '$threadsPath'."
+        }
+        $threadMap[$threadId] = $thread
+    }
+
+    $moduleCountsByArchetype = [ordered]@{}
+    foreach ($archetypeId in @($story.archetypes)) {
+        $moduleCountsByArchetype[[string]$archetypeId] = [ordered]@{}
+    }
+    foreach ($thread in @($story.threads)) {
+        $threadId = [string]$thread.id
+        $archetypeId = [string]$thread.archetypeId
+        if (@($story.archetypes) -notcontains $archetypeId -or
+            -not $ArchetypeMap.Contains($archetypeId)) {
+            throw "Thread '$threadId' references uncomposed archetype " +
+                "'$archetypeId' in '$threadsPath'."
+        }
+        $archetype = $ArchetypeMap[$archetypeId].value
+        if (@($archetype.threadRules.allowedLeadModes) -notcontains
+            [string]$thread.lead.mode) {
+            throw "Thread '$threadId' uses unsupported lead mode " +
+                "'$($thread.lead.mode)' in '$threadsPath'."
+        }
+        Assert-CaseKitFactsExist -FactIds @($thread.lead.requiresFacts) `
+            -FactMap $factMap -Context "Thread '$threadId' lead" `
+            -SourcePath $threadsPath
+        Assert-CaseKitAssetReference `
+            -AssetKey ([string]$thread.lead.directionAsset) `
+            -AssetKeys $story.assets.ru.PSObject.Properties.Name `
+            -Context "Thread '$threadId' lead" -SourcePath $threadsPath
+
+        $stepMap = [ordered]@{}
+        foreach ($step in @($thread.steps)) {
+            $stepId = [string]$step.id
+            if ($stepMap.Contains($stepId)) {
+                throw "Duplicate step '$stepId' in thread '$threadId' in " +
+                    "'$threadsPath'."
+            }
+            $stepMap[$stepId] = $step
+        }
+        foreach ($entryStepId in @($thread.entryStepIds)) {
+            if (-not $stepMap.Contains([string]$entryStepId)) {
+                throw "Thread '$threadId' has unknown entry step " +
+                    "'$entryStepId' in '$threadsPath'."
+            }
+        }
+
+        foreach ($step in @($thread.steps)) {
+            $context = "Step '$threadId/$($step.id)'"
+            if (@($archetype.threadRules.allowedStepKinds) -notcontains
+                [string]$step.kind) {
+                throw "$context uses unsupported kind '$($step.kind)' in " +
+                    "'$threadsPath'."
+            }
+            $moduleId = [string]$step.action.evidenceModule
+            if (-not $ModuleMap.Contains($moduleId)) {
+                throw "Unknown evidence module '$moduleId' in $context in " +
+                    "'$threadsPath'."
+            }
+            $rule = $archetype.evidenceRules.PSObject.Properties[$moduleId]
+            if ($null -eq $rule) {
+                throw "Archetype '$archetypeId' does not allow evidence " +
+                    "module '$moduleId' in '$threadsPath'."
+            }
+            $module = $ModuleMap[$moduleId].value
+            Assert-CaseKitV2PhysicalItem -Step $step -Module $module `
+                -Context $context -SourcePath $threadsPath
+            Assert-CaseKitV2EvidencePlacement -Step $step -Module $module `
+                -Slots $mergedSlots -Context $context `
+                -SourcePath $threadsPath
+            if ([string]$module.stepKind -ne [string]$step.kind) {
+                throw "Evidence module '$moduleId' requires step kind " +
+                    "'$($module.stepKind)', got '$($step.kind)' in $context " +
+                    "in '$threadsPath'."
+            }
+            $confidence = [int]$rule.Value.confidence
+            if ($confidence -lt [int]$module.confidence.minimum -or
+                $confidence -gt [int]$module.confidence.maximum) {
+                throw "Confidence $confidence for '$moduleId' is outside " +
+                    "its allowed range in '$threadsPath'."
+            }
+            $counts = $moduleCountsByArchetype[$archetypeId]
+            if (-not $counts.Contains($moduleId)) {
+                $counts[$moduleId] = 0
+            }
+            $counts[$moduleId]++
+
+            foreach ($port in $module.bindingPorts.PSObject.Properties) {
+                $slotName = [string](Get-CaseKitProperty `
+                    -Value $step.action.bindings -Name $port.Name)
+                if ([string]::IsNullOrWhiteSpace($slotName)) {
+                    throw "$context is missing binding port '$($port.Name)' " +
+                        "in '$threadsPath'."
+                }
+                $slot = $mergedSlots.PSObject.Properties[$slotName]
+                if ($null -eq $slot) {
+                    throw "$context binds '$($port.Name)' to unknown slot " +
+                        "'$slotName' in '$threadsPath'."
+                }
+                if ($slot.Value.entityType -ne $port.Value.entityType) {
+                    throw "$context binds '$($port.Name)' to incompatible " +
+                        "slot '$slotName' in '$threadsPath'."
+                }
+                foreach ($capability in @($port.Value.capabilities)) {
+                    if (@($slot.Value.capabilities) -notcontains $capability) {
+                        throw "Slot '$slotName' lacks capability '$capability' " +
+                            "for $context in '$threadsPath'."
+                    }
+                }
+            }
+
+            Assert-CaseKitFactsExist -FactIds @($step.requiresFacts) `
+                -FactMap $factMap -Context $context -SourcePath $threadsPath
+            Assert-CaseKitFactsExist -FactIds @($step.result.revealsFacts) `
+                -FactMap $factMap -Context "$context result" `
+                -SourcePath $threadsPath
+            foreach ($nextStepId in @($step.result.nextStepIds)) {
+                if (-not $stepMap.Contains([string]$nextStepId)) {
+                    throw "$context points to unknown step '$nextStepId' in " +
+                        "'$threadsPath'."
+                }
+            }
+            foreach ($nextThreadId in @($step.result.unlockThreadIds)) {
+                if (-not $threadMap.Contains([string]$nextThreadId)) {
+                    throw "$context unlocks unknown thread '$nextThreadId' " +
+                        "in '$threadsPath'."
+                }
+            }
+            foreach ($presentation in @($step.presentations)) {
+                Assert-CaseKitFactsExist `
+                    -FactIds @($presentation.when.allKnown) `
+                    -FactMap $factMap `
+                    -Context "$context presentation '$($presentation.id)'" `
+                    -SourcePath $threadsPath
+                Assert-CaseKitFactsExist `
+                    -FactIds @($presentation.when.allUnknown) `
+                    -FactMap $factMap `
+                    -Context "$context presentation '$($presentation.id)'" `
+                    -SourcePath $threadsPath
+                foreach ($contentPort in @($module.requiredContent)) {
+                    if ($null -eq $presentation.content.PSObject.Properties[
+                        [string]$contentPort
+                    ]) {
+                        throw "$context presentation '$($presentation.id)' " +
+                            "is missing content '$contentPort' in " +
+                            "'$threadsPath'."
+                    }
+                }
+                foreach ($assetKey in @(Get-CaseKitContentAssetKeys `
+                    -Content $presentation.content)) {
+                    Assert-CaseKitAssetReference -AssetKey $assetKey `
+                        -AssetKeys $story.assets.ru.PSObject.Properties.Name `
+                        -Context "$context presentation '$($presentation.id)'" `
+                        -SourcePath $threadsPath
+                }
+            }
+        }
+
+        $reachableSteps = [System.Collections.Generic.HashSet[string]]::new()
+        $pendingSteps = [System.Collections.Generic.Queue[string]]::new()
+        foreach ($entryStepId in @($thread.entryStepIds)) {
+            $pendingSteps.Enqueue([string]$entryStepId)
+        }
+        while ($pendingSteps.Count -gt 0) {
+            $stepId = $pendingSteps.Dequeue()
+            if (-not $reachableSteps.Add($stepId)) {
+                continue
+            }
+            foreach ($nextStepId in @($stepMap[$stepId].result.nextStepIds)) {
+                $pendingSteps.Enqueue([string]$nextStepId)
+            }
+        }
+        foreach ($stepId in $stepMap.Keys) {
+            if (-not $reachableSteps.Contains([string]$stepId)) {
+                throw "Thread '$threadId' contains unreachable step " +
+                    "'$stepId' in '$threadsPath'."
+            }
+        }
+    }
+
+    foreach ($archetypeId in @($story.archetypes)) {
+        $archetype = $ArchetypeMap[[string]$archetypeId].value
+        $threadCount = @($story.threads | Where-Object {
+            [string]$_.archetypeId -eq [string]$archetypeId
+        }).Count
+        if ($threadCount -lt [int]$archetype.threadRules.minimum -or
+            $threadCount -gt [int]$archetype.threadRules.maximum) {
+            throw "Story '$($story.id)' uses archetype '$archetypeId' with " +
+                "$threadCount threads outside the allowed range in " +
+                "'$threadsPath'."
+        }
+        $counts = $moduleCountsByArchetype[[string]$archetypeId]
+        foreach ($rule in $archetype.evidenceRules.PSObject.Properties) {
+            $count = if ($counts.Contains($rule.Name)) {
+                [int]$counts[$rule.Name]
+            }
+            else {
+                0
+            }
+            if ($count -lt [int]$rule.Value.minimum -or
+                $count -gt [int]$rule.Value.maximum) {
+                throw "Story '$($story.id)' uses '$($rule.Name)' $count times " +
+                    "outside archetype '$archetypeId' range in " +
+                    "'$threadsPath'."
+            }
+        }
+    }
+
+    $reachability = Get-CaseKitV2Reachability -Story $story `
+        -ArchetypeMap $ArchetypeMap
+    foreach ($threadId in $threadMap.Keys) {
+        if (@($reachability.activeThreads) -notcontains [string]$threadId) {
+            throw "Story '$($story.id)' thread '$threadId' is disconnected " +
+                "in '$threadsPath'."
+        }
+    }
+    if ([int]$reachability.maximumReachableConfidence -lt
+        [int]$story.reveal.confidence) {
+        throw "Story '$($story.id)' maximum reachable confidence " +
+            "$($reachability.maximumReachableConfidence) is below reveal " +
+            "threshold $($story.reveal.confidence) in '$casePath'."
+    }
+    foreach ($factId in @($story.reveal.requiredFacts)) {
+        if (@($reachability.knownFacts) -notcontains [string]$factId) {
+            throw "Story '$($story.id)' cannot reach required reveal fact " +
+                "'$factId' in '$casePath'."
+        }
+    }
+
+    return [pscustomobject][ordered]@{
+        storyId = [string]$story.id
+        maximumReachableConfidence = [int](
+            $reachability.maximumReachableConfidence
+        )
+        archetypes = @($story.archetypes)
+        requiredHardFactsSatisfied = $true
     }
 }
 
@@ -497,14 +1309,27 @@ function Read-CaseKitAuthoredDeck {
                 value = Read-CaseKitAuthoringJson -LiteralPath $_.FullName
             }
         })
-    $storyEntries = @(Get-CaseKitAuthoringFiles `
+    $storyEntries = [System.Collections.Generic.List[object]]::new()
+    foreach ($file in @(Get-CaseKitAuthoringFiles `
         -LiteralPath $StoryRoot -Filter '*.story.json' |
-        ForEach-Object {
-            [pscustomobject]@{
-                path = $_.FullName
-                value = Read-CaseKitAuthoringJson -LiteralPath $_.FullName
-            }
+        Sort-Object FullName)) {
+        $storyEntries.Add([pscustomobject]@{
+            path = $file.FullName
+            value = Read-CaseKitAuthoringJson -LiteralPath $file.FullName
+            sourceSchemaVersion = 1
         })
+    }
+    if (-not (Test-Path -LiteralPath $StoryRoot -PathType Container)) {
+        throw "CaseKit authoring root not found: $StoryRoot"
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath $StoryRoot `
+        -Filter 'case.json' -File -Recurse | Sort-Object FullName)) {
+        $storyEntries.Add([pscustomobject]@{
+            path = $file.FullName
+            value = Read-CaseKitV2StoryPackage -CasePath $file.FullName
+            sourceSchemaVersion = 2
+        })
+    }
     $moduleEntries = [System.Collections.Generic.List[object]]::new()
     foreach ($file in @(Get-CaseKitAuthoringFiles `
         -LiteralPath $EvidenceModuleRoot -Filter '*.evidence.json')) {
@@ -521,11 +1346,18 @@ function Read-CaseKitAuthoredDeck {
         -Entries $archetypeEntries -Kind 'archetype'
     $moduleMap = New-CaseKitEntryMap `
         -Entries $moduleEntries.ToArray() -Kind 'evidence module'
+    $null = New-CaseKitEntryMap -Entries $storyEntries.ToArray() -Kind 'story'
     Assert-CaseKitEvidenceModules -ModuleMap $moduleMap
 
-    $validation = @($storyEntries | ForEach-Object {
-        Assert-CaseKitStoryContract -StoryEntry $_ `
-            -ArchetypeMap $archetypeMap -ModuleMap $moduleMap
+    $validation = @($storyEntries.ToArray() | ForEach-Object {
+        if ([int]$_.sourceSchemaVersion -eq 2) {
+            Assert-CaseKitV2StoryContract -StoryEntry $_ `
+                -ArchetypeMap $archetypeMap -ModuleMap $moduleMap
+        }
+        else {
+            Assert-CaseKitStoryContract -StoryEntry $_ `
+                -ArchetypeMap $archetypeMap -ModuleMap $moduleMap
+        }
     })
     $maximum = if ($validation.Count -gt 0) {
         [int]($validation | Measure-Object `
@@ -535,11 +1367,20 @@ function Read-CaseKitAuthoredDeck {
         0
     }
 
+    $normalizedStories = @($storyEntries.ToArray() | ForEach-Object {
+        ConvertTo-CaseKitNormalizedStory -Story $_.value `
+            -SourceSchemaVersion ([int]$_.sourceSchemaVersion)
+    } | Sort-Object id)
+    $sourceSchemaVersions = @($storyEntries.ToArray() |
+        ForEach-Object { [int]$_.sourceSchemaVersion } |
+        Sort-Object -Unique)
+
     return [pscustomobject][ordered]@{
-        schemaVersion = 1
-        sourceFormat = 'casekit-authoring-v1'
+        schemaVersion = 2
+        sourceFormat = 'casekit-authoring-v2'
+        sourceSchemaVersions = $sourceSchemaVersions
         archetypes = @($archetypeEntries.value | Sort-Object id)
-        stories = @($storyEntries.value | Sort-Object id)
+        stories = $normalizedStories
         evidenceModules = @($moduleEntries.value | Sort-Object id)
         validation = [pscustomobject][ordered]@{
             maximumReachableConfidence = $maximum

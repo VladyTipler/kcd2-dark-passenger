@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "regions": ["kutnohorsko", "trosecko"],
+  "settlements": [
+    {
+      "region": "kutnohorsko",
+      "settlement": "bareford",
+      "localized": {
+        "ru": {"displayName": "Барефорд"},
+        "en": {"displayName": "Bareford"}
+      }
+    },
+    {
+      "region": "trosecko",
+      "settlement": "testville",
+      "localized": {
+        "ru": {"displayName": "Тестовице"},
+        "en": {"displayName": "Testville"}
+      }
+    }
+  ],
+  "entities": [
+    {
+      "kind": "actor",
+      "entityName": "bare_target",
+      "entityGuid": "00000000-0000-0000-0000-000000000001",
+      "region": "kutnohorsko",
+      "settlement": "bareford",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "батрак", "direction": "батрака из Барефорда"},
+          "en": {"occupation": "farmhand", "direction": "the Bareford farmhand"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "person.killable"],
+      "policyFlags": ["victim.eligible"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "bare_witness",
+      "entityGuid": "00000000-0000-0000-0000-000000000002",
+      "region": "kutnohorsko",
+      "settlement": "bareford",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "крестьянка", "direction": "крестьянку у колодца"},
+          "en": {"occupation": "peasant woman", "direction": "the woman by the well"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.dialogue"],
+      "policyFlags": []
+    },
+    {
+      "kind": "container",
+      "entityName": "bare_chest",
+      "entityGuid": "00000000-0000-0000-0000-000000000003",
+      "region": "kutnohorsko",
+      "settlement": "bareford",
+      "identityMode": "not_applicable",
+      "presentation": {
+        "localized": {
+          "ru": {"locationHint": "сундук в амбаре"},
+          "en": {"locationHint": "the chest in the barn"}
+        }
+      },
+      "capabilities": ["container", "container.evidence"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "preferred_farmhand",
+      "entityGuid": "10000000-0000-0000-0000-000000000001",
+      "region": "trosecko",
+      "settlement": "testville",
+      "authoredPreference": 100,
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "батрак", "direction": "батрака у конюшни"},
+          "en": {"occupation": "farmhand", "direction": "the farmhand by the stable"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "person.killable", "role.farmhand"],
+      "policyFlags": ["victim.eligible"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "anonymous_farmhand",
+      "entityGuid": "10000000-0000-0000-0000-000000000002",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "батрак", "direction": "батрака с дальнего поля"},
+          "en": {"occupation": "farmhand", "direction": "the farmhand from the far field"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "person.killable", "role.farmhand"],
+      "policyFlags": ["victim.eligible"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "named_target",
+      "entityGuid": "10000000-0000-0000-0000-000000000003",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "named",
+      "identity": {
+        "localized": {
+          "ru": {"name": "Радован", "occupation": "торговец", "direction": "Радована, местного торговца"},
+          "en": {"name": "Radovan", "occupation": "merchant", "direction": "Radovan, the local merchant"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.named", "person.killable"],
+      "policyFlags": ["victim.eligible"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "conflicting_innkeeper_target",
+      "entityGuid": "10000000-0000-0000-0000-000000000004",
+      "region": "trosecko",
+      "settlement": "testville",
+      "authoredPreference": 90,
+      "identityMode": "titled",
+      "identity": {
+        "localized": {
+          "ru": {"title": "корчмарь Тестовице", "direction": "корчмаря Тестовице"},
+          "en": {"title": "Testville innkeeper", "direction": "the Testville innkeeper"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.titled", "person.killable", "role.innkeeper", "interaction.dialogue"],
+      "policyFlags": ["victim.eligible"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "safe_innkeeper",
+      "entityGuid": "10000000-0000-0000-0000-000000000005",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "named",
+      "identity": {
+        "localized": {
+          "ru": {"name": "Яромир", "occupation": "корчмарь", "direction": "корчмаря Яромира"},
+          "en": {"name": "Jaromir", "occupation": "innkeeper", "direction": "Jaromir the innkeeper"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.named", "role.innkeeper", "interaction.dialogue"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "named_witness",
+      "entityGuid": "10000000-0000-0000-0000-000000000006",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "named",
+      "identity": {
+        "localized": {
+          "ru": {"name": "Милена", "occupation": "служанка", "direction": "служанку Милену"},
+          "en": {"name": "Milena", "occupation": "maid", "direction": "Milena the maid"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.named", "interaction.dialogue"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "anonymous_witness",
+      "entityGuid": "10000000-0000-0000-0000-000000000007",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "пастух", "direction": "пастуха у загона"},
+          "en": {"occupation": "shepherd", "direction": "the shepherd by the pen"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.dialogue"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "story_critical_target",
+      "entityGuid": "10000000-0000-0000-0000-000000000008",
+      "region": "trosecko",
+      "settlement": "testville",
+      "authoredPreference": 1000,
+      "identityMode": "named",
+      "identity": {
+        "localized": {
+          "ru": {"name": "Сюжетный", "direction": "Сюжетного"},
+          "en": {"name": "Storybound", "direction": "Storybound"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.named", "person.killable"],
+      "policyFlags": ["victim.eligible", "story.critical"]
+    },
+    {
+      "kind": "actor",
+      "entityName": "dead_target",
+      "entityGuid": "10000000-0000-0000-0000-000000000009",
+      "region": "trosecko",
+      "settlement": "testville",
+      "authoredPreference": 999,
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "мертвец", "direction": "мертвеца"},
+          "en": {"occupation": "dead man", "direction": "the dead man"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "person.killable"],
+      "policyFlags": ["victim.eligible", "actor.dead_template"]
+    },
+    {
+      "kind": "container",
+      "entityName": "evidence_chest",
+      "entityGuid": "10000000-0000-0000-0000-000000000010",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "not_applicable",
+      "presentation": {
+        "localized": {
+          "ru": {"locationHint": "запертый сундук на сеновале"},
+          "en": {"locationHint": "the locked chest in the hayloft"}
+        }
+      },
+      "capabilities": ["container", "container.evidence"],
+      "policyFlags": []
+    }
+  ]
+}

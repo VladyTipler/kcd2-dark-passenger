@@ -9,9 +9,11 @@ $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $caseRuntimePath = Join-Path $scriptRoot 'dpcasecontent.lua'
 $caseDefinitionPath = Join-Path $repoRoot `
-    'content\cases\convenient-accident.case.json'
+    'content\migration\legacy-cases\convenient-accident.case.json'
 $generatedCatalogPath = Join-Path $repoRoot `
     'build\mod\Data\Scripts\mods\generated\dp_case_catalog.lua'
+$generatedVariantCatalogPath = Join-Path $repoRoot `
+    'build\mod\Data\Scripts\mods\generated\dp_case_variant_catalog.lua'
 $evidencePath = Join-Path $scriptRoot 'dpevidence.lua'
 
 $script:checks = 0
@@ -38,6 +40,7 @@ $runtime = Read-OptionalText $runtimePath
 $caseRuntime = Read-OptionalText $caseRuntimePath
 $caseDefinition = Read-OptionalText $caseDefinitionPath
 $generatedCatalog = Read-OptionalText $generatedCatalogPath
+$generatedVariantCatalog = Read-OptionalText $generatedVariantCatalogPath
 $evidence = Read-OptionalText $evidencePath
 
 Add-Result (Test-Path -LiteralPath $caseRuntimePath) `
@@ -46,6 +49,8 @@ Add-Result (Test-Path -LiteralPath $caseDefinitionPath) `
     'convenient-accident CaseSpec exists'
 Add-Result (Test-Path -LiteralPath $generatedCatalogPath) `
     'compiled case catalog exists'
+Add-Result (Test-Path -LiteralPath $generatedVariantCatalogPath) `
+    'compiled finite variant catalog exists'
 
 foreach ($export in
     'Select',
@@ -65,7 +70,8 @@ foreach ($token in
     'dp_case_content_generation',
     'dp_case_content_case_code',
     'dp_case_content_opener_code',
-    'selected once per investigation generation',
+    'dp_case_content_variant_code',
+    'PrepareVariant',
     'source_stance',
     'placement',
     'discoverable_without_hint',
@@ -75,7 +81,8 @@ foreach ($token in
     Add-Result (
         $caseRuntime.Contains($token) -or
         $caseDefinition.Contains($token) -or
-        $generatedCatalog.Contains($token)
+        $generatedCatalog.Contains($token) -or
+        $generatedVariantCatalog.Contains($token)
     ) "case-content contract contains $token"
 }
 
@@ -99,15 +106,19 @@ Add-Result (-not $generatedCatalog.Contains('next_lead =')) `
 
 $contentReload =
     'Script.ReloadScript("Scripts/mods/generated/dp_case_catalog.lua")'
+$variantReload =
+    'Script.ReloadScript("Scripts/mods/generated/dp_case_variant_catalog.lua")'
 $caseRuntimeReload =
     'Script.ReloadScript("Scripts/mods/dpcasecontent.lua")'
 $evidenceReload = 'Script.ReloadScript("Scripts/mods/dpevidence.lua")'
 $contentIndex = $runtime.IndexOf($contentReload)
+$variantIndex = $runtime.IndexOf($variantReload)
 $caseRuntimeIndex = $runtime.IndexOf($caseRuntimeReload)
 $evidenceIndex = $runtime.IndexOf($evidenceReload)
 Add-Result (
     $contentIndex -ge 0 -and
-    $caseRuntimeIndex -gt $contentIndex -and
+    $variantIndex -gt $contentIndex -and
+    $caseRuntimeIndex -gt $variantIndex -and
     $evidenceIndex -gt $caseRuntimeIndex
 ) 'runtime loads domain content, reusable selector, then evidence consumer'
 
@@ -123,7 +134,12 @@ if (-not [string]::IsNullOrWhiteSpace($DevGameRoot)) {
     $compiler = Join-Path $DevGameRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
     Add-Result (Test-Path -LiteralPath $compiler) 'LuaCompiler is available'
-    foreach ($path in $generatedCatalogPath, $caseRuntimePath, $evidencePath) {
+    foreach ($path in @(
+        $generatedCatalogPath,
+        $generatedVariantCatalogPath,
+        $caseRuntimePath,
+        $evidencePath
+    )) {
         if ((Test-Path -LiteralPath $compiler) -and
             (Test-Path -LiteralPath $path)) {
             & $compiler -p $path *> $null

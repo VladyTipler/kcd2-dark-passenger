@@ -186,9 +186,13 @@ function DarkPassengerHunger.TierFor(hunger)
     return tier
 end
 
+function DarkPassengerHunger.InvalidateAppliedState()
+    DarkPassengerHunger.currentTier = nil
+    DarkPassengerHunger.satisfactionGateExpected = nil
+end
+
 function DarkPassengerHunger.ApplyTier(soul, tier)
     if soul == nil then return false end
-    if DarkPassengerHunger.currentTier == tier then return true end
     local desiredGuid = DarkPassengerHunger.BUFF_BY_TIER[tier]
     local shouldHaveSatisfactionGate = tier ~= nil and tier < 50
     local changed = DarkPassengerHunger.currentTier ~= tier
@@ -252,7 +256,22 @@ end
 
 function DarkPassengerHunger.ResetAfterHunt(graceDays, result)
     local clampedGraceDays = math.max(0, tonumber(graceDays) or 0)
+    local investigationState =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local lifecycleGeneration = tonumber(
+        investigationState ~= nil and investigationState.generation
+    )
     if not DarkPassengerHunger.ResetNow(graceDays) then return false end
+    if lifecycleGeneration ~= nil and lifecycleGeneration > 0 and
+       DarkPassengerCaseLifecycle ~= nil and
+       DarkPassengerCaseLifecycle.ClearCaseArtifacts ~= nil then
+        DarkPassengerCaseLifecycle.ClearCaseArtifacts(
+            lifecycleGeneration,
+            "hunt_resolved"
+        )
+    end
     -- The native quest death branch has already added the hidden gate. Do not
     -- probe it: HasBuffDebug throws for this Cpp:Constant custom buff.
     DarkPassengerHunger.lastGraceDays = clampedGraceDays
@@ -432,6 +451,7 @@ function DarkPassengerHunger.Set(argsLine)
     ) then
         return false
     end
+    DarkPassengerHunger.InvalidateAppliedState()
     return DarkPassengerHunger.Evaluate() ~= nil
 end
 

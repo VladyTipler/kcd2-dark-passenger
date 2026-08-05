@@ -3,8 +3,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $caseKitManifest = Join-Path $PSScriptRoot '..\CaseKit.psd1'
 $compilerModule = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
-$caseRoot = Join-Path $repoRoot 'content\cases'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$caseRoot = Join-Path $repoRoot 'content\migration\legacy-cases'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 
 Import-Module $caseKitManifest -Force
 Import-Module $compilerModule -Force

@@ -17,6 +17,8 @@ $dialogPath = Join-Path $stageRoot (
 )
 $questPath = Join-Path $stageRoot `
     'Data\Quests\Final\Barbora\trosecko\dark_within_t.xml'
+$kutnoQuestPath = Join-Path $stageRoot `
+    'Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'
 $stormPath = Join-Path $stageRoot `
     'Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $contextPath = Join-Path $stageRoot `
@@ -25,6 +27,12 @@ $buffTagPath = Join-Path $stageRoot `
     'Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
 $buffPath = Join-Path $stageRoot `
     'Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+$rolePath = Join-Path $stageRoot `
+    'Data\Libs\Tables\rpg\role__darkpassengertest.xml'
+$sourceRolePath = Join-Path $repoRoot `
+    'src\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 $catalogPath = Join-Path $stageRoot `
     'Data\Scripts\mods\generated\dp_case_catalog.lua'
 $runtimePath = Join-Path $stageRoot `
@@ -57,10 +65,12 @@ Add-Result ($?) 'staging build compiles the overheard canary'
 foreach ($path in @(
     $dialogPath,
     $questPath,
+    $kutnoQuestPath,
     $stormPath,
     $contextPath,
     $buffTagPath,
     $buffPath,
+    $rolePath,
     $catalogPath,
     $runtimePath,
     $initPath
@@ -71,10 +81,14 @@ foreach ($path in @(
 
 $dialog = Read-OptionalText $dialogPath
 $quest = Read-OptionalText $questPath
+$kutnoQuest = Read-OptionalText $kutnoQuestPath
 $storm = Read-OptionalText $stormPath
 $contexts = Read-OptionalText $contextPath
 $buffTags = Read-OptionalText $buffTagPath
 $buffs = Read-OptionalText $buffPath
+$roles = Read-OptionalText $rolePath
+$sourceRoles = Read-OptionalText $sourceRolePath
+$bindings = Get-Content -LiteralPath $bindingPath -Raw | ConvertFrom-Json
 $catalog = Read-OptionalText $catalogPath
 $runtime = Read-OptionalText $runtimePath
 $init = Read-OptionalText $initPath
@@ -84,6 +98,8 @@ Add-Result (
     $dialog.Contains(
         '<Dialogue Type="ingame" TechnicalStatus="Enabled" Initiator="NonPlayer">'
     ) -and
+    $dialog.Contains('<Decision Name="overheard_root" Priority="General"') -and
+    -not $dialog.Contains('Priority="SideQuest"') -and
     $dialog.Contains('<Port Name="clue_spoken" Direction="Out" Type="trigger">') -and
     $dialog.Contains('<Port Name="clue_spoken" />') -and
     $dialog.Contains('Role="DP_OVERHEARD_SPEAKER_A"') -and
@@ -122,8 +138,50 @@ Add-Result (
     $quest.Contains('<Constant Name="Context" Value="dp_overheard_clue_spoken_trosecko" />') -and
     $quest.Contains('<Edge From="overheardEvidenceDialog.clue_spoken" To="SetTrue" />') -and
     $quest.Contains('<Timer Name="overheardCluePulse">') -and
-    $quest.Contains('<Constant Name="Duration" Value="3s" />')
+    $quest.Contains('<Constant Name="Duration" Value="3s" />') -and
+    $quest.Contains('<Constant Name="TimeType" Value="GameTime" />') -and
+    -not $quest.Contains('<Constant Name="TimeType" Value="RealTime" />')
 ) 'clue completion reaches Lua through a repeatable ScriptContext pulse'
+Add-Result (
+    $quest.Contains(
+        '<State Name="evidenceProgress" TypeT="DP_TroseckoEvidenceProgress">'
+    ) -and
+    $quest.Contains('<Type TypeName="DP_TroseckoEvidenceProgress">') -and
+    $quest.Contains(
+        '<Objective TypeT="DP_TroseckoEvidenceProgress" Name="dark_within_evidencet">'
+    ) -and
+    $quest.Contains(
+        '<Edge From="satisfactionTrigger.OnRemoved" To="SetDirectionsNone" />'
+    ) -and
+    -not $quest.Contains('TypeT="DP_EvidenceProgress"')
+) 'Trosky evidence enum is region-scoped and resets through a real enum port'
+Add-Result (
+    $kutnoQuest.Contains(
+        '<State Name="evidenceProgress" TypeT="DP_KutnohorskoEvidenceProgress">'
+    ) -and
+    $kutnoQuest.Contains('<Type TypeName="DP_KutnohorskoEvidenceProgress">') -and
+    $kutnoQuest.Contains(
+        '<Objective TypeT="DP_KutnohorskoEvidenceProgress" Name="dark_within_evidencek">'
+    ) -and
+    $kutnoQuest.Contains(
+        '<Edge From="satisfactionTrigger.OnRemoved" To="SetDirectionsNone" />'
+    ) -and
+    -not $kutnoQuest.Contains('TypeT="DP_EvidenceProgress"')
+) 'Kuttenberg evidence enum is region-scoped and resets through a real enum port'
+$regionalCustomTypes = @(
+    @($quest, $kutnoQuest) | ForEach-Object {
+        [regex]::Matches($_, '<Type TypeName="(DP_[^"]+)"') |
+            ForEach-Object { $_.Groups[1].Value }
+    }
+)
+$duplicateRegionalCustomTypes = @(
+    $regionalCustomTypes |
+        Group-Object |
+        Where-Object { $_.Count -gt 1 }
+)
+Add-Result (
+    $duplicateRegionalCustomTypes.Count -eq 0
+) 'generated Barbora regions have no colliding custom TypeName values'
 Add-Result (
     $quest.Contains('Name="overheardPrimaryAvailableTrigger"') -and
     $quest.Contains('Name="overheardFallbackAvailableTrigger"') -and
@@ -148,6 +206,23 @@ Add-Result (
         '<ScriptContextDatabaseNode Name="dp_overheard_clue_spoken_trosecko" Class="Entity" />'
     )
 ) 'overheard ScriptContext is registered'
+Add-Result (
+    -not $sourceRoles.Contains('role_name="DP_OVERHEARD_SPEAKER_A"') -and
+    -not $sourceRoles.Contains('role_name="DP_OVERHEARD_SPEAKER_B"')
+) 'overheard dialogue roles are not maintained in the static RPG table'
+$overheardRoleDefinitions = @($bindings.dialogueRoles | Where-Object {
+    [string]$_.name -in @(
+        'DP_OVERHEARD_SPEAKER_A',
+        'DP_OVERHEARD_SPEAKER_B'
+    )
+})
+Add-Result (
+    $overheardRoleDefinitions.Count -eq 2 -and
+    @($overheardRoleDefinitions | Where-Object {
+        $roles.Contains(('role_id="{0}"' -f [string]$_.roleId)) -and
+        $roles.Contains(('role_name="{0}"' -f [string]$_.name))
+    }).Count -eq 2
+) 'compiler generates both registered overheard RPG roles from bindings'
 Add-Result (
     $buffTags.Contains(
         'buff_ai_tag_id="71" buff_ai_tag_name="dp_overheard_available"'

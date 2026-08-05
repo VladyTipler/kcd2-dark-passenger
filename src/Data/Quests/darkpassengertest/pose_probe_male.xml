@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <ForcedDialog Name="pose_probe_male">
+      <Ports>
+        <Port Name="available" Direction="In" Type="bool">
+          <DesignName Text="Confession probe available" />
+        </Port>
+        <Port Name="started" Direction="Out" Type="trigger">
+          <DesignName Text="Confession probe started" />
+        </Port>
+      </Ports>
+      <Text StringName="dp_pose_probe_root" />
+      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false" Initiator="NonPlayer">
+        <SelectedSouls>
+          <SelectedSoul Role="HENRY" Voice="fejk" Type="Computed" />
+          <SelectedSoul Role="DP_CONFESSION_PROBE_MALE" Voice="fejk" Type="Computed" />
+        </SelectedSouls>
+        <Decision Name="probe_root" Priority="General" Alias="dp_pose_confession_probe">
+          <Sequences>
+            <Sequence EndType="Decision" EntryCondition="Port('available')" Name="probe_intro">
+              <Triggers>
+                <Port Name="started" />
+              </Triggers>
+              <Elements>
+                <Response Role="HENRY" ReferenceLength="3">
+                  <Text StringName="dp_pose_probe_henry_check" />
+                  <Commands>
+                    <MoodCommand Role="DP_CONFESSION_PROBE_MALE" Delay="0.01" Mood="woundedLying" />
+                    <CameraCommand CameraType="CloseUp" />
+                  </Commands>
+                </Response>
+                <Response Role="DP_CONFESSION_PROBE_MALE" ReferenceLength="4">
+                  <Text StringName="dp_pose_probe_victim_reply" />
+                  <Commands>
+                    <CameraCommand CameraType="CloseUp" />
+                  </Commands>
+                </Response>
+              </Elements>
+              <Decision Name="probe_questions">
+                <Sequences>
+                  <Sequence GoToDecision="probe_questions" EndType="GoTo" EntryCondition="true" Name="probe_question_motive">
+                    <UiPrompt StringName="dp_pose_probe_question_motive" />
+                    <Elements>
+                      <Response Role="HENRY" ReferenceLength="4">
+                        <Text StringName="dp_pose_probe_henry_motive" />
+                        <Commands>
+                          <MoodCommand Role="DP_CONFESSION_PROBE_MALE" Delay="0.01" Mood="woundedLying" />
+                          <CameraCommand CameraType="CloseUp" />
+                        </Commands>
+                      </Response>
+                      <Response Role="DP_CONFESSION_PROBE_MALE" ReferenceLength="7">
+                        <Text StringName="dp_pose_probe_victim_motive" />
+                        <Commands>
+                          <CameraCommand CameraType="CloseUp" />
+                        </Commands>
+                      </Response>
+                    </Elements>
+                  </Sequence>
+                  <Sequence GoToDecision="probe_questions" EndType="GoTo" EntryCondition="true" Name="probe_question_truth">
+                    <UiPrompt StringName="dp_pose_probe_question_truth" />
+                    <Elements>
+                      <Response Role="HENRY" ReferenceLength="4">
+                        <Text StringName="dp_pose_probe_henry_truth" />
+                        <Commands>
+                          <MoodCommand Role="DP_CONFESSION_PROBE_MALE" Delay="0.01" Mood="woundedLying" />
+                          <CameraCommand CameraType="CloseUp" />
+                        </Commands>
+                      </Response>
+                      <Response Role="DP_CONFESSION_PROBE_MALE" ReferenceLength="7">
+                        <Text StringName="dp_pose_probe_victim_truth" />
+                        <Commands>
+                          <CameraCommand CameraType="CloseUp" />
+                        </Commands>
+                      </Response>
+                    </Elements>
+                  </Sequence>
+                  <Sequence EndType="EndDialogue" EntryCondition="true" Name="probe_finish">
+                    <UiPrompt StringName="dp_pose_probe_question_finish" />
+                    <Elements>
+                      <Response Role="HENRY" ReferenceLength="4">
+                        <Text StringName="dp_pose_probe_henry_finish" />
+                        <Commands>
+                          <MoodCommand Role="DP_CONFESSION_PROBE_MALE" Delay="0.01" Mood="woundedLying" />
+                          <CameraCommand CameraType="CloseUp" />
+                        </Commands>
+                      </Response>
+                      <Response Role="DP_CONFESSION_PROBE_MALE" ReferenceLength="4">
+                        <Text StringName="dp_pose_probe_victim_finish" />
+                        <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                      </Response>
+                      <Response Role="HENRY" ReferenceLength="2">
+                        <Text StringName="dp_pose_probe_henry_end" />
+                        <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                      </Response>
+                    </Elements>
+                  </Sequence>
+                </Sequences>
+              </Decision>
+            </Sequence>
+          </Sequences>
+        </Decision>
+      </Dialogue>
+    </ForcedDialog>
+  </Skald>
+</Database>

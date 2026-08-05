@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "guest-ledger",
+  "localizationKeys": [
+    "document.ledger.name",
+    "document.ledger.info",
+    "document.ledger.body"
+  ]
+}

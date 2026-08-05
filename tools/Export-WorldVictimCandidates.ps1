@@ -110,6 +110,16 @@ $regionSources = @(
 
 foreach ($regionSource in $regionSources) {
     [xml]$objects = Get-Content -Raw -LiteralPath $regionSource.objectsPath
+    $shopStashTargetIds = [System.Collections.Generic.HashSet[string]]::new()
+    $shopStashTargetGuids = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($link in $objects.SelectNodes('//Link[@Name="shopStash"]')) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$link.TargetId)) {
+            $null = $shopStashTargetIds.Add([string]$link.TargetId)
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$link.TargetGuid)) {
+            $null = $shopStashTargetGuids.Add([string]$link.TargetGuid)
+        }
+    }
     foreach ($entity in $objects.SelectNodes(
         '//Entity[starts-with(@EntityClass,"NPC")]'
     )) {
@@ -180,8 +190,13 @@ foreach ($regionSource in $regionSources) {
             gameRegion = [string]$regionSource.gameRegion
             settlementHint = $settlementHint
             entityName = [string]$entity.Name
+            entityId = [string]$entity.EntityId
             entityGuid = [string]$entity.EntityGuid
             entityClass = [string]$entity.EntityClass
+            shopStash = (
+                $shopStashTargetIds.Contains([string]$entity.EntityId) -or
+                $shopStashTargetGuids.Contains([string]$entity.EntityGuid)
+            )
             position = ConvertTo-WorldPosition -Position ([string]$entity.Pos)
             editorLayer = $layer
             source = [ordered]@{

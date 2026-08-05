@@ -15,6 +15,8 @@ $catalogPath = Join-Path $repoRoot `
 $reportPath = Join-Path $repoRoot `
     'build\generated\cases\case-compatibility.json'
 $compilerPath = Join-Path $repoRoot 'tools\Compile-CaseSpecs.ps1'
+$belongingsRuntimePath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpbelongings.lua'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -49,6 +51,33 @@ $catalog = if (Test-Path -LiteralPath $catalogPath) {
 else { '' }
 Add-Result ($catalog.Contains('id = "convenient_accident"')) `
     'staged runtime catalog contains convenient accident'
+Add-Result (
+    $catalog -match (
+        '(?s)id = "matej_guest_ledger",.*?item = \{.*?' +
+        'name = "dp_matej_guest_ledger",.*?' +
+        'classification = "quest",.*?' +
+        'retention = "case",.*?' +
+        'contentKey = "dp_mt_ledger_content",'
+    )
+) 'real build preserves quest-item metadata in the runtime catalog'
+
+$belongingsRuntime = if (Test-Path -LiteralPath $belongingsRuntimePath) {
+    [System.IO.File]::ReadAllText($belongingsRuntimePath)
+}
+else { '' }
+Add-Result (
+    $belongingsRuntime.Contains(
+        'local function IsQuestItemDefinition(resolved, documentGuid)'
+    ) -and
+    $belongingsRuntime.Contains(
+        'DarkPassengerQuestItemCatalog[documentGuid] == true'
+    ) -and
+    $belongingsRuntime -match (
+        '(?s)if IsQuestItemDefinition\(resolved, documentGuid\) then.*?' +
+        'DarkPassengerQuestItemPlacement\.Request\(.*?else.*?' +
+        'chest\.inventory:CreateItem\(documentGuid, 1, 1\)'
+    )
+) 'runtime dispatches compiled quest evidence through AddQuestItem bridge'
 
 if (Test-Path -LiteralPath $catalogPath) {
     $luaCompiler = Join-Path $DevGameRoot `

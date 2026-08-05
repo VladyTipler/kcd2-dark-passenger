@@ -164,11 +164,13 @@ Add-Result (
 foreach ($fragment in
     '<Constant Name="A" Value="31" />',
     '<BuffTagTrigger Name="firstLeadTrigger">',
-    '<State Name="evidenceProgress" TypeT="DP_EvidenceProgress">',
+    '<State Name="evidenceProgress" TypeT="{{DP_EVIDENCE_PROGRESS_TYPE}}">',
     '{{DP_EVIDENCE_STATE_NODES}}',
     '{{DP_EVIDENCE_STATE_EDGES}}',
-    '<Type TypeName="DP_EvidenceProgress">',
-    '<Objective TypeT="DP_EvidenceProgress" Name="{{DP_EVIDENCE_OBJECTIVE_NAME}}">',
+    '{{DP_EVIDENCE_RESET_PORT}}',
+    '<Type TypeName="{{DP_EVIDENCE_PROGRESS_TYPE}}">',
+    '<Objective TypeT="{{DP_EVIDENCE_PROGRESS_TYPE}}" Name="{{DP_EVIDENCE_OBJECTIVE_NAME}}">',
+    '{{DP_CLEANUP_PROGRESS_TYPE}}',
     '{{DP_EVIDENCE_TYPE_ENUMS}}',
     '{{DP_EVIDENCE_LOGS}}'
 ) {

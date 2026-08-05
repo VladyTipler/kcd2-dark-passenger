@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "confession",
+  "scenePreset": "lying-interrogation",
+  "localizationKeys": [
+    "dialogue.confession.prompt",
+    "dialogue.confession.response"
+  ]
+}

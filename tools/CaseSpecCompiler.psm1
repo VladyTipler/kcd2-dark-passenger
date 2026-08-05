@@ -30,6 +30,80 @@ function Test-DpTextValue {
     return -not [string]::IsNullOrWhiteSpace([string]$Value)
 }
 
+function Get-DpSettlementDialogueRoleNames {
+    param([Parameter(Mandatory)]$SettlementBinding)
+
+    $names = [System.Collections.Generic.List[string]]::new()
+    foreach ($semanticRole in 'innkeeper', 'witness') {
+        $bindingProperty =
+            $SettlementBinding.roles.PSObject.Properties[$semanticRole]
+        if ($null -eq $bindingProperty) { continue }
+        $dialogueRoleProperty =
+            $bindingProperty.Value.PSObject.Properties['dialogueRole']
+        if ($null -ne $dialogueRoleProperty -and
+            (Test-DpTextValue $dialogueRoleProperty.Value)) {
+            $names.Add([string]$dialogueRoleProperty.Value)
+        }
+    }
+
+    $overheardProperty =
+        $SettlementBinding.roles.PSObject.Properties['overheard']
+    if ($null -ne $overheardProperty) {
+        foreach ($pair in @($overheardProperty.Value.pairs)) {
+            foreach ($speaker in @($pair.speakers)) {
+                if (Test-DpTextValue $speaker.dialogueRole) {
+                    $names.Add([string]$speaker.dialogueRole)
+                }
+            }
+        }
+    }
+    return @($names | Sort-Object -Unique)
+}
+
+function Get-DpDialogueRoleRegistryErrors {
+    param([Parameter(Mandatory)]$Bindings)
+
+    $errors = [System.Collections.Generic.List[string]]::new()
+    $registryProperty = $Bindings.PSObject.Properties['dialogueRoles']
+    $definitions = if ($null -ne $registryProperty) {
+        @($registryProperty.Value)
+    }
+    else { @() }
+    if ($definitions.Count -eq 0) {
+        $errors.Add('dialogueRoles registry is required')
+        return $errors.ToArray()
+    }
+
+    $names = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    $ids = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($definition in $definitions) {
+        $name = [string]$definition.name
+        $roleId = [string]$definition.roleId
+        $metaRole = [string]$definition.metaRole
+        if ($name -notmatch '^[A-Z][A-Z0-9_]*$') {
+            $errors.Add("dialogue role name '$name' is invalid")
+        }
+        elseif (-not $names.Add($name)) {
+            $errors.Add("dialogue role name '$name' is duplicated")
+        }
+        if ($roleId -notmatch
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+            $errors.Add("dialogue role '$name' roleId is invalid")
+        }
+        elseif (-not $ids.Add($roleId)) {
+            $errors.Add("dialogue role roleId '$roleId' is duplicated")
+        }
+        if (-not (Test-DpTextValue $metaRole)) {
+            $errors.Add("dialogue role '$name' metaRole is required")
+        }
+    }
+    return $errors.ToArray()
+}
+
 function Get-DpStableGuid {
     param([Parameter(Mandatory)][string]$Seed)
 
@@ -274,6 +348,10 @@ function ConvertTo-DpRuntimeEvidence {
         code = [int]$Evidence.code
         kind = [string]$Evidence.kind
         role = [string]$Evidence.role
+        item = if ($null -ne $Evidence.PSObject.Properties['item']) {
+            $Evidence.item
+        }
+        else { $null }
         weight = if ($null -ne $Evidence.PSObject.Properties['weight']) {
             [double]$Evidence.weight
         }
@@ -402,6 +480,456 @@ function ConvertTo-DpCaseCatalogLua {
     return ($lines -join "`n") + "`n"
 }
 
+function Get-DpStableRuntimeCode {
+    param([Parameter(Mandatory)][string]$Value)
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($Value)
+    $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    $code = (([int]$hash[0]) -shl 16) -bor
+        (([int]$hash[1]) -shl 8) -bor ([int]$hash[2])
+    if ($code -le 0) {
+        throw "Stable runtime code resolved to zero for '$Value'."
+    }
+    return [int]$code
+}
+
+function Get-DpTrophyAssetPreset {
+    param([Parameter(Mandatory)][string]$Name)
+
+    switch ($Name) {
+        'bird-feather' {
+            return [ordered]@{
+                item_guid = Get-DpStableGuid `
+                    -Seed 'darkpassenger-trophy|bloodied-feather'
+                item_name = 'dp_trophy_bloodied_feather'
+                name_key = 'dp_trophy_bloodied_feather_name'
+                info_key = 'dp_trophy_bloodied_feather_info'
+                name = [ordered]@{
+                    ru = 'Трофей - Окровавленное перо'
+                    en = 'Trophy - Bloodied Feather'
+                }
+                description = [ordered]@{
+                    ru = 'Красное перо, снятое с тела избранной жертвы. Ещё одна память о приговоре, который никто другой не вынес.'
+                    en = 'A red feather taken from a chosen victim. Another reminder of a sentence no one else would pass.'
+                }
+                icon_id = 'special_featherRed'
+                model =
+                    'manmade/task_specific_props/read_and_write/inkwell/quill.cgf'
+                type = 5
+                sub_type = 4
+                weight = '0'
+                price = 0
+                fade_coef = '6.0606'
+                visibility_coef = '1'
+                is_divisible = $true
+                is_quest_item = $false
+            }
+        }
+        default { throw "Unknown trophy asset preset '$Name'." }
+    }
+}
+
+function ConvertTo-DpNativeTrophyDefinition {
+    param([Parameter(Mandatory)]$Variant)
+
+    $property = $Variant.PSObject.Properties['trophyDefinition']
+    if ($null -eq $property -or $null -eq $property.Value) { return $null }
+    $semantic = $property.Value
+    $preset = Get-DpTrophyAssetPreset -Name ([string]$semantic.preset)
+    return [ordered]@{
+        preset = [string]$semantic.preset
+        item_guid = [string]$preset.item_guid
+        item_name = [string]$preset.item_name
+        name_key = [string]$preset.name_key
+        info_key = [string]$preset.info_key
+        name = $preset.name
+        description = $preset.description
+        case_description = $semantic.description
+        item = [ordered]@{
+            classification = [string]$semantic.item.classification
+            retention = [string]$semantic.item.retention
+            weight = [double]$semantic.item.weight
+        }
+        asset = [ordered]@{
+            icon_id = [string]$preset.icon_id
+            model = [string]$preset.model
+            type = [int]$preset.type
+            sub_type = [int]$preset.sub_type
+            weight = [string]$preset.weight
+            price = [int]$preset.price
+            fade_coef = [string]$preset.fade_coef
+            visibility_coef = [string]$preset.visibility_coef
+            is_divisible = [bool]$preset.is_divisible
+            is_quest_item = [bool]$preset.is_quest_item
+        }
+    }
+}
+
+function ConvertTo-DpRuntimeVariantBinding {
+    param(
+        $Binding,
+        [hashtable]$CandidateByEntityName
+    )
+
+    if ($null -eq $Binding) { return $null }
+    $entityName = [string]$Binding.entityName
+    $candidate = if ($CandidateByEntityName.ContainsKey($entityName)) {
+        $CandidateByEntityName[$entityName]
+    }
+    else { $null }
+    return [ordered]@{
+        kind = [string]$Binding.kind
+        entity_name = $entityName
+        entity_guid = [string]$Binding.entityGuid
+        soul_guid = if ($null -ne $Binding.PSObject.Properties['soulGuid']) {
+            [string]$Binding.soulGuid
+        }
+        else { '' }
+        candidate_slot = if ($null -ne $candidate) {
+            [int]$candidate.slot
+        }
+        else { 0 }
+        identity_mode = [string]$Binding.identityMode
+        capabilities = @($Binding.capabilities | ForEach-Object { [string]$_ })
+        policy_flags = @($Binding.policyFlags | ForEach-Object { [string]$_ })
+    }
+}
+
+function ConvertTo-DpRuntimeSceneDefinitions {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$VariantBindings,
+        [Parameter(Mandatory)][hashtable]$CandidateByEntityName
+    )
+
+    $evidenceById = @{}
+    foreach ($evidence in @($Story.evidence)) {
+        $evidenceById[[string]$evidence.qualifiedId] = $evidence
+    }
+    $scenes = [System.Collections.Generic.List[object]]::new()
+    foreach ($thread in @($Story.threads)) {
+        foreach ($step in @($thread.steps)) {
+            $qualifiedId = "$([string]$thread.id)/$([string]$step.id)"
+            $evidence = $evidenceById[$qualifiedId]
+            $resolvedBindings = [ordered]@{}
+            if ($null -ne $step.action -and $null -ne $step.action.bindings) {
+                foreach ($bindingProperty in $step.action.bindings.PSObject.Properties) {
+                    $semanticSlot = [string]$bindingProperty.Value
+                    $variantBinding = $VariantBindings.PSObject.Properties[
+                        $semanticSlot
+                    ].Value
+                    $resolvedBindings[[string]$bindingProperty.Name] =
+                        ConvertTo-DpRuntimeVariantBinding `
+                            -Binding $variantBinding `
+                            -CandidateByEntityName $CandidateByEntityName
+                }
+            }
+            $scenes.Add([ordered]@{
+                id = $qualifiedId
+                thread_id = [string]$thread.id
+                step_id = [string]$step.id
+                kind = [string]$step.kind
+                evidence_code = if ($null -ne $evidence) {
+                    [int]$evidence.code
+                }
+                else { 0 }
+                placement = if (
+                    [string]$step.action.evidenceModule -eq
+                        'document-in-container'
+                ) { 'case_start' } else { 'on_event' }
+                evidence_module = [string]$step.action.evidenceModule
+                resolved_bindings = $resolvedBindings
+                compiled_assets = $step.presentations
+            })
+        }
+    }
+    return $scenes.ToArray()
+}
+
+function Get-DpCaseCleanupManifest {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Variant,
+        [Parameter(Mandatory)][object[]]$RuntimeScenes,
+        $Binding,
+        [object[]]$QuestItemPlacementSignals = @(),
+        $Trophy
+    )
+
+    $evidenceCodes = @(
+        $CaseSpec.evidence |
+            ForEach-Object { [int]$_.code } |
+            Sort-Object -Unique
+    )
+    $availabilityRoles = @(
+        $CaseSpec.evidence |
+            ForEach-Object { [string]$_.role } |
+            Where-Object { $_ -in @('innkeeper', 'witness', 'overheard') } |
+            Sort-Object -Unique
+    )
+
+    $signalBuffGuids = [System.Collections.Generic.List[string]]::new()
+    foreach ($state in @(Get-DpJournalStates -CaseSpec $CaseSpec)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$state.buff_guid)) {
+            $signalBuffGuids.Add([string]$state.buff_guid)
+        }
+    }
+    foreach ($variantSignal in @(Get-DpDialogueVariants -CaseSpec $CaseSpec)) {
+        if (-not [string]::IsNullOrWhiteSpace(
+            [string]$variantSignal.buff_guid
+        )) {
+            $signalBuffGuids.Add([string]$variantSignal.buff_guid)
+        }
+    }
+    if ($null -ne $Binding) {
+        $overheard = Get-DpOverheardDefinition `
+            -CaseSpec $CaseSpec `
+            -Binding $Binding
+        if ($null -ne $overheard -and
+            -not [string]::IsNullOrWhiteSpace([string]$overheard.buff_guid)) {
+            $signalBuffGuids.Add([string]$overheard.buff_guid)
+        }
+    }
+
+    $items = [System.Collections.Generic.List[object]]::new()
+    foreach ($evidence in @($CaseSpec.evidence)) {
+        $itemProperty = $evidence.PSObject.Properties['item']
+        if ($null -eq $itemProperty -or $null -eq $itemProperty.Value) {
+            continue
+        }
+        $source = "evidence:$([string]$evidence.id)"
+        $signal = @($QuestItemPlacementSignals | Where-Object {
+            [string]$_.source -eq $source
+        })[0]
+        if ($null -eq $signal) { continue }
+        $scene = @($RuntimeScenes | Where-Object {
+            [int]$_.evidence_code -eq [int]$evidence.code
+        })[0]
+        $destination = if ($null -ne $scene -and
+            $null -ne $scene.resolved_bindings) {
+            if ($scene.resolved_bindings -is
+                [System.Collections.IDictionary]) {
+                $scene.resolved_bindings['container']
+            }
+            else {
+                $containerProperty =
+                    $scene.resolved_bindings.PSObject.Properties['container']
+                if ($null -ne $containerProperty) {
+                $containerProperty.Value
+                }
+                else { $null }
+            }
+        }
+        else { $null }
+        $items.Add([ordered]@{
+            evidence_code = [int]$evidence.code
+            item_guid = [string]$signal.item_guid
+            classification = [string]$signal.classification
+            retention = [string]$signal.retention
+            backend = [string]$signal.backend
+            destination_entity_name = if ($null -ne $destination) {
+                if ($destination -is [System.Collections.IDictionary]) {
+                    [string]$destination['entity_name']
+                }
+                else { [string]$destination.entity_name }
+            }
+            else { '' }
+            destination_entity_guid = if ($null -ne $destination) {
+                if ($destination -is [System.Collections.IDictionary]) {
+                    [string]$destination['entity_guid']
+                }
+                else { [string]$destination.entity_guid }
+            }
+            else { '' }
+        })
+        if (-not [string]::IsNullOrWhiteSpace([string]$signal.buff_guid)) {
+            $signalBuffGuids.Add([string]$signal.buff_guid)
+        }
+    }
+    if ($null -ne $Trophy) {
+        $items.Add([ordered]@{
+            evidence_code = 0
+            item_guid = [string]$Trophy.item_guid
+            classification = [string]$Trophy.item.classification
+            retention = [string]$Trophy.item.retention
+            backend = 'target_inventory'
+            destination_entity_name = ''
+            destination_entity_guid = ''
+        })
+    }
+
+    $entityContexts = [System.Collections.Generic.List[string]]::new()
+    $nativeProperty = $CaseSpec.PSObject.Properties['native']
+    $native = if ($null -ne $nativeProperty) {
+        $nativeProperty.Value
+    }
+    else { $null }
+    $contextsProperty = if ($null -ne $native) {
+        $native.PSObject.Properties['contexts']
+    }
+    else { $null }
+    if ($null -ne $contextsProperty -and $null -ne $contextsProperty.Value) {
+        foreach ($property in $contextsProperty.Value.PSObject.Properties) {
+            $value = [string]$property.Value
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                $entityContexts.Add($value)
+            }
+        }
+    }
+    $overheardProperty = if ($null -ne $native) {
+        $native.PSObject.Properties['overheard']
+    }
+    else { $null }
+    if ($null -ne $overheardProperty -and
+        $null -ne $overheardProperty.Value -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$overheardProperty.Value.context
+        )) {
+        $entityContexts.Add([string]$overheardProperty.Value.context)
+    }
+
+    return [ordered]@{
+        schema_version = 1
+        case_code = [int]$CaseSpec.code
+        variant_code = Get-DpStableRuntimeCode -Value ([string]$Variant.variantId)
+        evidence_codes = $evidenceCodes
+        availability_roles = $availabilityRoles
+        signal_buff_guids = @($signalBuffGuids | Sort-Object -Unique)
+        entity_contexts = @($entityContexts | Sort-Object -Unique)
+        items = $items.ToArray()
+        scene_ids = @(
+            $RuntimeScenes |
+                ForEach-Object { [string]$_.id } |
+                Sort-Object -Unique
+        )
+    }
+}
+
+function ConvertTo-DpCaseVariantCatalogLua {
+    param(
+        [Parameter(Mandatory)]$CompiledDefinitions,
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)][object[]]$Candidates,
+        $Bindings,
+        [object[]]$QuestItemPlacementSignals = @()
+    )
+
+    $storyById = @{}
+    foreach ($story in @($CompiledDefinitions.stories)) {
+        $storyById[[string]$story.storyId] = $story
+    }
+    $caseByCode = @{}
+    foreach ($caseSpec in @($CaseSpecs)) {
+        $caseByCode[[int]$caseSpec.code] = $caseSpec
+    }
+    $candidateByEntityName = @{}
+    foreach ($candidate in @($Candidates)) {
+        $entityName = [string]$candidate.entityName
+        if (-not [string]::IsNullOrWhiteSpace($entityName)) {
+            $candidateByEntityName[$entityName] = $candidate
+        }
+    }
+
+    $variantCodes = @{}
+    $bindingCodes = @{}
+    $runtimeVariants = [System.Collections.Generic.List[object]]::new()
+    foreach ($variant in @($CompiledDefinitions.variants | Sort-Object variantId)) {
+        $story = $storyById[[string]$variant.storyId]
+        if ($null -eq $story) {
+            throw "Variant '$($variant.variantId)' references unknown story."
+        }
+        $caseSpec = $caseByCode[[int]$variant.caseCode]
+        $variantCode = Get-DpStableRuntimeCode -Value ([string]$variant.variantId)
+        $bindingCode = Get-DpStableRuntimeCode -Value ([string]$variant.bindingSeed)
+        foreach ($entry in @(
+            @{ Map = $variantCodes; Code = $variantCode; Kind = 'variant' },
+            @{ Map = $bindingCodes; Code = $bindingCode; Kind = 'binding' }
+        )) {
+            if ($entry.Map.ContainsKey($entry.Code)) {
+                throw "Stable $($entry.Kind) code collision: $($entry.Code)."
+            }
+            $entry.Map[$entry.Code] = [string]$variant.variantId
+        }
+
+        $runtimeBindings = [ordered]@{}
+        foreach ($property in $variant.bindings.PSObject.Properties) {
+            $runtimeBindings[[string]$property.Name] =
+                ConvertTo-DpRuntimeVariantBinding `
+                    -Binding $property.Value `
+                    -CandidateByEntityName $candidateByEntityName
+        }
+        $target = $runtimeBindings.target
+        $nativeReady = $null -ne $caseSpec -and
+            [string]$caseSpec.constraints.region -eq [string]$variant.region -and
+            [string]$caseSpec.constraints.settlement -eq
+                [string]$variant.settlement -and
+            [int]$target.candidate_slot -gt 0
+        $runtimeScenes = @(ConvertTo-DpRuntimeSceneDefinitions `
+            -Story $story -VariantBindings $variant.bindings `
+            -CandidateByEntityName $candidateByEntityName)
+        $trophy = ConvertTo-DpNativeTrophyDefinition -Variant $variant
+        $caseBinding = if ($null -ne $Bindings) {
+            @($Bindings.settlements | Where-Object {
+                [string]$_.region -eq [string]$caseSpec.constraints.region -and
+                [string]$_.settlement -eq [string]$caseSpec.constraints.settlement
+            })[0]
+        }
+        else { $null }
+        $cleanupManifest = if ($nativeReady) {
+            Get-DpCaseCleanupManifest `
+                -CaseSpec $caseSpec `
+                -Variant $variant `
+                -RuntimeScenes $runtimeScenes `
+                -Binding $caseBinding `
+                -QuestItemPlacementSignals $QuestItemPlacementSignals `
+                -Trophy $trophy
+        }
+        else { $null }
+        $runtimeVariants.Add([ordered]@{
+            variant_id = [string]$variant.variantId
+            variant_code = $variantCode
+            binding_code = $bindingCode
+            story_id = [string]$variant.storyId
+            case_id = [string]$variant.caseId
+            case_code = [int]$variant.caseCode
+            composition_id = [string]$variant.compositionId
+            region = [string]$variant.region
+            settlement = [string]$variant.settlement
+            rank = [int]$variant.rank
+            weight = [double]$story.weight
+            native_ready = $nativeReady
+            anti_repeat_key = [string]$target.entity_name
+            target_slot = [int]$target.candidate_slot
+            trophy = $trophy
+            bindings = $runtimeBindings
+            scenes = $runtimeScenes
+            cleanup_manifest = $cleanupManifest
+        })
+    }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add('-- Generated by Compile-CaseSpecs.ps1. Do not edit.')
+    $lines.Add('DarkPassengerCaseVariantCatalog = {}')
+    $lines.Add('DarkPassengerCaseVariantCatalogOrder = {')
+    foreach ($variant in $runtimeVariants) {
+        $lines.Add('    ' + (ConvertTo-DpLuaString $variant.variant_id) + ',')
+    }
+    $lines.Add('}')
+    $lines.Add('DarkPassengerCaseVariantCatalogByCode = {}')
+    $lines.Add('')
+    foreach ($variant in $runtimeVariants) {
+        $variantId = ConvertTo-DpLuaString $variant.variant_id
+        $lines.Add("DarkPassengerCaseVariantCatalog[$variantId] = " +
+            (ConvertTo-DpLuaValue -Value $variant))
+        $lines.Add(
+            "DarkPassengerCaseVariantCatalogByCode[$($variant.variant_code)] = " +
+            "DarkPassengerCaseVariantCatalog[$variantId]"
+        )
+        $lines.Add('')
+    }
+    return ($lines -join "`n") + "`n"
+}
+
 function ConvertTo-DpCaseCompatibilityReport {
     param([Parameter(Mandatory)][object[]]$CaseSpecs)
 
@@ -432,7 +960,8 @@ function ConvertTo-DpLocalizationXml {
     param(
         [Parameter(Mandatory)][string]$BaseLiteralPath,
         [Parameter(Mandatory)][object[]]$CaseSpecs,
-        [Parameter(Mandatory)][ValidateSet('ru', 'en')][string]$Language
+        [Parameter(Mandatory)][ValidateSet('ru', 'en')][string]$Language,
+        $CompiledDefinitions
     )
 
     [xml]$base = [System.IO.File]::ReadAllText($BaseLiteralPath)
@@ -493,6 +1022,35 @@ function ConvertTo-DpLocalizationXml {
             }
             $values[$key] = $value
             $rows.Add([ordered]@{ key = $key; value = $value })
+        }
+    }
+
+    $compiledVariants = if ($null -eq $CompiledDefinitions) {
+        @()
+    }
+    else { @($CompiledDefinitions.variants) }
+    foreach ($variant in @($compiledVariants | Sort-Object variantId)) {
+        $trophy = ConvertTo-DpNativeTrophyDefinition -Variant $variant
+        if ($null -eq $trophy) { continue }
+        foreach ($entry in @(
+            [ordered]@{
+                key = [string]$trophy.name_key
+                value = [string]$trophy.name[$Language]
+            },
+            [ordered]@{
+                key = [string]$trophy.info_key
+                value = [string]$trophy.description[$Language]
+            }
+        )) {
+            if ($values.Contains($entry.key)) {
+                if ([string]$values[$entry.key] -ne $entry.value) {
+                    throw "Generated trophy localization key " +
+                        "'$($entry.key)' conflicts."
+                }
+                continue
+            }
+            $values[$entry.key] = $entry.value
+            $rows.Add($entry)
         }
     }
 
@@ -586,10 +1144,112 @@ function ConvertTo-DpStormRoleXml {
     )
 }
 
+function ConvertTo-DpDialogueRoleTableXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)]$Bindings
+    )
+
+    $registryErrors = @(Get-DpDialogueRoleRegistryErrors -Bindings $Bindings)
+    if ($registryErrors.Count -gt 0) {
+        throw "Dialogue role registry is invalid:`n - $($registryErrors -join "`n - ")"
+    }
+
+    $definitions = @($Bindings.dialogueRoles)
+    $requiredNames = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $matchingBindings = @($Bindings.settlements | Where-Object {
+            [string]$_.region -eq [string]$case.constraints.region -and
+            [string]$_.settlement -eq [string]$case.constraints.settlement
+        })
+        if ($matchingBindings.Count -ne 1) {
+            throw "Case '$($case.id)' requires exactly one settlement binding."
+        }
+        foreach ($roleName in @(Get-DpSettlementDialogueRoleNames `
+            -SettlementBinding $matchingBindings[0])) {
+            [void]$requiredNames.Add([string]$roleName)
+        }
+    }
+
+    $knownNames = [ordered]@{}
+    $knownIds = [ordered]@{}
+    foreach ($match in [regex]::Matches($BaseXml, '<role\b[^>]*/>')) {
+        $nameMatch = [regex]::Match(
+            $match.Value,
+            '\brole_name="([^"]+)"'
+        )
+        $idMatch = [regex]::Match(
+            $match.Value,
+            '\brole_id="([^"]+)"'
+        )
+        $metaRoleMatch = [regex]::Match(
+            $match.Value,
+            '\bmetarole_name="([^"]+)"'
+        )
+        if (-not $nameMatch.Success -or -not $idMatch.Success -or
+            -not $metaRoleMatch.Success) {
+            throw "Malformed RPG role row: $($match.Value)"
+        }
+        $knownNames[[string]$nameMatch.Groups[1].Value] = [ordered]@{
+            roleId = [string]$idMatch.Groups[1].Value
+            metaRole = [string]$metaRoleMatch.Groups[1].Value
+        }
+        $knownIds[[string]$idMatch.Groups[1].Value] =
+            [string]$nameMatch.Groups[1].Value
+    }
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($roleName in @($requiredNames | Sort-Object)) {
+        $matches = @($definitions | Where-Object {
+            [string]$_.name -eq $roleName
+        })
+        if ($matches.Count -ne 1) {
+            throw "Dialogue role '$roleName' requires exactly one registry definition."
+        }
+        $definition = $matches[0]
+        $roleId = [string]$definition.roleId
+        $metaRole = [string]$definition.metaRole
+
+        if ($knownNames.Contains($roleName)) {
+            $known = $knownNames[$roleName]
+            if ([string]$known.roleId -ne $roleId -or
+                [string]$known.metaRole -ne $metaRole) {
+                throw "Dialogue role '$roleName' conflicts with the base RPG table."
+            }
+            continue
+        }
+        if ($knownIds.Contains($roleId)) {
+            throw "Dialogue role id '$roleId' is already used by '$($knownIds[$roleId])'."
+        }
+
+        $roleIdXml = ConvertTo-DpXmlText $roleId
+        $metaRoleXml = ConvertTo-DpXmlText $metaRole
+        $roleNameXml = ConvertTo-DpXmlText $roleName
+        $additions.Add(
+            "    <role role_id=`"$roleIdXml`" " +
+            "metarole_name=`"$metaRoleXml`" role_name=`"$roleNameXml`" />"
+        )
+        $knownNames[$roleName] = [ordered]@{
+            roleId = $roleId
+            metaRole = $metaRole
+        }
+        $knownIds[$roleId] = $roleName
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = '  </roles>'
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'RPG role table has no roles terminator.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
 function ConvertTo-DpScriptContextXml {
     param(
         [Parameter(Mandatory)][string]$BaseXml,
-        [Parameter(Mandatory)][object[]]$CaseSpecs
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [object[]]$Signals = @()
     )
 
     $names = [System.Collections.Generic.HashSet[string]]::new(
@@ -624,8 +1284,21 @@ function ConvertTo-DpScriptContextXml {
             }
         }
     }
+    foreach ($signal in @($Signals)) {
+        $context = [string]$signal.read_context
+        if (-not [string]::IsNullOrWhiteSpace($context) -and
+            $names.Add($context)) {
+            $contextXml = ConvertTo-DpXmlText $context
+            $additions.Add(
+                "    <ScriptContextDatabaseNode Name=`"$contextXml`" Class=`"Entity`" />"
+            )
+        }
+    }
     if ($additions.Count -eq 0) { return $BaseXml }
-    $marker = '  </ScriptContexts>'
+    $marker = if ($BaseXml.Contains('  </ScriptContexts>')) {
+        '  </ScriptContexts>'
+    }
+    else { '</ScriptContexts>' }
     $index = $BaseXml.LastIndexOf($marker)
     if ($index -lt 0) { throw 'ScriptContext table has no terminator.' }
     return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
@@ -635,14 +1308,15 @@ function ConvertTo-DpItemTableXml {
     param(
         [Parameter(Mandatory)][string]$BaseXml,
         [Parameter(Mandatory)][object[]]$CaseSpecs,
-        [Parameter(Mandatory)]$Bindings
+        [Parameter(Mandatory)]$Bindings,
+        $CompiledDefinitions
     )
 
     $knownIds = [ordered]@{}
     $knownNames = [ordered]@{}
     foreach ($match in [regex]::Matches(
         $BaseXml,
-        '<Document\b[^>]*\bId="([^"]+)"[^>]*\bName="([^"]+)"'
+        '<[A-Za-z]+\b[^>]*\bId="([^"]+)"[^>]*\bName="([^"]+)"'
     )) {
         $knownIds[[string]$match.Groups[1].Value] =
             [string]$match.Groups[2].Value
@@ -677,12 +1351,48 @@ function ConvertTo-DpItemTableXml {
             $nameKeyXml = ConvertTo-DpXmlText ([string]$step.item.nameKey)
             $infoKeyXml = ConvertTo-DpXmlText ([string]$step.item.infoKey)
             $contentKeyXml = ConvertTo-DpXmlText ([string]$step.item.contentKey)
+            $isQuestItem = (
+                [string]$step.item.classification -eq 'quest'
+            ).ToString().ToLowerInvariant()
             $additions.Add(@"
-        <Document Type="5" IconId="letter_simple" UIInfo="$infoKeyXml" UIName="$nameKeyXml" PickpocketInPouch="true" Model="characters/assets/parchment_folded/parchment_folded.cdf" EntityScript="Book" Weight="0" Price="0" FadeCoef="1.333333" VisibilityCoef="1" Id="$idXml" Name="$nameXml">
+        <Document Type="5" IconId="letter_simple" UIInfo="$infoKeyXml" UIName="$nameKeyXml" PickpocketInPouch="true" IsQuestItem="$isQuestItem" Model="characters/assets/parchment_folded/parchment_folded.cdf" EntityScript="Book" Weight="0" Price="0" FadeCoef="1.333333" VisibilityCoef="1" Id="$idXml" Name="$nameXml">
             <DocumentContent Parts="$contentKeyXml" />
         </Document>
 "@.TrimEnd())
         }
+    }
+    $compiledVariants = if ($null -eq $CompiledDefinitions) {
+        @()
+    }
+    else { @($CompiledDefinitions.variants) }
+    foreach ($variant in @($compiledVariants | Sort-Object variantId)) {
+        $trophy = ConvertTo-DpNativeTrophyDefinition -Variant $variant
+        if ($null -eq $trophy) { continue }
+        $id = [string]$trophy.item_guid
+        $name = [string]$trophy.item_name
+        if ($knownIds.Contains($id)) {
+            if ([string]$knownIds[$id] -ne $name) {
+                throw "Trophy GUID collision: $id"
+            }
+            continue
+        }
+        if ($knownNames.Contains($name)) {
+            throw "Trophy item name collision: $name"
+        }
+        $knownIds[$id] = $name
+        $knownNames[$name] = $id
+        $asset = $trophy.asset
+        $idXml = ConvertTo-DpXmlText $id
+        $nameXml = ConvertTo-DpXmlText $name
+        $nameKeyXml = ConvertTo-DpXmlText ([string]$trophy.name_key)
+        $infoKeyXml = ConvertTo-DpXmlText ([string]$trophy.info_key)
+        $iconXml = ConvertTo-DpXmlText ([string]$asset.icon_id)
+        $modelXml = ConvertTo-DpXmlText ([string]$asset.model)
+        $isDivisible = ([string]$asset.is_divisible).ToLowerInvariant()
+        $isQuestItem = ([string]$asset.is_quest_item).ToLowerInvariant()
+        $additions.Add(@"
+        <MiscItem Type="$($asset.type)" SubType="$($asset.sub_type)" IconId="$iconXml" UIInfo="$infoKeyXml" UIName="$nameKeyXml" DisplayInShop="false" IsDivisible="$isDivisible" IsQuestItem="$isQuestItem" Model="$modelXml" Weight="$($asset.weight)" Price="$($asset.price)" FadeCoef="$($asset.fade_coef)" VisibilityCoef="$($asset.visibility_coef)" Id="$idXml" Name="$nameXml" />
+"@.TrimEnd())
     }
     if ($additions.Count -eq 0) { return $BaseXml }
     $marker = "`t</ItemClasses>"
@@ -814,7 +1524,7 @@ function ConvertTo-DpOverheardDialogueXml {
     $lines.Add("      <Text StringName=`"$($Overheard.root_key)`" />")
     $lines.Add('      <Dialogue Type="ingame" TechnicalStatus="Enabled" Initiator="NonPlayer">')
     $lines.Add(
-        "        <Decision Name=`"overheard_root`" Priority=`"SideQuest`" Alias=`"$($Overheard.decision_alias)`">"
+        "        <Decision Name=`"overheard_root`" Priority=`"General`" Alias=`"$($Overheard.decision_alias)`">"
     )
     $lines.Add('          <Sequences>')
     $lines.Add(
@@ -1159,7 +1869,7 @@ $rumorVariantPortEdgeXml
         $nodeLines.Add('        </State>')
         $nodeLines.Add('        <Timer Name="overheardCluePulse">')
         $nodeLines.Add('          <Constant Name="Duration" Value="3s" />')
-        $nodeLines.Add('          <Constant Name="TimeType" Value="RealTime" />')
+        $nodeLines.Add('          <Constant Name="TimeType" Value="GameTime" />')
         $nodeLines.Add(
             "          <Edge From=`"overheardEvidenceDialog.$($overheard.clue_port)`" To=`"SetRunning`" />"
         )
@@ -1528,6 +2238,450 @@ function ConvertTo-DpOverheardBuffXml {
     return $BaseXml.Insert($index, $addition)
 }
 
+function Get-DpEvidenceStashAlias {
+    param(
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$Settlement
+    )
+
+    foreach ($value in @($Region, $Settlement)) {
+        if ($value -notmatch '^[A-Za-z0-9_]+$') {
+            throw "Invalid evidence stash identity '$Region/$Settlement'."
+        }
+    }
+    return "DP_EvidenceStash_${Region}_${Settlement}"
+}
+
+function Get-DpQuestItemPlacementSignals {
+    param(
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [Parameter(Mandatory)]$Bindings,
+        $CompiledDefinitions
+    )
+
+    $itemsByGuid = [ordered]@{}
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $binding = @($Bindings.settlements | Where-Object {
+            [string]$_.region -eq [string]$case.constraints.region -and
+            [string]$_.settlement -eq [string]$case.constraints.settlement
+        })[0]
+        foreach ($evidence in @($case.evidence)) {
+            $kindProperty = $evidence.PSObject.Properties['kind']
+            $isReadableDocument =
+                $null -ne $kindProperty -and
+                [string]$kindProperty.Value -eq 'document'
+            $itemProperty = $evidence.PSObject.Properties['item']
+            if ($null -eq $itemProperty -or
+                [string]$itemProperty.Value.classification -ne 'quest') {
+                continue
+            }
+            $item = $itemProperty.Value
+            $roleName = if (
+                $null -ne $evidence.PSObject.Properties['role']
+            ) { [string]$evidence.role } else { '' }
+            $roleProperty = if ($null -ne $binding) {
+                if ([string]::IsNullOrWhiteSpace($roleName)) {
+                    $null
+                }
+                else {
+                    $binding.roles.PSObject.Properties[$roleName]
+                }
+            }
+            else { $null }
+            $roleBinding = if ($null -ne $roleProperty) {
+                $roleProperty.Value
+            }
+            else { $null }
+            $guid = if ($null -ne $item.PSObject.Properties['guid']) {
+                [string]$item.guid
+            }
+            else { '' }
+            if ([string]::IsNullOrWhiteSpace($guid)) {
+                foreach ($propertyName in 'itemGuid', 'documentGuid') {
+                    if ($null -ne $roleBinding -and
+                        $null -ne $roleBinding.PSObject.Properties[$propertyName] -and
+                        -not [string]::IsNullOrWhiteSpace(
+                            [string]$roleBinding.$propertyName
+                        )) {
+                        $guid = [string]$roleBinding.$propertyName
+                        break
+                    }
+                }
+            }
+            if ([string]::IsNullOrWhiteSpace($guid)) {
+                throw (
+                    "Quest evidence '$([string]$evidence.id)' has no " +
+                    'concrete KCD2 item GUID.'
+                )
+            }
+            $stashBinding = $null
+            if ($isReadableDocument) {
+                $containerGuid = if (
+                    $null -ne $roleBinding -and
+                    $null -ne $roleBinding.PSObject.Properties['containerGuid']
+                ) {
+                    [string]$roleBinding.containerGuid
+                }
+                else { '' }
+                if ([string]::IsNullOrWhiteSpace($containerGuid)) {
+                    throw (
+                        "Quest document '$([string]$evidence.id)' has no " +
+                        'concrete KCD2 container GUID.'
+                    )
+                }
+                $region = [string]$case.constraints.region
+                $settlement = [string]$case.constraints.settlement
+                $stashBinding = [ordered]@{
+                    region = $region
+                    settlement = $settlement
+                    container_guid = $containerGuid
+                    stash_alias = Get-DpEvidenceStashAlias `
+                        -Region $region `
+                        -Settlement $settlement
+                }
+            }
+            $key = $guid.ToLowerInvariant()
+            if (-not $itemsByGuid.Contains($key)) {
+                $itemsByGuid[$key] = [ordered]@{
+                    item_guid = $guid
+                    classification = 'quest'
+                    retention = [string]$item.retention
+                    source = "evidence:$([string]$evidence.id)"
+                    is_readable_document = $isReadableDocument
+                    stash_bindings =
+                        [System.Collections.Generic.List[object]]::new()
+                }
+            }
+            elseif ($isReadableDocument) {
+                $itemsByGuid[$key].is_readable_document = $true
+            }
+            if ($null -ne $stashBinding) {
+                $signature =
+                    "$($stashBinding.region)|$($stashBinding.settlement)|" +
+                    "$($stashBinding.container_guid)"
+                $existing = @($itemsByGuid[$key].stash_bindings | Where-Object {
+                    "$($_.region)|$($_.settlement)|$($_.container_guid)" -eq
+                        $signature
+                })
+                if ($existing.Count -eq 0) {
+                    $itemsByGuid[$key].stash_bindings.Add($stashBinding)
+                }
+            }
+        }
+    }
+
+    $variants = if ($null -eq $CompiledDefinitions) {
+        @()
+    }
+    else { @($CompiledDefinitions.variants) }
+    foreach ($variant in @($variants | Sort-Object variantId)) {
+        $trophy = ConvertTo-DpNativeTrophyDefinition -Variant $variant
+        if ($null -eq $trophy -or
+            [string]$trophy.item.classification -ne 'quest') {
+            continue
+        }
+        $guid = [string]$trophy.item_guid
+        $key = $guid.ToLowerInvariant()
+        if (-not $itemsByGuid.Contains($key)) {
+            $itemsByGuid[$key] = [ordered]@{
+                item_guid = $guid
+                classification = 'quest'
+                retention = [string]$trophy.item.retention
+                source = "trophy:$([string]$variant.variantId)"
+                is_readable_document = $false
+                stash_bindings =
+                    [System.Collections.Generic.List[object]]::new()
+            }
+        }
+    }
+
+    $signals = [System.Collections.Generic.List[object]]::new()
+    $index = 0
+    foreach ($item in @($itemsByGuid.Values | Sort-Object item_guid)) {
+        $index++
+        $name = 'dp_quest_item_request_{0:d3}' -f $index
+        $signals.Add([ordered]@{
+            signal_index = $index
+            item_guid = [string]$item.item_guid
+            classification = [string]$item.classification
+            retention = [string]$item.retention
+            source = [string]$item.source
+            is_readable_document =
+                [bool]$item.is_readable_document
+            backend = if ([bool]$item.is_readable_document) {
+                'quest_effect_stash'
+            }
+            else { 'player_transfer' }
+            stash_bindings = @($item.stash_bindings)
+            read_context = if ([bool]$item.is_readable_document) {
+                'dp_document_read_' +
+                    ([string]$item.item_guid).Replace('-', '').ToLowerInvariant()
+            }
+            else { '' }
+            signal_tag = 129 + $index
+            signal_name = $name
+            buff_guid = Get-DpStableGuid -Seed (
+                "darkpassenger-quest-item-request|$([string]$item.item_guid)"
+            )
+        })
+    }
+    return $signals.ToArray()
+}
+
+function ConvertTo-DpQuestItemPlacementTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$Signals
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @($Signals)) {
+        $tag = [int]$signal.signal_tag
+        $name = [string]$signal.signal_name
+        $match = [regex]::Match(
+            $BaseXml,
+            "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+        )
+        if ($match.Success) {
+            if (-not $match.Value.Contains("buff_ai_tag_name=`"$name`"")) {
+                throw "Quest-item buff tag id $tag collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Quest-item buff tag name '$name' has another id."
+        }
+        $additions.Add(
+            "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+            "buff_ai_tag_name=`"$name`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = if ($BaseXml.Contains("`t</buff_ai_tags>")) {
+        "`t</buff_ai_tags>"
+    }
+    else { '</buff_ai_tags>' }
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpQuestItemPlacementBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$Signals
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @($Signals)) {
+        $tag = [int]$signal.signal_tag
+        $name = [string]$signal.signal_name
+        $guid = [string]$signal.buff_guid
+        $match = [regex]::Match(
+            $BaseXml,
+            "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+        )
+        if ($match.Success) {
+            if (-not $match.Value.Contains("buff_name=`"$name`"") -or
+                -not $match.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+                throw "Quest-item buff guid $guid collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_name=`"$name`"")) {
+            throw "Quest-item buff name '$name' has another guid."
+        }
+        $additions.Add(
+            "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+            "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+            "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+            "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+            "implementation=`"Cpp:Constant`" is_persistent=`"false`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = if ($BaseXml.Contains("`t</buffs>")) {
+        "`t</buffs>"
+    }
+    else { '</buffs>' }
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpQuestItemPlacementNodesXml {
+    param(
+        [Parameter(Mandatory)][object[]]$Signals,
+        [string]$Region
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @($Signals)) {
+        $stashBindings = @(
+            $signal.stash_bindings |
+                Where-Object {
+                    [string]::IsNullOrWhiteSpace($Region) -or
+                    [string]$_.region -eq $Region
+                }
+        )
+        $isQuestEffectStash =
+            [string]$signal.backend -eq 'quest_effect_stash'
+        if ($isQuestEffectStash -and $stashBindings.Count -eq 0) {
+            continue
+        }
+        $signalIndex = if (
+            $null -ne $signal.PSObject.Properties['signal_index']
+        ) { [int]$signal.signal_index } else { [int]$signal.signal_tag - 129 }
+        $suffix = '{0:d3}' -f $signalIndex
+        $lines.Add("        <MakeArray Name=`"questItemRequestTags$suffix`" TypeT=`"wh::rpgmodule::BuffDefinitionAITags`">")
+        $lines.Add("          <Constant Name=`"A`" Value=`"$([int]$signal.signal_tag)`" />")
+        $lines.Add('        </MakeArray>')
+        $lines.Add("        <BuffTagTrigger Name=`"questItemRequestTrigger$suffix`">")
+        $lines.Add('          <Asset Name="Souls" Alias="player" />')
+        $lines.Add("          <Edge From=`"questItemRequestTags$suffix.Array`" To=`"BuffTags`" />")
+        $lines.Add('          <Edge From="watcherActive.State" To="IsActive" />')
+        $lines.Add('        </BuffTagTrigger>')
+        if ($isQuestEffectStash) {
+            $lines.Add("        <State Name=`"questItemRequestActive$suffix`" TypeT=`"bool`">")
+            $lines.Add("          <Edge From=`"questItemRequestTrigger$suffix.OnAdded`" To=`"SetTrue`" />")
+            $lines.Add("          <Edge From=`"questItemRequestTrigger$suffix.OnRemoved`" To=`"SetFalse`" />")
+            $lines.Add('        </State>')
+            $bindingIndex = 0
+            foreach ($stashBinding in $stashBindings) {
+                $bindingIndex++
+                $nodeSuffix = '{0}_{1:d2}' -f $suffix, $bindingIndex
+                $lines.Add("        <AddQuestItem Name=`"addQuestItemToStash$nodeSuffix`">")
+                $lines.Add("          <Constant Name=`"ItemClassGUID`" Value=`"$([string]$signal.item_guid)`" />")
+                $lines.Add("          <Asset Name=`"BackupLocation`" Alias=`"$([string]$stashBinding.stash_alias)`" />")
+                $lines.Add("          <Asset Name=`"StartingLocation`" Alias=`"$([string]$stashBinding.stash_alias)`" />")
+                $lines.Add("          <Edge From=`"questItemRequestActive$suffix.State`" To=`"IsActive`" />")
+                $lines.Add('        </AddQuestItem>')
+            }
+        }
+        else {
+            $lines.Add("        <ObjectProperties Name=`"questItemPlayerInventory$suffix`" DeclaringType=`"wh::rpgmodule::I_Soul`">")
+            $lines.Add('          <Asset Name="I_Soul" Alias="player" />')
+            $lines.Add('        </ObjectProperties>')
+            $lines.Add("        <EventMemberFunction Name=`"createQuestItem$suffix`" MethodName=`"CreateItems`" DeclaringType=`"wh::entitymodule::Inventory`">")
+            $lines.Add("          <Constant Name=`"ItemClass`" Value=`"$([string]$signal.item_guid)`" />")
+            $lines.Add("          <Edge From=`"questItemPlayerInventory$suffix.Inventory`" To=`"Inventory`" />")
+            $lines.Add("          <Edge From=`"questItemRequestTrigger$suffix.OnAdded`" To=`"Exec`" />")
+            $lines.Add('        </EventMemberFunction>')
+        }
+        if ([bool]$signal.is_readable_document) {
+            $lines.Add("        <UseBookTrigger Name=`"questDocumentReadTrigger$suffix`">")
+            $lines.Add("          <Constant Name=`"Book`" Value=`"$([string]$signal.item_guid)`" />")
+            $lines.Add('          <Edge From="watcherActive.State" To="IsActive" />')
+            $lines.Add('        </UseBookTrigger>')
+            $lines.Add("        <State Name=`"questDocumentReadPulse$suffix`" TypeT=`"bool`">")
+            $lines.Add("          <Edge From=`"questDocumentReadTrigger$suffix.OnLastPageTurned`" To=`"SetTrue`" />")
+            $lines.Add("          <Edge From=`"questDocumentReadTimer$suffix.OnFinished`" To=`"SetFalse`" />")
+            $lines.Add('        </State>')
+            $lines.Add("        <Timer Name=`"questDocumentReadTimer$suffix`">")
+            $lines.Add('          <Constant Name="Duration" Value="3s" />')
+            $lines.Add('          <Constant Name="TimeType" Value="GameTime" />')
+            $lines.Add("          <Edge From=`"questDocumentReadTrigger$suffix.OnLastPageTurned`" To=`"SetRunning`" />")
+            $lines.Add('        </Timer>')
+            $lines.Add("        <SetEntityContext Name=`"questDocumentReadRequest$suffix`">")
+            $lines.Add("          <Constant Name=`"Context`" Value=`"$([string]$signal.read_context)`" />")
+            $lines.Add('          <Asset Name="Souls" Alias="player" />')
+            $lines.Add("          <Edge From=`"questDocumentReadPulse$suffix.State`" To=`"IsActive`" />")
+            $lines.Add('        </SetEntityContext>')
+        }
+    }
+    return $lines -join "`n"
+}
+
+function ConvertTo-DpQuestItemPlacementAssetsXml {
+    param(
+        [Parameter(Mandatory)][object[]]$Signals,
+        [string]$Region
+    )
+
+    $aliases = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($signal in @($Signals)) {
+        foreach ($stashBinding in @($signal.stash_bindings)) {
+            if (
+                -not [string]::IsNullOrWhiteSpace($Region) -and
+                [string]$stashBinding.region -ne $Region
+            ) {
+                continue
+            }
+            [void]$aliases.Add([string]$stashBinding.stash_alias)
+        }
+    }
+    return @(
+        $aliases |
+            Sort-Object |
+            ForEach-Object { "        <StashAsset Name=`"$_`" />" }
+    ) -join "`n"
+}
+
+function ConvertTo-DpQuestItemPlacementCatalogLua {
+    param([Parameter(Mandatory)][object[]]$Signals)
+
+    $entries = [ordered]@{}
+    foreach ($signal in @($Signals)) {
+        $entries[[string]$signal.item_guid] = [ordered]@{
+            item_guid = [string]$signal.item_guid
+            buff_guid = [string]$signal.buff_guid
+            signal_tag = [int]$signal.signal_tag
+            retention = [string]$signal.retention
+            backend = [string]$signal.backend
+            read_context = [string]$signal.read_context
+        }
+    }
+    return @(
+        '-- Generated by Compile-CaseSpecs.ps1. Do not edit.'
+        'DarkPassengerQuestItemPlacementCatalog = ' +
+            (ConvertTo-DpLuaValue -Value $entries -Indent 0)
+        ''
+    ) -join "`n"
+}
+
+function Merge-DpQuestItemCatalogLua {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyString()]
+        [string]$BaseCatalog,
+        [Parameter(Mandatory)][object[]]$Signals
+    )
+
+    $itemGuids = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
+    foreach ($match in [regex]::Matches(
+        $BaseCatalog,
+        '(?i)\["(?<guid>[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})"\]\s*=\s*true'
+    )) {
+        $null = $itemGuids.Add(
+            $match.Groups['guid'].Value.ToLowerInvariant()
+        )
+    }
+    foreach ($signal in @($Signals)) {
+        $itemGuid = ([string]$signal.item_guid).ToLowerInvariant()
+        if ($itemGuid -notmatch
+            '^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$') {
+            throw "Invalid quest-item GUID '$itemGuid'."
+        }
+        $null = $itemGuids.Add($itemGuid)
+    }
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $lines.Add(
+        '-- Generated from authoritative and compiled KCD2 item tables. Do not edit.'
+    )
+    $lines.Add('DarkPassengerQuestItemCatalog = {')
+    foreach ($itemGuid in @($itemGuids) | Sort-Object) {
+        $lines.Add("    [`"$itemGuid`"] = true,")
+    }
+    $lines.Add('}')
+    $lines.Add('')
+    return $lines -join "`n"
+}
+
 function Get-DpCaseSpecValidationErrors {
     param(
         [Parameter(Mandatory)]$CaseSpec,
@@ -1568,6 +2722,23 @@ function Get-DpCaseSpecValidationErrors {
         (Test-DpTextValue $region) -and
         (Test-DpTextValue $settlement)) {
         $errors.Add("$prefix no settlement binding for '$region/$settlement'")
+    }
+    if ($binding.Count -eq 1) {
+        $registryProperty = $Bindings.PSObject.Properties['dialogueRoles']
+        $definitions = if ($null -ne $registryProperty) {
+            @($registryProperty.Value)
+        }
+        else { @() }
+        foreach ($roleName in @(Get-DpSettlementDialogueRoleNames `
+            -SettlementBinding $binding[0])) {
+            if (@($definitions | Where-Object {
+                [string]$_.name -eq [string]$roleName
+            }).Count -ne 1) {
+                $errors.Add(
+                    "$prefix dialogue role '$roleName' must have one registry definition"
+                )
+            }
+        }
     }
 
     foreach ($language in 'ru', 'en') {
@@ -2060,6 +3231,11 @@ function Get-DpValidatedCaseSpecs {
 
     $cases = [System.Collections.Generic.List[object]]::new()
     $errors = [System.Collections.Generic.List[string]]::new()
+    foreach ($registryError in @(
+        Get-DpDialogueRoleRegistryErrors -Bindings $bindings
+    )) {
+        $errors.Add("$(Split-Path -Leaf $BindingPath): $registryError")
+    }
     $ids = [System.Collections.Generic.HashSet[string]]::new(
         [System.StringComparer]::Ordinal
     )
@@ -2098,6 +3274,8 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpLuaString',
     'ConvertTo-DpLuaValue',
     'ConvertTo-DpCaseCatalogLua',
+    'Get-DpCaseCleanupManifest',
+    'ConvertTo-DpCaseVariantCatalogLua',
     'ConvertTo-DpCaseCompatibilityReport',
     'ConvertTo-DpDialogueXml',
     'ConvertTo-DpOverheardDialogueXml',
@@ -2110,8 +3288,17 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpDialogueVariantBuffXml',
     'ConvertTo-DpOverheardTagXml',
     'ConvertTo-DpOverheardBuffXml',
+    'Get-DpEvidenceStashAlias',
+    'Get-DpQuestItemPlacementSignals',
+    'ConvertTo-DpQuestItemPlacementTagXml',
+    'ConvertTo-DpQuestItemPlacementBuffXml',
+    'ConvertTo-DpQuestItemPlacementNodesXml',
+    'ConvertTo-DpQuestItemPlacementAssetsXml',
+    'ConvertTo-DpQuestItemPlacementCatalogLua',
+    'Merge-DpQuestItemCatalogLua',
     'ConvertTo-DpLocalizationXml',
     'ConvertTo-DpStormRoleXml',
+    'ConvertTo-DpDialogueRoleTableXml',
     'ConvertTo-DpScriptContextXml',
     'ConvertTo-DpItemTableXml'
 )

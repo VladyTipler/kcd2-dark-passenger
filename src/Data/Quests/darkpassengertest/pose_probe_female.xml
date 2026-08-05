@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <FaderDialog Name="pose_probe_female">
+      <Text StringName="dp_pose_probe_root" />
+      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false" Initiator="Player">
+        <Decision Name="probe_root" Autoselect="true" Priority="General">
+          <Sequences>
+            <Sequence EndType="EndDialogue" Name="probe_female_sequence">
+              <Elements>
+                <Response Role="HENRY">
+                  <Text StringName="dp_pose_probe_henry_check" />
+                  <Commands>
+                    <CameraCommand CameraType="CloseUp" />
+                    <AnimationCommand Role="RANENY_NA_ZEMI_ZENA" Delay="0.02" FragmentId="ADLG_Listen" Guid="d6cde74a-8cca-8fab-aa32-f9a6e2e5c3a4" Variant="0" />
+                  </Commands>
+                </Response>
+                <Response Role="RANENY_NA_ZEMI_ZENA">
+                  <Text StringName="dp_pose_probe_victim_reply" />
+                  <Commands>
+                    <CameraCommand CameraType="CloseUp" />
+                    <AnimationCommand FragmentId="ADLG_Speak" Guid="e5087cfd-7753-fe79-d006-bb200912f5f8" Variant="0" />
+                  </Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_pose_probe_henry_finish" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+              </Elements>
+            </Sequence>
+          </Sequences>
+        </Decision>
+      </Dialogue>
+    </FaderDialog>
+  </Skald>
+</Database>

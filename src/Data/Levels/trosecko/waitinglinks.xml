@@ -4,6 +4,36 @@
     <WaitingLink SourceId="30277b74-1c65-41e9" TargetId="a13d9e5c-7b42-4f61">
       <LinkDefinition>module</LinkDefinition>
     </WaitingLink>
+    <WaitingLink SourceId="a13d9e5c-7b42-4f61" TargetId="cd93a0b2-762f-4d22">
+      <LinkDefinition>asset[&apos;confessionProbeDialogueHolder&apos;]</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="a13d9e5c-7b42-4f61" TargetId="8f827fee-38a5-41db">
+      <LinkDefinition>asset[&apos;confessionProbeLyingSpot&apos;]</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="8f827fee-38a5-41db" TargetId="cd93a0b2-762f-4d22">
+      <LinkDefinition>dialogueHolder</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="50df1113-ed8f-4845">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="dc816990-06f3-4036">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="9d3ae907-8eea-47d2">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="b1e60d2c-7930-4c86">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="454d309c-d364-4f1d">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="cd93a0b2-762f-4d22" TargetId="f8c192db-9392-4871">
+      <LinkDefinition>cameraOverride</LinkDefinition>
+    </WaitingLink>
+    <WaitingLink SourceId="a13d9e5c-7b42-4f61" TargetId="aaf89994-e94b-0309">
+      <LinkDefinition>asset[&apos;DP_EvidenceStash_trosecko_zelejov&apos;]</LinkDefinition>
+    </WaitingLink>
     <WaitingLink SourceId="a13d9e5c-7b42-4f61" TargetId="ebd4fe42-ec8b-41ad">
       <LinkDefinition>asset[&apos;DP_SearchArea_Trosecko_Bukovina&apos;]</LinkDefinition>
     </WaitingLink>

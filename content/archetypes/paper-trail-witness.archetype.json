@@ -1,7 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "paper-trail-witness",
-  "revealThreshold": 70,
   "slots": {
     "settlement": {
       "entityType": "settlement",
@@ -32,7 +31,7 @@
     "witness": {
       "entityType": "actor",
       "required": true,
-      "capabilities": ["role.farmhand", "interaction.dialogue"],
+      "capabilities": ["role.tavern_worker", "interaction.dialogue"],
       "identityModes": ["named", "titled", "anonymous"],
       "templateFields": ["displayLabel", "directionLabel", "name"]
     },

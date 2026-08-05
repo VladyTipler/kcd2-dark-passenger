@@ -1,7 +1,7 @@
 # KCD2 CaseKit Design
 
 **Date:** 2026-08-03
-**Status:** approved
+**Status:** approved, refined 2026-08-04
 **Scope:** reusable build-time authoring and compilation toolchain for generated investigation cases
 
 ## Goal
@@ -109,6 +109,24 @@ than one fixed clue route or prose:
 - opener and route diversity;
 - marker, area and journal requirements.
 
+In the v2 authoring model this concept is named `InvestigationArchetype` and is
+compositional. A StoryPack may combine several archetypes; it is not forced into
+one mutually exclusive template. The initial library is:
+
+1. `paper-trail`;
+2. `witness-web`;
+3. `rumor-lattice`;
+4. `alibi-contradiction`;
+5. `crime-scene`;
+6. `location-trail`;
+7. `relationship-web`;
+8. `surveillance`;
+9. `associate-network`.
+
+`EvidenceModule` remains the atomic in-game action. An
+`InvestigationArchetype` describes a reusable mini-chain and its mechanical
+grammar. A StoryPack composes those mini-chains into one authored mystery.
+
 ### StoryPack
 
 A story pack is one coherent authored case dossier. It supplies reviewed
@@ -144,6 +162,32 @@ playable content milestone should be roughly twenty polished stories across a
 smaller set of proven archetypes, expanding only after repetition and authoring
 cost are measured in real play.
 
+The authored package keeps content reviewable and independent from native KCD2
+artifacts:
+
+```text
+content/stories/<story-id>/
+  case.json
+  threads.json
+  dialogues/
+  documents/
+  localization/ru.json
+  localization/en.json
+```
+
+- `case.json` owns canonical truth, semantic roles, fact graph, archetype
+  composition, reveal rules and optional coverage requirements;
+- `threads.json` owns leads, steps, cross-links, confidence and journal
+  revisions;
+- `dialogues/` owns complete dialogue trees and semantic scene direction;
+- `documents/` owns notes, books, ledgers and diaries;
+- localization files own exact bilingual copy and must have key parity.
+
+Scene direction uses semantic presets such as `standing-conversation`,
+`seated-tavern`, `lying-interrogation`, `target.close` and
+`mood.wounded-lying`. Story content never embeds camera GUIDs, world
+coordinates or native animation names.
+
 ### EvidenceModule
 
 An evidence module is one reusable gameplay primitive such as source dialogue,
@@ -156,6 +200,64 @@ module kinds are legal, StoryPack arranges concrete story threads and authored
 assets, and EvidenceModule implements the in-game action that discovers one
 piece of evidence. StoryPack never owns KCD2 GUIDs or native XML wiring, while
 EvidenceModule never owns the case lore.
+
+### Optional terminal scene modules
+
+StoryPacks may opt into reusable bonus scenes that enrich a case without
+changing its required confidence route. The first module is
+`pre-execution-interrogation`.
+
+CaseCompiler emits the authored confession dialogue, revealed-target role,
+localization, conditions and the semantic `lying-interrogation` scene preset.
+Runtime offers **Bring to consciousness** only when the target is revealed,
+alive, unconscious, the scene has not been completed and Henry has Cockeral.
+The `SceneDirector` starts the compiled dialogue, then returns the target to an
+unconscious state and persists `interrogationCompleted`.
+
+This is bonus lore. It is never required to reach the reveal threshold, kill
+the target or complete the Case. The live-proven lying-character camera rig is
+the first native adapter for this semantic preset.
+
+### Post-death trophy module
+
+Every compiled CaseVariant may declare one optional `TrophyDefinition`. It is a
+serial-killer collectible, not evidence and not a confidence source. The first
+shipping preset uses an ordinary vanilla bird-feather icon/model as a temporary
+asset; replacing it later with the planned bloodied-feather art changes only
+the central asset preset.
+
+The canonical inventory label is **"Трофей - Окровавленное перо"** /
+**"Trophy - Bloodied Feather"**. The explicit prefix makes its purpose clear when it
+appears in the dead target's inventory, even while the temporary icon remains
+an ordinary feather.
+
+CaseCompiler emits a unique non-stackable item definition and bilingual
+description for the concrete variant. StoryPacks may author contextual copy,
+but do not own raw item GUIDs, icon ids or model paths.
+
+After the selected target dies, runtime resolves the corpse before clearing the
+target binding and idempotently creates the trophy in that corpse inventory.
+The persisted lifecycle is:
+
+```text
+pending -> placed -> collected
+```
+
+Repeated death signals, save/load, Lua reload and streaming retries must not
+duplicate the item. Presence in either the corpse inventory or Henry's
+inventory repairs stale state. Trophy collection does not change confidence,
+satisfaction, aftermath or Case completion.
+
+Implementation status: the semantic preset, per-variant native item and
+localization emission, ordered death hook, persisted lifecycle, inventory
+repair and snapshot-based corpse recovery are complete and statically verified.
+The remaining acceptance boundary is a live game pass proving corpse UI,
+pickup and save/load behavior with the packaged mod.
+
+Deferred Lua polish: burial of the selected target is blocked while its trophy
+remains on the corpse and shows **"Я ещё не взял то, за чем пришёл."** Burial
+becomes available after collection. This guard is intentionally implemented
+after the core compile, placement and persistence contract.
 
 ## Typed bindings and identity
 
@@ -188,12 +290,13 @@ use a generic reference until the native target marker is revealed.
 For every `archetype x story x settlement` combination, the solver:
 
 1. resolves required semantic slots from the world index and profile;
-2. excludes dead, forbidden, story-critical or otherwise invalid actors;
+2. excludes forbidden, unkillable, story-critical or otherwise invalid actors;
 3. prevents one entity from filling conflicting slots;
 4. verifies that every clue can be placed and every interaction can run;
 5. proves at least one route reaches confidence 70;
 6. validates all typed variables and bilingual localization;
-7. emits a compatible variant or a precise rejection reason.
+7. verifies every required hard identity fact has at least one reachable route;
+8. emits a compatible variant or a precise rejection reason.
 
 The first version is strict: if a required role is absent, that combination is
 not generated. Later archetypes may declare coherent fallback modules, such as
@@ -203,6 +306,20 @@ cause runtime improvisation.
 To control combinatorial growth, the compiler ranks deterministic bindings and
 emits a configurable maximum number of variants per
 `archetype x story x settlement` combination.
+
+An incompatible settlement is a reported rejection, not a broken build. A
+StoryPack fails compilation only when it is active and produces no playable
+variant anywhere, or when its explicit coverage contract is not met:
+
+```text
+coverage.requiredRegions[]
+coverage.minimumPerRegion
+```
+
+`status: draft` content may produce zero variants and is never packaged. A
+separate deck-level `minimumPlayableCasesPerRegion` guard protects overall
+regional content balance. Individual stories, including the love-triangle
+case, do not implicitly have to support both regions.
 
 ## Materialization
 
@@ -230,13 +347,45 @@ aliases and numeric codes remain save schema.
 
 ## Runtime contract
 
-When hunger opens a case, Lua filters compiled variants by current region,
-settlement, target eligibility and anti-repeat policy. It persists the complete
-snapshot before exposing an area, clue or dialogue.
+Case content and structural assets are complete before the game starts. Runtime
+does not generate a case; it materializes one compiled definition into a
+concrete playable instance:
+
+```text
+CaseDefinition + SceneDefinitions
+  -> select nearest settlement and compatible compiled variant
+  -> resolve live bindings
+  -> CaseInstance + SceneInstances
+```
+
+When hunger opens a case, Lua:
+
+1. resolves the nearest supported settlement;
+2. loads its compiled variant pool;
+3. filters dead or unavailable actors, invalid live bindings and recent
+   repetitions;
+4. chooses one variant using weighted randomness and immediately fixes it as
+   the generation identity;
+5. persists the complete `CaseInstance` before any presentation;
+6. prepares its scenes by binding concrete actors, places and containers;
+7. idempotently places predefined evidence;
+8. activates already compiled dialogue conditions, quest objectives, areas,
+   markers and semantic camera rigs.
+
+This preparation is the runtime `SceneDirector` boundary. `SceneDefinition`
+contains authored dialogue, evidence, transitions and presentation intent;
+`SceneInstance` contains the resolved NPCs, objects and state for the current
+save. Dialogue XML, roles, quest states, localization and cameras are never
+created in Lua.
 
 Save/load, Lua reload, streaming and player movement never reroll the selected
 variant or its concrete bindings. A missing streamed entity retries resolution;
 it does not silently replace the authored source.
+
+The persisted snapshot includes at least `storyPackId`, `variantId`, target,
+all semantic role bindings, placement bindings, selected threads, evidence
+ledger and current scene states. Runtime scene preparation is idempotent, so
+restoring a save cannot duplicate evidence or replay completed confidence.
 
 ## Player feedback
 
@@ -292,8 +441,10 @@ changes cheap.
 4. Implement the compatibility solver and rejection report.
 5. Materialize finite CaseVariants into the existing compiler backend.
 6. Migrate both current cases without changing generated native behavior.
-7. Add several archetypes and settlement combinations.
-8. Reassess standalone KCD2 CaseKit publication.
+7. Add runtime Case/Scene materialization and the post-death trophy module.
+8. Prove the rich StoryPack model with the love-triangle case.
+9. Add several archetypes and settlement combinations.
+10. Reassess standalone KCD2 CaseKit publication.
 
 ## Non-goals
 

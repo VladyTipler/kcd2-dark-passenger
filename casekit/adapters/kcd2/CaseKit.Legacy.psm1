@@ -16,12 +16,16 @@ function Read-CaseKitLegacyJson {
 }
 
 function ConvertTo-CaseKitLegacyCaseDefinition {
-    param([Parameter(Mandatory)]$CaseSpec)
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)][object[]]$DialogueRoles
+    )
 
     return [pscustomobject][ordered]@{
         source = [pscustomobject][ordered]@{
             format = 'legacy-case-spec-v2'
             schemaVersion = [int]$CaseSpec.schemaVersion
+            dialogueRoles = @($DialogueRoles)
         }
         case = [pscustomobject][ordered]@{
             id = [string]$CaseSpec.id
@@ -57,6 +61,7 @@ function Read-CaseKitLegacyDeck {
         throw "Legacy CaseSpec root not found: $CaseRoot"
     }
 
+    $bindings = Read-CaseKitLegacyJson -LiteralPath $BindingPath
     $caseSpecs = @(Get-ChildItem -LiteralPath $CaseRoot -Filter '*.case.json' `
         -File |
         ForEach-Object {
@@ -65,9 +70,9 @@ function Read-CaseKitLegacyDeck {
         Sort-Object @{ Expression = { [int]$_.code } }, `
             @{ Expression = { [string]$_.id } })
     $cases = @($caseSpecs | ForEach-Object {
-        ConvertTo-CaseKitLegacyCaseDefinition -CaseSpec $_
+        ConvertTo-CaseKitLegacyCaseDefinition -CaseSpec $_ `
+            -DialogueRoles @($bindings.dialogueRoles)
     })
-    $bindings = Read-CaseKitLegacyJson -LiteralPath $BindingPath
     $settlements = @($bindings.settlements |
         Sort-Object @{ Expression = { [string]$_.region } }, `
             @{ Expression = { [string]$_.settlement } })
@@ -85,10 +90,19 @@ function ConvertTo-CaseKitLegacyBackendInput {
 
     $caseSpecs = [System.Collections.Generic.List[object]]::new()
     $settlementByKey = [ordered]@{}
+    $dialogueRoles = $null
 
     foreach ($variant in @($Variants | Sort-Object `
         @{ Expression = { [int]$_.case.code } }, `
-        @{ Expression = { [string]$_.case.id } })) {
+            @{ Expression = { [string]$_.case.id } })) {
+        $variantDialogueRoles = @($variant.source.dialogueRoles)
+        if ($null -eq $dialogueRoles) {
+            $dialogueRoles = $variantDialogueRoles
+        }
+        elseif (($dialogueRoles | ConvertTo-Json -Depth 100 -Compress) -cne
+            ($variantDialogueRoles | ConvertTo-Json -Depth 100 -Compress)) {
+            throw 'Conflicting legacy dialogue role registries.'
+        }
         $caseSpecs.Add([pscustomobject][ordered]@{
             schemaVersion = [int]$variant.source.schemaVersion
             id = [string]$variant.case.id
@@ -133,6 +147,7 @@ function ConvertTo-CaseKitLegacyBackendInput {
         caseSpecs = $caseSpecs.ToArray()
         bindings = [pscustomobject][ordered]@{
             schemaVersion = 1
+            dialogueRoles = @($dialogueRoles)
             settlements = @($settlementByKey.Values)
         }
     }

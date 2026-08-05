@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "missing-traveler",
+  "status": "active",
+  "archetypes": ["paper-trail-witness"],
+  "truth": {
+    "innocentVictim": {"id": "matej"},
+    "crime": {"id": "robbery-murder"},
+    "motive": {"id": "widow-money"},
+    "coverStory": {"id": "forged-departure"},
+    "escapedJustice": {"id": "body-never-found"}
+  },
+  "facts": [
+    {"id": "matej_missing", "category": "crime"},
+    {"id": "matej_horse_returned", "category": "corroboration"},
+    {"id": "guest_ledger_suspicious", "category": "coverup"},
+    {"id": "forged_departure", "category": "coverup"},
+    {"id": "old_willow_route", "category": "location"},
+    {"id": "culprit_knew_about_money", "category": "motive"},
+    {"id": "horse_returner_identified", "category": "identity", "hardIdentity": true},
+    {"id": "suspect_identified", "category": "identity"},
+    {"id": "matej_argued_about_widow_money", "category": "motive"},
+    {"id": "culprit_dismissed_widow_claim", "category": "motive"}
+  ],
+  "reveal": {
+    "confidence": 70,
+    "requiredFacts": ["horse_returner_identified"]
+  },
+  "trophyDefinition": {
+    "preset": "bird-feather",
+    "descriptionAsset": "trophy.description",
+    "item": {
+      "classification": "loot",
+      "retention": "permanent",
+      "weight": 0
+    }
+  }
+}

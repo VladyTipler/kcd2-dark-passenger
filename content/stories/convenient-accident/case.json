@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "id": "convenient-accident",
+  "status": "active",
+  "archetypes": ["paper-trail-witness"],
+  "truth": {
+    "innocentVictim": {"id": "vojtech"},
+    "crime": {"id": "murder"},
+    "motive": {"id": "silence-witness"},
+    "coverStory": {"id": "drunken-accident"},
+    "escapedJustice": {"id": "bailiff-dismissed-death"}
+  },
+  "facts": [
+    {"id": "vojtech_death_suspicious", "category": "crime"},
+    {"id": "vojtech_belongings_location", "category": "location"},
+    {"id": "vojtech_witnessed_murder", "category": "crime"},
+    {"id": "tavern_witness_identity", "category": "corroboration"},
+    {"id": "suspect_identified", "category": "identity", "hardIdentity": true}
+  ],
+  "reveal": {
+    "confidence": 70,
+    "requiredFacts": ["suspect_identified"]
+  },
+  "trophyDefinition": {
+    "preset": "bird-feather",
+    "descriptionAsset": "trophy.description",
+    "item": {
+      "classification": "loot",
+      "retention": "permanent",
+      "weight": 0
+    }
+  }
+}

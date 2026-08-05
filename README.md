@@ -22,7 +22,13 @@ multi-area search districts for all supported settlements in both regions. A
 declarative CaseSpec compiler now emits the Lua, quest dialogue, Storm-role,
 script-context, item-table, and bilingual localization artifacts used by the
 same universal quest container. Its first Trosky story, **Missing Traveler**,
-is structurally verified and awaiting a live Zhelejov playthrough.
+is structurally verified and live-validated in Zhelejov. CaseKit also
+emits a finite runtime variant catalog: one compatible variant and all concrete
+bindings are persisted before presentation, then restored without reroll.
+Each compiled variant also owns an exact cleanup manifest. A single runtime
+lifecycle clears only generation-scoped presentation and evidence, preserves
+permanent trophies and replay history, then republishes the journal after the
+native quest graph is active.
 
 ## Roadmap
 
@@ -54,7 +60,13 @@ is structurally verified and awaiting a live Zhelejov playthrough.
 - [x] Reveal the personal marker only after sufficient evidence
 - [ ] Add multiple investigation archetypes and complications
 - [x] Compile authored CaseSpec data into the universal quest container
-- [ ] Live-validate the generated Missing Traveler case in Zhelejov
+- [x] Persist one compiled CaseVariant and materialize its scenes idempotently
+- [x] Clear generation-scoped Case artifacts from compiler-owned manifests
+- [x] Place one shared-class, weightless quest trophy on every target corpse
+- [x] Block target burial until the current trophy is collected
+- [x] Live-validate the generated Missing Traveler case in Zhelejov
+- [ ] Prevent quest presentation when no living `native_ready` variant exists;
+      fall back to another compatible StoryPack or keep the cycle dormant
 
 ### Phase 4 — A world that notices
 
@@ -78,14 +90,26 @@ is structurally verified and awaiting a live Zhelejov playthrough.
 - [ ] Provide save-safe events, objectives, markers, diagnostics and packaging
 - [ ] Prove the framework on Dark Passenger and a second independent quest
 
+### Engineering cleanup before public release
+
+- [ ] Inventory `H:\KCD2Mod`, the source repository, deployed mods, generated output, backups and extracted references
+- [ ] Classify every non-source artifact as keep, archive, reproducible-generated or remove
+- [ ] Separate opt-in debug tooling from production assets and remove automatic test/probe triggers
+- [ ] Add a build gate that rejects hardcoded test actors, proximity auto-starts and other probe-only wiring in production packages
+- [ ] Remove approved obsolete artifacts only after reviewing the cleanup manifest; retain the bridge and useful diagnostics
+
 See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 
 ## Repository layout
 
 - `src` — authored KCD2 Lua/XML mod sources;
 - `localization` — authored base English and Russian localization;
-- `content/cases` — bilingual authored CaseSpec stories;
-- `config` — victim policy plus generated settlement-area selection manifest;
+- `content/archetypes`, `content/evidence-modules`, `content/stories` — reusable
+  investigation grammar and bilingual StoryPacks;
+- `config/settlements` — reviewed semantic world bindings and localized actor
+  identities;
+- `config/casekit-stable-ids.json` — save-sensitive case/evidence identity;
+- `config/casekit-kcd2-native.json` — KCD2 presentation adapter metadata;
 - `evidence/*-case-bindings.md` — reviewed native entity/container bindings;
 - `tools` — extraction, generation, build, and deployment scripts;
 - `tests` — structural verification;
@@ -96,28 +120,55 @@ See `docs/plans/2026-07-31-kcd2-quest-sdk-design.md`.
 The game `Mods` directories are deployment targets, never source directories.
 Reference mods and extracted game data are intentionally excluded.
 
-Investigation stories are authored as bilingual CaseSpec JSON under
-`content/cases`. Settlement-specific entity and container IDs live separately
-in `config/case-settlement-bindings.json`. `Compile-CaseSpecs.ps1` validates
-both sources and emits the runtime Lua catalog, native dialogue XML, Storm
-roles, script contexts, document item rows, merged Russian/English
-localization, and compatibility manifests. Generated artifacts are never
-edited by hand.
+Investigation stories are authored as schema-v2 StoryPack packages under
+`content/stories`. Reusable mechanics live in archetypes and EvidenceModules;
+reviewed entity/container IDs live only in settlement profiles. CaseKit
+validates and resolves finite settlement-compatible variants, then the KCD2
+adapter feeds the proven native compiler. It emits the runtime Lua catalog,
+dialogue XML, Storm roles, script contexts, item rows, bilingual localization,
+compatibility manifests, and the finite CaseVariant catalog. At runtime the
+nearest supported settlement and live candidate pool select one `native_ready`
+variant. Its stable identity and bindings are saved before the quest, marker or
+evidence presentation begins. The quest shell must not activate until that
+selection succeeds; the currently exposed exhausted-pool edge case is tracked
+in the roadmap. Generated artifacts are never edited by hand.
 
-### CaseSpec workflow
+### CaseKit workflow
 
-1. Write story content in `content/cases/<case>.case.json`.
-2. Put reviewed world IDs in `config/case-settlement-bindings.json`.
-3. Keep numeric case/evidence codes and native role names stable: they are save
-   schema.
-4. Run the focused compiler and generation tests.
-5. Build the mod; packaging consumes `build/generated/localization`, not the
+1. Write canonical truth, threads, dialogues, documents and RU/EN assets in
+   `content/stories/<story-id>/`.
+2. Reuse or extend `content/archetypes` and `content/evidence-modules`.
+3. Put reviewed world IDs and actor identities in `config/settlements`.
+4. Register numeric case/evidence codes in `config/casekit-stable-ids.json`;
+   they are save schema.
+5. Run the CaseKit contract, compatibility, adapter and parity tests.
+6. Build the mod with an explicit dev-game root; packaging consumes
+   `build/generated/localization`, not the
    authored base localization directly.
-6. Test a new case on a disposable save in its target settlement. Do not reuse
+7. Test a new case on a disposable save in its target settlement. Do not reuse
    an already serialized quest instance as proof of cold-start behavior.
 
-One quest graph remains the lifecycle owner per region. CaseSpec adds stories
-as data; it does not create a separate quest project for every story.
+One quest graph remains the lifecycle owner per region. StoryPacks add stories
+as data; they do not create a separate quest project for every story. Archived
+legacy CaseSpecs under `content/migration` are parity fixtures, not production
+inputs.
+
+StoryPacks classify every physical item as `quest` or `loot` and declare whether
+it lasts for one case or permanently. Quest items are created by the live XML
+graph through `AddQuestItem`, with `StartingLocation` and `BackupLocation`
+pointing to the generated linked stash. Lua chooses the case and raises one
+request signal per unique item class; the compiler must preserve the authored
+item metadata in the runtime catalog. The authoritative quest-item catalog
+prevents registered quest classes from falling through to manual `CreateItem`.
+
+The semantic `bird-feather` trophy preset resolves to one shared, stable,
+non-divisible, zero-weight loot class named `Trophy - Bloodied Feather` /
+`Трофей - Окровавленное перо`. The runtime places one new instance on each
+selected target corpse and reconciles `pending -> placed -> collected` across
+save/load, Lua reload and entity streaming without confusing previously
+collected feathers with the current case. The selected corpse cannot be buried
+until that generation's feather has been collected; missing target identity
+fails closed and is recovered from the immutable CaseSnapshot.
 
 ## Local build
 
@@ -134,7 +185,8 @@ pwsh -NoProfile -File '.\tests\Test-ZhelejovBindings.ps1'
 pwsh -NoProfile -File '.\tests\Test-MissingTravelerCase.ps1'
 pwsh -NoProfile -File '.\tests\Test-MissingTravelerGeneration.ps1' `
   -DevGameRoot $env:KCD2_DEV_ROOT
-pwsh -NoProfile -File '.\tools\Build-Mod.ps1'
+pwsh -NoProfile -File '.\tools\Build-Mod.ps1' `
+  -DevGameRoot $env:KCD2_DEV_ROOT
 pwsh -NoProfile -File '.\tests\Test-DarkPassengerSatisfaction.ps1' `
   -ReferenceDataRoot $env:KCD2_REFERENCE_DATA_ROOT `
   -DevGameRoot $env:KCD2_DEV_ROOT

@@ -7,8 +7,9 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $compilerPath = Join-Path $repoRoot 'tools\Compile-CaseSpecs.ps1'
 $modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
-$caseRoot = Join-Path $repoRoot 'content\cases'
-$bindingPath = Join-Path $repoRoot 'config\case-settlement-bindings.json'
+$caseRoot = Join-Path $repoRoot 'content\migration\legacy-cases'
+$bindingPath = Join-Path $repoRoot `
+    'content\migration\legacy-case-settlement-bindings.json'
 $testRoot = Join-Path $repoRoot (
     'build\tests\case-spec-generation-' + [guid]::NewGuid().ToString('N')
 )

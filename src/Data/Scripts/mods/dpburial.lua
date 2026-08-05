@@ -259,6 +259,19 @@ function DarkPassengerBurial.CanBury(corpse, user)
         return false, "@dp_burial_no_shovel"
     end
 
+    if DarkPassengerTrophy ~= nil and
+       DarkPassengerTrophy.CanBuryCorpse ~= nil then
+        local checked, canBury = pcall(function()
+            return DarkPassengerTrophy.CanBuryCorpse(corpse)
+        end)
+        if checked and canBury == false then
+            return false, "@dp_burial_trophy_pending"
+        end
+        if not checked then
+            Log("trophy burial check failed error=" .. tostring(canBury))
+        end
+    end
+
     local hasQuestItem = DarkPassengerBurial.HasQuestItem(corpse)
     if hasQuestItem == nil or hasQuestItem == true then
         return false, "@dp_burial_quest_item"

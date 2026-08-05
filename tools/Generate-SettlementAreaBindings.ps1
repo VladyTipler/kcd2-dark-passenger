@@ -2,12 +2,16 @@
 param(
     [string]$ManifestPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlement-investigation-areas.json'),
     [string]$AreaInventoryPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\generated\vanilla-trigger-areas.json'),
+    [string]$SettlementProfileRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlements'),
     [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Levels'),
     [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua')
 )
 
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+
+$compilerModulePath = Join-Path $PSScriptRoot 'CaseSpecCompiler.psm1'
+Import-Module $compilerModulePath -Force
 
 function Write-TextFile {
     param(
@@ -133,6 +137,47 @@ foreach ($area in @($areaInventory.areas)) {
     $areasByRegionAndGuid[$areaKey] = $area
 }
 
+if (-not (Test-Path -LiteralPath $SettlementProfileRoot -PathType Container)) {
+    throw "Settlement profile root not found: $SettlementProfileRoot"
+}
+$evidenceStashesByRegion = @{}
+foreach ($profileFile in @(
+    Get-ChildItem -LiteralPath $SettlementProfileRoot -File -Filter '*.json' |
+        Sort-Object FullName
+)) {
+    $profile = [System.IO.File]::ReadAllText($profileFile.FullName) |
+        ConvertFrom-Json -Depth 100
+    $documentRole = if (
+        $null -ne $profile.PSObject.Properties['native'] -and
+        $null -ne $profile.native.PSObject.Properties['roles'] -and
+        $null -ne $profile.native.roles.PSObject.Properties['document']
+    ) { $profile.native.roles.document } else { $null }
+    if ($null -eq $documentRole) { continue }
+    $region = [string]$profile.region
+    $settlement = [string]$profile.settlement
+    $containerGuid = [string]$documentRole.containerGuid
+    if (
+        $containerGuid -notmatch
+            '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$'
+    ) {
+        throw (
+            "Settlement profile '$($profileFile.Name)' has invalid " +
+            "evidence container GUID '$containerGuid'."
+        )
+    }
+    if (-not $evidenceStashesByRegion.ContainsKey($region)) {
+        $evidenceStashesByRegion[$region] =
+            [System.Collections.Generic.List[object]]::new()
+    }
+    $evidenceStashesByRegion[$region].Add([pscustomobject]@{
+        settlement = $settlement
+        containerGuid = $containerGuid
+        alias = Get-DpEvidenceStashAlias `
+            -Region $region `
+            -Settlement $settlement
+    })
+}
+
 $regionSpecifications = @(
     [pscustomobject]@{
         region = 'kutnohorsko'
@@ -151,6 +196,24 @@ $regionSpecifications = @(
         questHolderEntityId = '1831842'
         smartEntityGuid = 'd4a6f10b-f8cd-4d4d-9a6c-fbc186429bca'
         position = '1740.031,1957.591,127.1535'
+        confessionDialogueHolderName = 'DP_ConfessionDialogueHolder_Trosecko'
+        confessionDialogueHolderEntityId = '1831843'
+        confessionDialogueHolderGuid = 'cd93a0b2-762f-4d22'
+        confessionDialogueHolderAlias = 'confessionProbeDialogueHolder'
+        confessionLyingSpotName = 'DP_ConfessionLyingSpot_Trosecko'
+        confessionLyingSpotEntityId = '1831844'
+        confessionLyingSpotGuid = '8f827fee-38a5-41db'
+        confessionLyingSpotAlias = 'confessionProbeLyingSpot'
+        confessionLyingTargetEntityId = '2268'
+        confessionLyingTargetEntityGuid = 'fd4604bf-062f-4cf7'
+        confessionCameras = @(
+            [pscustomobject]@{ name = 'targetCloseup'; entityId = '1831845'; guid = '50df1113-ed8f-4845'; type = 'Closeup'; context = '1'; fov = '0.383972' }
+            [pscustomobject]@{ name = 'targetCloseShot'; entityId = '1831846'; guid = 'dc816990-06f3-4036'; type = 'CloseShot'; context = '1'; fov = '0.418879' }
+            [pscustomobject]@{ name = 'targetMedium'; entityId = '1831847'; guid = '9d3ae907-8eea-47d2'; type = 'Medium'; context = '1'; fov = '0.383972' }
+            [pscustomobject]@{ name = 'playerCloseup'; entityId = '1831848'; guid = 'b1e60d2c-7930-4c86'; type = 'Closeup'; context = '0'; fov = '0.383972' }
+            [pscustomobject]@{ name = 'playerCloseShot'; entityId = '1831849'; guid = '454d309c-d364-4f1d'; type = 'CloseShot'; context = '0'; fov = '0.418879' }
+            [pscustomobject]@{ name = 'playerMedium'; entityId = '1831850'; guid = 'f8c192db-9392-4871'; type = 'Medium'; context = '0'; fov = '0.418879' }
+        )
     }
 )
 
@@ -190,7 +253,78 @@ foreach ($specification in $regionSpecifications) {
     [void]$linkSignatures.Add(
         "$($specification.levelHolderGuid)|$($specification.questHolderGuid)|module"
     )
-
+    $hasConfessionDialogueHolder =
+        $specification.PSObject.Properties.Name -contains
+            'confessionDialogueHolderGuid'
+    if ($hasConfessionDialogueHolder) {
+        $confessionDefinition =
+            "asset['$($specification.confessionDialogueHolderAlias)']"
+        [void]$linkSignatures.Add(
+            "$($specification.questHolderGuid)|$($specification.confessionDialogueHolderGuid)|$confessionDefinition"
+        )
+        $waitingLinkLines.Add(
+            "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$($specification.confessionDialogueHolderGuid)`">"
+        )
+        $waitingLinkLines.Add(
+            "      <LinkDefinition>asset[&apos;$($specification.confessionDialogueHolderAlias)&apos;]</LinkDefinition>"
+        )
+        $waitingLinkLines.Add('    </WaitingLink>')
+        $lyingSpotDefinition =
+            "asset['$($specification.confessionLyingSpotAlias)']"
+        [void]$linkSignatures.Add(
+            "$($specification.questHolderGuid)|$($specification.confessionLyingSpotGuid)|$lyingSpotDefinition"
+        )
+        $waitingLinkLines.Add(
+            "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$($specification.confessionLyingSpotGuid)`">"
+        )
+        $waitingLinkLines.Add(
+            "      <LinkDefinition>asset[&apos;$($specification.confessionLyingSpotAlias)&apos;]</LinkDefinition>"
+        )
+        $waitingLinkLines.Add('    </WaitingLink>')
+        [void]$linkSignatures.Add(
+            "$($specification.confessionLyingSpotGuid)|$($specification.confessionDialogueHolderGuid)|dialogueHolder"
+        )
+        $waitingLinkLines.Add(
+            "    <WaitingLink SourceId=`"$($specification.confessionLyingSpotGuid)`" TargetId=`"$($specification.confessionDialogueHolderGuid)`">"
+        )
+        $waitingLinkLines.Add(
+            '      <LinkDefinition>dialogueHolder</LinkDefinition>'
+        )
+        $waitingLinkLines.Add('    </WaitingLink>')
+        foreach ($camera in $specification.confessionCameras) {
+            [void]$linkSignatures.Add(
+                "$($specification.confessionDialogueHolderGuid)|$($camera.guid)|cameraOverride"
+            )
+            $waitingLinkLines.Add(
+                "    <WaitingLink SourceId=`"$($specification.confessionDialogueHolderGuid)`" TargetId=`"$($camera.guid)`">"
+            )
+            $waitingLinkLines.Add(
+                '      <LinkDefinition>cameraOverride</LinkDefinition>'
+            )
+            $waitingLinkLines.Add('    </WaitingLink>')
+        }
+    }
+    foreach ($stash in @(
+        if ($evidenceStashesByRegion.ContainsKey($specification.region)) {
+            $evidenceStashesByRegion[$specification.region] |
+                Sort-Object settlement, containerGuid
+        }
+    )) {
+        $definition = "asset['$([string]$stash.alias)']"
+        $signature =
+            "$($specification.questHolderGuid)|" +
+            "$([string]$stash.containerGuid)|$definition"
+        if (-not $linkSignatures.Add($signature)) {
+            throw "Duplicate evidence stash link '$signature'."
+        }
+        $waitingLinkLines.Add(
+            "    <WaitingLink SourceId=`"$($specification.questHolderGuid)`" TargetId=`"$([string]$stash.containerGuid)`">"
+        )
+        $waitingLinkLines.Add(
+            "      <LinkDefinition>asset[&apos;$([string]$stash.alias)&apos;]</LinkDefinition>"
+        )
+        $waitingLinkLines.Add('    </WaitingLink>')
+    }
     foreach ($settlement in $settlements) {
         $alias = [string]$settlement.alias
         if ($alias -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') {
@@ -292,6 +426,66 @@ foreach ($specification in $regionSpecifications) {
     $luaRegionLines.Add('            },')
     $luaRegionLines.Add('        },')
 
+    $confessionDialogueHolderLines = @()
+    $confessionLyingSpotLines = @()
+    $confessionCameraLines = @()
+    if ($hasConfessionDialogueHolder) {
+        $confessionDialogueHolderLines = @(
+            "  <Entity Name=`"$($specification.confessionDialogueHolderName)`""
+            "          Pos=`"$($specification.position)`""
+            '          EntityClass="DialogueHolder"'
+            "          EntityId=`"$($specification.confessionDialogueHolderEntityId)`""
+            "          EntityGuid=`"$($specification.confessionDialogueHolderGuid)`""
+            '          CastShadowMinSpec="1"'
+            '          EditorLayer="Main/_quest/activity/darkpassengertest/static">'
+            '    <EntityLinks />'
+            '    <Properties bSaved_by_game="0" />'
+            '  </Entity>'
+        )
+        $confessionLyingSpotLines = @(
+            "  <Entity Prefab=`"1`" Name=`"$($specification.confessionLyingSpotName)`""
+            "          Pos=`"$($specification.position)`""
+            '          EntityClass="SO_LyingHarmed"'
+            "          EntityId=`"$($specification.confessionLyingSpotEntityId)`""
+            "          EntityGuid=`"$($specification.confessionLyingSpotGuid)`""
+            '          CastShadowMinSpec="1"'
+            '          EditorLayer="Main/_quest/activity/darkpassengertest/static">'
+            '    <EntityLinks>'
+            "      <Link TargetId=`"$($specification.confessionLyingTargetEntityId)`" TargetGuid=`"$($specification.confessionLyingTargetEntityGuid)`" Name=`"_,harmedOne|,!priv,use`" />"
+            '    </EntityLinks>'
+            '    <Properties soclass_SmartObjectHelpers="lyingInjured_lowBed"'
+            '                guidSmartObjectType="fac19edd-46e9-4dd5-914f-72502c70af07"'
+            '                bSaved_by_game="0">'
+            '      <LyingHarmed esLyingHarmedPose="male_lyingWounded_04" />'
+            '    </Properties>'
+            '    <BBoxProxy BBoxMin="1e+15,1e+15,1e+15"'
+            '               BBoxMax="-1e+15,-1e+15,-1e+15" />'
+            '  </Entity>'
+        )
+        $cameraLines = [System.Collections.Generic.List[string]]::new()
+        foreach ($camera in $specification.confessionCameras) {
+            $cameraLines.Add(
+                "  <Entity Prefab=`"1`" Name=`"DP_ConfessionCameraRig_$($camera.name)`""
+            )
+            $cameraLines.Add("          Pos=`"$($specification.position)`"")
+            $cameraLines.Add('          Rotate="1,0,0,0"')
+            $cameraLines.Add('          EntityClass="CameraSource"')
+            $cameraLines.Add("          EntityId=`"$($camera.entityId)`"")
+            $cameraLines.Add("          EntityGuid=`"$($camera.guid)`"")
+            $cameraLines.Add('          CastShadowMinSpec="1"')
+            $cameraLines.Add('          EditorLayer="Main/_quest/activity/darkpassengertest/static">')
+            $cameraLines.Add('    <Properties bSaved_by_game="0">')
+            $cameraLines.Add(
+                "      <DialogueCamera esDialogueCameraOverrideType=`"$($camera.type)`" iDialogueContextId=`"$($camera.context)`" />"
+            )
+            $cameraLines.Add('    </Properties>')
+            $cameraLines.Add(
+                "    <CameraProxy Fov=`"$($camera.fov)`" NearZ=`"0.25`" FarZ=`"1024`" DofEnable=`"1`" FocusDistance=`"2`" FocusRange=`"4`" BlurAmount=`"1`" />"
+            )
+            $cameraLines.Add('  </Entity>')
+        }
+        $confessionCameraLines = $cameraLines.ToArray()
+    }
     $missionObjects = @(
         '<?xml version="1.0" encoding="utf-8"?>'
         '<Objects>'
@@ -308,6 +502,9 @@ foreach ($specification in $regionSpecifications) {
         '    <BBoxProxy BBoxMin="1e+15,1e+15,1e+15"'
         '               BBoxMax="-1e+15,-1e+15,-1e+15" />'
         '  </Entity>'
+        $confessionDialogueHolderLines
+        $confessionLyingSpotLines
+        $confessionCameraLines
         '</Objects>'
         ''
     ) -join "`n"

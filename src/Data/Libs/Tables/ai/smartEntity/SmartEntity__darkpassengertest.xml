@@ -3,5 +3,48 @@
   <SmartEntitys version="1">
     <SmartEntityTemplate DatabaseId="a125563a-5dfe-428f-9581-d218e82b849f" Name="dark_within_k" UpdatePriority="false" />
     <SmartEntityTemplate DatabaseId="d4a6f10b-f8cd-4d4d-9a6c-fbc186429bca" Name="dark_within_t" UpdatePriority="false" />
+    <SmartEntityTemplate DatabaseId="45cdb687-7080-f41f-0008-89523752249f" Name="so_player_scheduler" UpdatePriority="false">
+      <BehaviorTemplates>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerWait">
+          <TreeLocation FileName="player/scheduler/playerWait.xml" TreeName="playerWait" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Disabled" MaxInstances="-1" Name="animationAction">
+          <TreeLocation FileName="player/scheduler/animationAction.xml" TreeName="player_scheduler_animationAction" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_standingIdle" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_standingIdle.xml" TreeName="player_playerAction_standingIdle" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_horse" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_horse.xml" TreeName="player_playerAction_horse" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_crouch" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_crouch.xml" TreeName="player_playerAction_crouch" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_teleportOnHorse" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_teleportOnHorse.xml" TreeName="player_playerAction_teleportOnHorse" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_drawWeapon" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_drawWeapon.xml" TreeName="player_playerAction_drawWeapon" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_wakeUpOnLastUsedBed" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_wakeUpOnLastUsedBed.xml" TreeName="player_playerAction_wakeUpOnLastUsedBed" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Disabled" MaxInstances="-1" Name="event_pocestny_playerIsPoisoned">
+          <TreeLocation FileName="player/scheduler/event_pocestny_playerIsPoisoned.xml" TreeName="event_pocestny_playerIsPoisoned" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_teleportWithItems" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_teleportWithItems.xml" TreeName="player_playerAction_teleportWithItems" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_drawTorch" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_drawTorch.xml" TreeName="player_playerAction_drawTorch" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="playerAction_setDialogAnimationState" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/playerAction_setDialogAnimationState.xml" TreeName="player_playerAction_setDialogAnimationState" />
+        </SmartBehaviorTemplate>
+        <SmartBehaviorTemplate InitialState="Enabled" MaxInstances="-1" Name="darkPassengerConfession_GoToPlayer" PreventsMonsterLod="true">
+          <TreeLocation FileName="player/scheduler/darkPassengerConfession.xml" TreeName="darkPassengerConfession_GoToPlayer" />
+        </SmartBehaviorTemplate>
+      </BehaviorTemplates>
+    </SmartEntityTemplate>
   </SmartEntitys>
 </database>

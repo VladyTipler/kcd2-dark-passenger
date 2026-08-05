@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "id": "innkeeper-rumor",
+  "scenePreset": "standing-conversation",
+  "variants": [
+    {
+      "id": "unread-ledger",
+      "presentationId": "ledger-unknown",
+      "promptAsset": "dialogue.rumor.prompt",
+      "turns": [
+        {"speaker": "henry", "asset": "dialogue.rumor.henryMissing"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperLeft"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryHorse"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperHorse"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryName"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperMatej"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryLedger"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperHand"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henrySee"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperChest"}
+      ]
+    },
+    {
+      "id": "ledger-discovered",
+      "presentationId": "ledger-known",
+      "promptAsset": "dialogue.rumor.foundPrompt",
+      "turns": [
+        {"speaker": "henry", "asset": "dialogue.rumor.foundHenryHand"},
+        {"speaker": "source", "asset": "dialogue.rumor.foundInnkeeperChest"},
+        {"speaker": "henry", "asset": "dialogue.rumor.foundHenryNote"},
+        {"speaker": "source", "asset": "dialogue.rumor.foundInnkeeperHorse"},
+        {"speaker": "henry", "asset": "dialogue.rumor.foundHenryWho"},
+        {"speaker": "source", "asset": "dialogue.rumor.foundInnkeeperBoguslav"}
+      ]
+    }
+  ],
+  "localizationKeys": [
+    "dialogue.rumor.root",
+    "dialogue.rumor.prompt",
+    "dialogue.rumor.henryMissing",
+    "dialogue.rumor.innkeeperLeft",
+    "dialogue.rumor.henryHorse",
+    "dialogue.rumor.innkeeperHorse",
+    "dialogue.rumor.henryName",
+    "dialogue.rumor.innkeeperMatej",
+    "dialogue.rumor.henryLedger",
+    "dialogue.rumor.innkeeperHand",
+    "dialogue.rumor.henrySee",
+    "dialogue.rumor.innkeeperChest",
+    "dialogue.rumor.foundPrompt",
+    "dialogue.rumor.foundHenryHand",
+    "dialogue.rumor.foundInnkeeperChest",
+    "dialogue.rumor.foundHenryNote",
+    "dialogue.rumor.foundInnkeeperHorse",
+    "dialogue.rumor.foundHenryWho",
+    "dialogue.rumor.foundInnkeeperBoguslav"
+  ]
+}

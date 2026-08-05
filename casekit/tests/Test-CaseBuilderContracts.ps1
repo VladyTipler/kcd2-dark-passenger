@@ -5,6 +5,7 @@ $manifestPath = Join-Path $caseKitRoot 'CaseKit.psd1'
 $templateModulePath = Join-Path $caseKitRoot `
     'core\CaseKit.Templates.psm1'
 $fixtureRoot = Join-Path $PSScriptRoot 'fixtures\authoring\valid'
+$fixtureV2Root = Join-Path $PSScriptRoot 'fixtures\authoring\v2'
 
 Import-Module $manifestPath -Force
 Import-Module $templateModulePath -Force
@@ -102,13 +103,41 @@ function Read-TestDeck {
         -EvidenceModuleRoot $Paths.evidenceRoot
 }
 
+function New-TestDeckV2Copy {
+    param([Parameter(Mandatory)][string]$Name)
+
+    $root = Join-Path ([System.IO.Path]::GetTempPath()) `
+        "dark-passenger-casekit-v2-$Name-$([guid]::NewGuid())"
+    [System.IO.Directory]::CreateDirectory($root) | Out-Null
+    Copy-Item -Path (Join-Path $fixtureV2Root '*') `
+        -Destination $root -Recurse
+    $storyPackageRoot = Join-Path $root `
+        'stories\composed-case-probe'
+    return [pscustomobject]@{
+        root = $root
+        archetypeRoot = Join-Path $root 'archetypes'
+        storyRoot = Join-Path $root 'stories'
+        evidenceRoot = Join-Path $root 'evidence-modules'
+        storyPackageRoot = $storyPackageRoot
+        casePath = Join-Path $storyPackageRoot 'case.json'
+        threadsPath = Join-Path $storyPackageRoot 'threads.json'
+        ruPath = Join-Path $storyPackageRoot 'localization\ru.json'
+        enPath = Join-Path $storyPackageRoot 'localization\en.json'
+        confessionPath = Join-Path $storyPackageRoot `
+            'dialogues\confession.json'
+    }
+}
+
 $validPaths = New-TestDeckCopy -Name 'valid'
 try {
     $deck = Read-TestDeck -Paths $validPaths
-    Add-Result ([int]$deck.schemaVersion -eq 1) `
-        'authored deck uses schema version 1'
-    Add-Result ($deck.sourceFormat -eq 'casekit-authoring-v1') `
-        'authored deck records its source format'
+    Add-Result ([int]$deck.schemaVersion -eq 2) `
+        'schema v1 input normalizes to authored deck schema version 2'
+    Add-Result ($deck.sourceFormat -eq 'casekit-authoring-v2') `
+        'schema v1 input emits the normalized v2 source format'
+    Add-Result (
+        @($deck.sourceSchemaVersions) -contains 1
+    ) 'normalized deck records schema v1 migration input'
     Add-Result (@($deck.archetypes).Count -eq 1) `
         'authored deck loads one archetype'
     Add-Result (@($deck.stories).Count -eq 1) `
@@ -125,6 +154,254 @@ try {
 }
 finally {
     Remove-Item -LiteralPath $validPaths.root -Recurse -Force
+}
+
+$validV2Paths = New-TestDeckV2Copy -Name 'valid'
+try {
+    try {
+        $deckV2 = Read-TestDeck -Paths $validV2Paths
+        $storyV2 = @($deckV2.stories | Where-Object {
+            $_.id -eq 'composed-case-probe'
+        })[0]
+        Add-Result ([int]$deckV2.schemaVersion -eq 2) `
+            'v2 package emits authored deck schema version 2'
+        Add-Result ($deckV2.sourceFormat -eq 'casekit-authoring-v2') `
+            'v2 package records normalized source format'
+        Add-Result (
+            @($deckV2.sourceSchemaVersions) -contains 2
+        ) 'normalized deck records schema v2 input'
+        Add-Result (
+            @($storyV2.archetypeCompositions[0].archetypeIds).Count -eq 2
+        ) 'StoryPack composes several InvestigationArchetypes'
+        Add-Result (@($storyV2.threads).Count -eq 2) `
+            'v2 StoryPack loads threads.json'
+        Add-Result (@($storyV2.dialogues).Count -eq 3) `
+            'v2 StoryPack loads dialogue scene definitions'
+        Add-Result (@($storyV2.documents).Count -eq 1) `
+            'v2 StoryPack loads document definitions'
+        $documentStep = @($storyV2.threads.steps | ForEach-Object {
+            @($_)
+        } | Where-Object {
+            $_.action.evidenceModule -eq 'document-in-container'
+        })[0]
+        Add-Result (
+            $documentStep.action.item.classification -eq 'quest' -and
+            $documentStep.action.item.retention -eq 'case'
+        ) 'v2 StoryPack preserves explicit physical-item semantics'
+        Add-Result (
+            $documentStep.action.placement.mode -eq 'world-container'
+        ) 'v2 StoryPack preserves explicit evidence placement semantics'
+        Add-Result (
+            @($storyV2.dialogues.scenePreset) -contains `
+                'lying-interrogation'
+        ) 'v2 StoryPack preserves semantic scene presets'
+        $validationV2 = @($deckV2.validation.stories | Where-Object {
+            $_.storyId -eq 'composed-case-probe'
+        })[0]
+        Add-Result (
+            [int]$validationV2.maximumReachableConfidence -eq 75
+        ) 'composed archetypes contribute reachable confidence'
+        Add-Result (
+            $validationV2.requiredHardFactsSatisfied -eq $true
+        ) 'reveal route reaches the required hard identity fact'
+        $deckV2Repeat = Read-TestDeck -Paths $validV2Paths
+        Add-Result (
+            ($deckV2 | ConvertTo-Json -Depth 100 -Compress) -eq
+            ($deckV2Repeat | ConvertTo-Json -Depth 100 -Compress)
+        ) 'v2 StoryPack normalization is byte-deterministic in memory'
+    }
+    catch {
+        foreach ($label in @(
+            'v2 package emits authored deck schema version 2',
+            'v2 package records normalized source format',
+            'normalized deck records schema v2 input',
+            'StoryPack composes several InvestigationArchetypes',
+            'v2 StoryPack loads threads.json',
+            'v2 StoryPack loads dialogue scene definitions',
+            'v2 StoryPack loads document definitions',
+            'v2 StoryPack preserves explicit physical-item semantics',
+            'v2 StoryPack preserves explicit evidence placement semantics',
+            'v2 StoryPack preserves semantic scene presets',
+            'composed archetypes contribute reachable confidence',
+            'reveal route reaches the required hard identity fact',
+            'v2 StoryPack normalization is byte-deterministic in memory'
+        )) {
+            Add-Result $false "$label ($($_.Exception.Message))"
+        }
+    }
+}
+finally {
+    Remove-Item -LiteralPath $validV2Paths.root -Recurse -Force
+}
+
+$invalidV2Cases = @(
+    [pscustomobject]@{
+        name = 'missing-placement'
+        pattern = "*Step 'paper-trail/read-letter' physical item requires explicit placement*threads.json*"
+        label = 'v2 loader rejects physical evidence without placement'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.Remove('placement')
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-placement-mode'
+        pattern = "*Step 'paper-trail/read-letter' uses unknown placement mode 'shop-container'*threads.json*"
+        label = 'v2 loader rejects unknown evidence placement modes'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.placement.mode = `
+                'shop-container'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'missing-placement-actor'
+        pattern = "*Step 'paper-trail/read-letter' placement mode 'actor-container' requires actor slot*threads.json*"
+        label = 'v2 loader rejects actor placement without actor slot'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.placement.mode = `
+                'actor-container'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-placement-actor'
+        pattern = "*Step 'paper-trail/read-letter' placement references unknown actor slot 'merchant'*threads.json*"
+        label = 'v2 loader rejects unknown placement actor slot'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.placement = [ordered]@{
+                mode = 'actor-home-container'
+                actor = 'merchant'
+            }
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'non-actor-placement-slot'
+        pattern = "*Step 'paper-trail/read-letter' placement slot 'evidenceContainer' is not an actor*threads.json*"
+        label = 'v2 loader rejects non-actor placement slot'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.placement = [ordered]@{
+                mode = 'actor-inventory'
+                actor = 'evidenceContainer'
+            }
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'missing-item-classification'
+        pattern = "*Step 'paper-trail/read-letter' physical item requires explicit classification*threads.json*"
+        label = 'v2 loader rejects physical evidence without classification'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.Remove('item')
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-item-classification'
+        pattern = "*Step 'paper-trail/read-letter' uses unknown item classification 'souvenir'*threads.json*"
+        label = 'v2 loader rejects unknown physical-item classification'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.item.classification = 'souvenir'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-item-retention'
+        pattern = "*Step 'paper-trail/read-letter' uses unknown item retention 'temporary'*threads.json*"
+        label = 'v2 loader rejects unknown physical-item retention'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].action.item.retention = 'temporary'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'missing-english-localization'
+        pattern = "*missing English localization key 'journal.rumor'*en.json*"
+        label = 'v2 loader rejects RU/EN localization drift with source path'
+        mutate = {
+            param($paths)
+            $english = Read-TestJson -LiteralPath $paths.enPath
+            $english.Remove('journal.rumor')
+            Write-TestJson -LiteralPath $paths.enPath -Value $english
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-scene-preset'
+        pattern = "*unknown scene preset 'cinematic-freecam'*confession.json*"
+        label = 'v2 loader rejects unknown semantic scene presets'
+        mutate = {
+            param($paths)
+            $dialogue = Read-TestJson -LiteralPath $paths.confessionPath
+            $dialogue.scenePreset = 'cinematic-freecam'
+            Write-TestJson -LiteralPath $paths.confessionPath -Value $dialogue
+        }
+    },
+    [pscustomobject]@{
+        name = 'native-camera-guid'
+        pattern = "*forbidden native field 'cameraGuid'*confession.json*"
+        label = 'v2 loader rejects native camera GUIDs in StoryPack content'
+        mutate = {
+            param($paths)
+            $dialogue = Read-TestJson -LiteralPath $paths.confessionPath
+            $dialogue.cameraGuid = '00000000-0000-0000-0000-000000000001'
+            Write-TestJson -LiteralPath $paths.confessionPath -Value $dialogue
+        }
+    },
+    [pscustomobject]@{
+        name = 'disconnected-thread'
+        pattern = "*thread 'witness-web' is disconnected*threads.json*"
+        label = 'v2 loader rejects a disconnected investigation thread'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].result.unlockThreadIds = @()
+            $threads.threads[1].lead.requiresFacts = @()
+            $threads.threads[1].steps[0].requiresFacts = @()
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'non-hard-reveal-fact'
+        pattern = "*required reveal fact 'target_identified' is not a hard identity fact*case.json*"
+        label = 'v2 loader requires a hard identity reveal fact'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.facts[2].hardIdentity = $false
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    }
+)
+
+foreach ($invalidV2Case in $invalidV2Cases) {
+    $paths = New-TestDeckV2Copy -Name $invalidV2Case.name
+    try {
+        & $invalidV2Case.mutate $paths
+        Add-ThrowsLike -Pattern $invalidV2Case.pattern `
+            -Label $invalidV2Case.label -Action {
+                Read-TestDeck -Paths $paths
+            }
+    }
+    finally {
+        Remove-Item -LiteralPath $paths.root -Recurse -Force
+    }
 }
 
 $rendered = Expand-CaseKitTemplate `

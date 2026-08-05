@@ -104,7 +104,23 @@
 	<Row><Cell>dp_burial_no_shovel</Cell><Cell>Нужна лопата.</Cell></Row>
 	<Row><Cell>dp_burial_bad_ground</Cell><Cell>Здесь не получится выкопать могилу.</Cell></Row>
 	<Row><Cell>dp_burial_quest_item</Cell><Cell>На теле осталось что-то важное.</Cell></Row>
+	<Row><Cell>dp_burial_trophy_pending</Cell><Cell>Я ещё не взял то, за чем пришёл.</Cell></Row>
 	<Row><Cell>dp_burial_busy</Cell><Cell>Ты уже закапываешь тело.</Cell></Row>
 	<Row><Cell>dp_burial_in_combat</Cell><Cell>Нельзя закапывать тело в бою.</Cell></Row>
 	<Row><Cell>dp_burial_skiptime</Cell><Cell>Земля умеет хранить тайны...</Cell></Row>
+	<Row><Cell>dp_pose_probe_root</Cell><Cell>Проверка сцены</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_check</Cell><Cell>Ты меня слышишь?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_reply</Cell><Cell>Где я?.. Что тебе нужно?</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_motive</Cell><Cell>Зачем ты это сделал?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_motive</Cell><Cell>Зачем ты это сделал?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_motive</Cell><Cell>Потому что иначе ничего бы не изменилось. Я сделал то, на что у других не хватило духу.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_truth</Cell><Cell>Ты хоть понимаешь, что натворил?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_truth</Cell><Cell>Ты хоть понимаешь, что натворил?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_truth</Cell><Cell>Понимаю лучше тебя. Не притворяйся судьёй — тобой движет та же жажда.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_finish</Cell><Cell>Я услышал достаточно.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_finish</Cell><Cell>Я услышал достаточно.</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_finish</Cell><Cell>Значит, ты уже всё решил.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_end</Cell><Cell>Да.</Cell></Row>
+	<Row><Cell>dp_confession_wake_action</Cell><Cell>Привести в чувство</Cell></Row>
+	<Row><Cell>dp_confession_requires_cockerel</Cell><Cell>Требуется «Петушок»</Cell></Row>
 </Table>

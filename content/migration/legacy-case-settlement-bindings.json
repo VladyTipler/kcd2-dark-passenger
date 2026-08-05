@@ -1,5 +1,27 @@
 {
   "schemaVersion": 1,
+  "dialogueRoles": [
+    {
+      "name": "DP_INNKEEPER_RUMOR",
+      "roleId": "8fe584ca-7b9b-48b3-a5c0-fa10122c25c2",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_TAVERN_WITNESS",
+      "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_OVERHEARD_SPEAKER_A",
+      "roleId": "3be31ccb-48be-4af2-adbb-686e5fb5c3df",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_OVERHEARD_SPEAKER_B",
+      "roleId": "50fc0e48-765a-4561-a5f0-5899135b559c",
+      "metaRole": "NPC"
+    }
+  ],
   "settlements": [
     {
       "region": "kutnohorsko",

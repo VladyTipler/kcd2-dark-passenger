@@ -4,6 +4,9 @@
     <WaitingLink SourceId="10702dff-9271-4a74" TargetId="f4a73e20-28c5-4bd2">
       <LinkDefinition>module</LinkDefinition>
     </WaitingLink>
+    <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="277db45d-28ac-0286">
+      <LinkDefinition>asset[&apos;DP_EvidenceStash_kutnohorsko_pritoky&apos;]</LinkDefinition>
+    </WaitingLink>
     <WaitingLink SourceId="f4a73e20-28c5-4bd2" TargetId="596616a5-a2b1-137d">
       <LinkDefinition>asset[&apos;DP_SearchArea_Kutnohorsko_Bohounovice&apos;]</LinkDefinition>
     </WaitingLink>

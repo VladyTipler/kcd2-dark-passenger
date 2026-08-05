@@ -23,5 +23,7 @@
 		<buff buff_ai_tag_id="31" buff_class_id="1" buff_exclusivity_id="0" buff_id="6e532a34-ce2b-47ae-9427-c67a4a1b94b1" buff_lifetime_id="0" buff_name="dp_evidence_first_lead" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
 		<buff buff_ai_tag_id="32" buff_class_id="1" buff_exclusivity_id="0" buff_id="8043886b-d0bc-4a3b-9c89-07c8f60bf7d8" buff_lifetime_id="0" buff_name="dp_evidence_rumor_available" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
 		<buff buff_ai_tag_id="36" buff_class_id="1" buff_exclusivity_id="0" buff_id="a823ebb8-f3e3-4437-b885-9fafea591858" buff_lifetime_id="0" buff_name="dp_tavern_witness_available" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="true" />
+		<buff buff_ai_tag_id="120" buff_class_id="1" buff_exclusivity_id="0" buff_id="d0c1935f-2d7a-4f4e-bb5c-9ce734d99271" buff_lifetime_id="0" buff_name="dp_confession_probe" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="false" />
+		<buff buff_ai_tag_id="121" buff_class_id="1" buff_exclusivity_id="0" buff_id="5138624d-76d9-42de-ae19-e144031249cc" buff_lifetime_id="0" buff_name="dp_confession_probe_stance" buff_ui_visibility_id="0" duration="-1" icon_id="0" implementation="Cpp:Constant" is_persistent="false" />
 	</buffs>
 </database>

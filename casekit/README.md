@@ -50,14 +50,20 @@ Pritoky and Zhelejov profiles contain only reviewed overrides. They confirm
 case roles, evidence containers and typed localized identity without copying
 world coordinates or engine IDs into story packs.
 
-The typed authoring boundary is implemented as CaseKit schema version 1:
+The typed authoring boundary now normalizes both migration schema v1 and the
+compositional StoryPack schema v2 into one CaseKit schema version 2 deck:
 
 ```text
 content/archetypes/*.archetype.json
-  + content/stories/*.story.json
+  + content/stories/*.story.json                 migration input
+  + content/stories/<story>/case.json            v2 canonical truth
+  + content/stories/<story>/threads.json         v2 connected routes
+  + content/stories/<story>/dialogues/*.json     semantic scenes
+  + content/stories/<story>/documents/*.json
+  + content/stories/<story>/localization/{ru,en}.json
   + content/evidence-modules/*.evidence.json
   -> Read-CaseKitAuthoringDeck
-  -> validated InvestigationThreads + bilingual assets
+  -> normalized schema v2 deck
 ```
 
 A CaseArchetype owns reusable investigation grammar, semantic slots, evidence
@@ -74,13 +80,87 @@ fact and thread references, one-shot confidence, a reachable reveal threshold,
 out-of-order presentation variants, typed `{{slot.field}}` templates and exact
 Russian/English asset-key parity. Anonymous-capable slots cannot use `.name`.
 
-StoryPack content is authored rather than assembled from unrelated narrative
-fragments. Settlement, concrete actors and clue order may vary while the
-canonical crime, motive and causal history remain intact.
+Schema v2 lets one StoryPack compose several InvestigationArchetypes while
+preserving one canonical truth. Its connected fact graph must reach both the
+configured confidence threshold and an explicit hard identity fact. Dialogue
+definitions use semantic scene presets (`standing-conversation`,
+`seated-tavern`, `lying-interrogation`); raw camera GUIDs, animation names and
+world coordinates are rejected. RU/EN localization must have exact key parity.
 
-These checkpoints do not change the generated mod, runtime selection or save
-schema. Current CaseSpecs and `config/case-settlement-bindings.json` remain the
-active source of truth until authoring-contract parity passes.
+The isolated compatibility solver is also implemented:
+
+```text
+normalized v2 StoryPack + semantic world index
+  -> Resolve-CaseKitCompatibility
+  -> accepted finite bindings + exact settlement rejections
+```
+
+It filters capabilities and victim policy, prevents one entity from filling
+conflicting slots, renders both languages against concrete identities, ranks
+bindings by authored preference, identity quality and stable GUID, applies a
+deterministic per-combination cap and derives stable IDs from the complete
+binding seed. An incompatible settlement is diagnostic only. An active
+StoryPack with no playable variant or unmet explicit regional coverage fails;
+draft packs may remain incomplete and are never packaged.
+
+The authored KCD2 materialization boundary is active in the build:
+
+```text
+StoryPacks + archetypes + EvidenceModules
+  + semantic world index + settlement profiles
+  + stable-ID registry + KCD2 adapter metadata
+  -> casekit/cli/Compile-CaseKit.ps1
+  -> shared CompiledCaseDefinition + finite concrete variants
+  -> generated CaseVariant root
+  -> tools/Compile-CaseSpecs.ps1 -CaseVariantRoot
+  -> unchanged native emitters
+```
+
+Shared story, dialogue, document and localization definitions are emitted once;
+variants carry only stable identity, settlement and concrete bindings. Stable
+case/evidence codes live outside StoryPack prose. The current 1001/2001 route is
+byte-identical to direct legacy compilation, excluding the dedicated runtime
+variant catalog that only authored definitions can populate. The build keeps
+several finite bindings per story/settlement and marks only variants backed by
+the current native quest presentation as `native_ready`.
+
+Dark Passenger selects one compatible live target from that catalog, persists
+`variantCode`, the previous anti-repeat identity and all concrete bindings, then
+creates one `CaseInstance` with bound `SceneInstances`. `SceneDirector` reuses
+the existing evidence and lead adapters idempotently. Save/load and Lua reload
+restore the same selection; streamed-out actors defer and retry resolution
+without rerolling. The two old CaseSpecs and their binding manifest now live
+under `content/migration` only as a parity baseline; production compilation
+cannot fall back to them implicitly.
+
+An optional StoryPack `trophyDefinition` is compiled per concrete variant. The
+central `bird-feather` KCD2 preset owns one shared, permanent, weightless loot
+class; variants reuse that class and keep only their contextual story
+description. After selected-target death, `dptrophy.lua` requests native quest
+graph creation, moves exactly one newly created instance to the corpse and
+persists `pending -> placed -> collected`. A saved player-inventory baseline
+distinguishes the new trophy from feathers collected in earlier cases. Corpse
+and Henry inventory reconciliation, snapshot-based corpse recovery and polling
+make save/load, Lua reload, repeated death signals and entity streaming
+idempotent. The trophy intentionally bypasses the native quest-item placement
+bridge so repeated Cases can accumulate feathers without consuming request
+signals.
+
+Every physical evidence action declares `item.classification` (`quest` or
+`loot`) and `item.retention` (`case` or `permanent`). Missing or unknown values
+fail authoring validation. Native quest items use one reusable transient signal
+per unique item class, not per variant or runtime instance. The current build
+therefore emits signals only for its two quest documents; ordinary loot and the
+shared Bloodied Feather are excluded.
+
+The KCD2 backend emits a versioned `cleanup_manifest` for every concrete
+variant. It contains the exact evidence codes, availability roles, signal buff
+GUIDs, scene IDs and physical-item destinations owned by one generated Case.
+`dpcaselifecycle.lua` is the only executor: it deletes `retention=case`
+artifacts, disables presentation adapters and cancels placement requests while
+preserving `retention=permanent` trophies and replay history. Presentation is
+reissued only after the native quest activation timer, which makes fresh start
+and save restoration converge on the same journal state.
 
 ## Build the world index
 
@@ -109,6 +189,16 @@ pwsh -NoProfile -File '.\casekit\tests\Test-WorldSemanticIndex.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-WorldSemanticIndexCli.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-IdentityResolver.ps1'
 pwsh -NoProfile -File '.\casekit\tests\Test-CaseBuilderContracts.ps1'
+pwsh -NoProfile -File '.\casekit\tests\Test-CompatibilitySolver.ps1'
+pwsh -NoProfile -File '.\casekit\tests\Test-Kcd2Materializer.ps1'
+pwsh -NoProfile -File '.\casekit\tests\Test-AuthoredCompilerCli.ps1'
+pwsh -NoProfile -File '.\casekit\tests\Test-Kcd2BackendAdapter.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseKitParity.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseVariantSelection.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseSceneMaterialization.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseTrophyCompiler.ps1'
+pwsh -NoProfile -File '.\tests\Test-QuestItemPlacementBackend.ps1'
+pwsh -NoProfile -File '.\tests\Test-TargetTrophyRuntime.ps1'
 ```
 
 The compiler-boundary test invokes the real existing
@@ -117,8 +207,10 @@ compatibility and native-wiring output.
 
 ## Current migration boundary
 
-The new deck is not yet an active mod input. Current CaseSpecs and
-`config/case-settlement-bindings.json` remain the source of the shipping
-artifacts. The next milestone resolves authored threads against semantic world
-profiles and materializes finite neutral CaseVariants. Native emitters stay
-behind the unchanged output port until parity is proven.
+The finite CaseVariant root is the production native-compiler input. Direct
+`-CaseRoot` compilation remains available only when both migration paths are
+passed explicitly. `Build-Mod.ps1` always starts from authored StoryPacks,
+profiles, stable IDs and the KCD2 adapter. Exact legacy artifact parity is a
+test gate for native assets, not a runtime dependency. The authored-only
+`dp_case_variant_catalog.lua` is verified separately because legacy CaseSpecs
+do not contain the compiled semantic definitions needed to build it.

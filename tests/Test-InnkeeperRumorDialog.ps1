@@ -21,7 +21,7 @@ $stormIndexPath = Join-Path $repoRoot `
 $stormRolesPath = Join-Path $repoRoot `
     'src\Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $roleTablePath = Join-Path $repoRoot `
-    'src\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
+    'build\mod\Data\Libs\Tables\rpg\role__darkpassengertest.xml'
 $contextPath = Join-Path $repoRoot `
     'src\Data\Libs\Tables\ai\ScriptContext__darkpassengertest.xml'
 $buffTagPath = Join-Path $repoRoot `

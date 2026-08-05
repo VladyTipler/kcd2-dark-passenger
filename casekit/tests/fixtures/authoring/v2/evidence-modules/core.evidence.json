@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 2,
+  "modules": [
+    {
+      "id": "source-dialogue",
+      "stepKind": "lead",
+      "bindingPorts": {
+        "source": {"entityType": "actor", "capabilities": ["interaction.dialogue"]}
+      },
+      "requiredContent": ["prompt", "responses", "journal"],
+      "confidence": {"mode": "one_shot", "minimum": 5, "maximum": 30}
+    },
+    {
+      "id": "document-in-container",
+      "stepKind": "search",
+      "physicalItem": true,
+      "bindingPorts": {
+        "container": {"entityType": "container", "capabilities": ["container.evidence"]}
+      },
+      "requiredContent": ["name", "info", "body", "journal"],
+      "confidence": {"mode": "one_shot", "minimum": 10, "maximum": 40}
+    },
+    {
+      "id": "witness-dialogue",
+      "stepKind": "communication",
+      "bindingPorts": {
+        "witness": {"entityType": "actor", "capabilities": ["interaction.dialogue"]}
+      },
+      "requiredContent": ["prompt", "responses", "journal"],
+      "confidence": {"mode": "one_shot", "minimum": 10, "maximum": 30}
+    }
+  ]
+}

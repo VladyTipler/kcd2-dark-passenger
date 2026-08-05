@@ -1,0 +1,153 @@
+{
+  "schemaVersion": 2,
+  "storyId": "missing-traveler",
+  "threads": [
+    {
+      "id": "paper-trail",
+      "archetypeId": "paper-trail-witness",
+      "lead": {
+        "mode": "case_start",
+        "requiresFacts": [],
+        "directionAsset": "direction.paper"
+      },
+      "entryStepIds": ["ask-innkeeper", "read-ledger"],
+      "steps": [
+        {
+          "id": "ask-innkeeper",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "source-dialogue",
+            "bindings": {"source": "rumorSource"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "ledger-unknown",
+              "when": {"allKnown": [], "allUnknown": ["forged_departure"]},
+              "content": {
+                "prompt": "dialogue.rumor.prompt",
+                "responses": ["dialogue.rumor.innkeeperChest"],
+                "journal": "journal.rumor"
+              }
+            },
+            {
+              "id": "ledger-known",
+              "when": {"allKnown": ["forged_departure"], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.rumor.foundPrompt",
+                "responses": ["dialogue.rumor.foundInnkeeperBoguslav"],
+                "journal": "journal.rumor"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["matej_missing", "matej_horse_returned", "guest_ledger_suspicious"],
+            "nextStepIds": ["read-ledger"],
+            "unlockThreadIds": ["horse-witness"]
+          }
+        },
+        {
+          "id": "read-ledger",
+          "kind": "search",
+          "action": {
+            "evidenceModule": "document-in-container",
+            "bindings": {"container": "evidenceContainer"},
+            "placement": {"mode": "world-container"},
+            "item": {"classification": "quest", "retention": "case"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "name": "document.ledger.name",
+                "info": "document.ledger.info",
+                "body": "document.ledger.body",
+                "journal": "journal.ledger"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["forged_departure", "old_willow_route", "culprit_knew_about_money"],
+            "nextStepIds": [],
+            "unlockThreadIds": ["horse-witness"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "horse-witness",
+      "archetypeId": "paper-trail-witness",
+      "lead": {
+        "mode": "fact",
+        "requiresFacts": ["matej_horse_returned"],
+        "directionAsset": "direction.witness"
+      },
+      "entryStepIds": ["question-witness"],
+      "steps": [
+        {
+          "id": "question-witness",
+          "kind": "communication",
+          "action": {
+            "evidenceModule": "witness-dialogue",
+            "bindings": {"witness": "witness"}
+          },
+          "requiresFacts": ["matej_horse_returned"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.witness.prompt",
+                "responses": ["dialogue.witness.bretislavPoint"],
+                "journal": "journal.witness"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["horse_returner_identified", "suspect_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "courtyard-gossip",
+      "archetypeId": "paper-trail-witness",
+      "lead": {
+        "mode": "ambient",
+        "requiresFacts": [],
+        "directionAsset": "direction.overheard"
+      },
+      "entryStepIds": ["overhear-argument"],
+      "steps": [
+        {
+          "id": "overhear-argument",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "overheard-dialogue",
+            "bindings": {"speakerA": "gossipSourceA", "speakerB": "gossipSourceB"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "responses": ["dialogue.overheard.goneByDawn"],
+                "journal": "journal.overheard"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["matej_argued_about_widow_money", "culprit_dismissed_widow_claim"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    }
+  ]
+}

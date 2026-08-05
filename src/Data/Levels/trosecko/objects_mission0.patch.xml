@@ -13,4 +13,110 @@
     <BBoxProxy BBoxMin="1e+15,1e+15,1e+15"
                BBoxMax="-1e+15,-1e+15,-1e+15" />
   </Entity>
+  <Entity Name="DP_ConfessionDialogueHolder_Trosecko"
+          Pos="1740.031,1957.591,127.1535"
+          EntityClass="DialogueHolder"
+          EntityId="1831843"
+          EntityGuid="cd93a0b2-762f-4d22"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <EntityLinks />
+    <Properties bSaved_by_game="0" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionLyingSpot_Trosecko"
+          Pos="1740.031,1957.591,127.1535"
+          EntityClass="SO_LyingHarmed"
+          EntityId="1831844"
+          EntityGuid="8f827fee-38a5-41db"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <EntityLinks>
+      <Link TargetId="2268" TargetGuid="fd4604bf-062f-4cf7" Name="_,harmedOne|,!priv,use" />
+    </EntityLinks>
+    <Properties soclass_SmartObjectHelpers="lyingInjured_lowBed"
+                guidSmartObjectType="fac19edd-46e9-4dd5-914f-72502c70af07"
+                bSaved_by_game="0">
+      <LyingHarmed esLyingHarmedPose="male_lyingWounded_04" />
+    </Properties>
+    <BBoxProxy BBoxMin="1e+15,1e+15,1e+15"
+               BBoxMax="-1e+15,-1e+15,-1e+15" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_targetCloseup"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831845"
+          EntityGuid="50df1113-ed8f-4845"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="Closeup" iDialogueContextId="1" />
+    </Properties>
+    <CameraProxy Fov="0.383972" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_targetCloseShot"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831846"
+          EntityGuid="dc816990-06f3-4036"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="CloseShot" iDialogueContextId="1" />
+    </Properties>
+    <CameraProxy Fov="0.418879" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_targetMedium"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831847"
+          EntityGuid="9d3ae907-8eea-47d2"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="Medium" iDialogueContextId="1" />
+    </Properties>
+    <CameraProxy Fov="0.383972" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_playerCloseup"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831848"
+          EntityGuid="b1e60d2c-7930-4c86"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="Closeup" iDialogueContextId="0" />
+    </Properties>
+    <CameraProxy Fov="0.383972" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_playerCloseShot"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831849"
+          EntityGuid="454d309c-d364-4f1d"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="CloseShot" iDialogueContextId="0" />
+    </Properties>
+    <CameraProxy Fov="0.418879" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
+  <Entity Prefab="1" Name="DP_ConfessionCameraRig_playerMedium"
+          Pos="1740.031,1957.591,127.1535"
+          Rotate="1,0,0,0"
+          EntityClass="CameraSource"
+          EntityId="1831850"
+          EntityGuid="f8c192db-9392-4871"
+          CastShadowMinSpec="1"
+          EditorLayer="Main/_quest/activity/darkpassengertest/static">
+    <Properties bSaved_by_game="0">
+      <DialogueCamera esDialogueCameraOverrideType="Medium" iDialogueContextId="0" />
+    </Properties>
+    <CameraProxy Fov="0.418879" NearZ="0.25" FarZ="1024" DofEnable="1" FocusDistance="2" FocusRange="4" BlurAmount="1" />
+  </Entity>
 </Objects>
