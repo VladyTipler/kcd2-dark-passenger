@@ -26,6 +26,38 @@ try {
     Import-Module $profileModule -Force
 
     $world = Get-Content -Raw -LiteralPath $worldPath | ConvertFrom-Json
+    $settlementCatalog = Read-CaseKitSettlementCatalog -LiteralPath (
+        Join-Path $repoRoot 'config\settlement-investigation-areas.json'
+    )
+    $inferred = Add-CaseKitInferredSettlementSemantics `
+        -WorldIndex $world `
+        -SettlementCatalog $settlementCatalog
+    $troskovice = $inferred.settlements |
+        Where-Object settlement -eq 'troskovice'
+    $troskoviceInnkeeper = $inferred.entities |
+        Where-Object entityName -eq 'ttkc_inkeeper'
+    $troskoviceWorker = $inferred.entities |
+        Where-Object entityName -eq 'ttkc_woman_2'
+    $troskoviceChest = $inferred.entities |
+        Where-Object {
+            $_.settlement -eq 'troskovice' -and
+            'container.evidence' -in @($_.capabilities)
+        } | Select-Object -First 1
+    $troskoviceInnkeeperRu = Resolve-CaseKitEntityIdentity `
+        -Entity $troskoviceInnkeeper -Language 'ru'
+    $troskoviceWorkerEn = Resolve-CaseKitEntityIdentity `
+        -Entity $troskoviceWorker -Language 'en'
+    Add-Result (
+        $troskovice.localized.ru.displayName -eq 'Тросковице' -and
+        $troskovice.localized.en.displayName -eq 'Troskowitz' -and
+        $troskoviceInnkeeper.identityMode -eq 'titled' -and
+        $troskoviceInnkeeperRu.displayLabel -eq 'корчмарь в Тросковице' -and
+        $troskoviceWorker.identityMode -eq 'anonymous' -and
+        $troskoviceWorkerEn.displayLabel -eq 'inn worker' -and
+        $troskoviceChest.presentation.localized.ru.locationHint -match
+            'Тросковице'
+    ) 'world and area metadata provide safe semantics without a profile'
+
     $pritoky = Read-CaseKitSettlementProfile -LiteralPath (
         Join-Path $profileRoot 'pritoky.profile.json'
     )

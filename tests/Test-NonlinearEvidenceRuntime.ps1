@@ -12,6 +12,7 @@ $initPath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $snapshotPath = Join-Path $scriptRoot 'dpcasesnapshot.lua'
 $seederPath = Join-Path $scriptRoot 'dpevidenceseeder.lua'
 $plannerPath = Join-Path $scriptRoot 'dpleadplanner.lua'
+$caseContentPath = Join-Path $scriptRoot 'dpcasecontent.lua'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -38,6 +39,7 @@ $init = Read-OptionalText $initPath
 $snapshot = Read-OptionalText $snapshotPath
 $seeder = Read-OptionalText $seederPath
 $planner = Read-OptionalText $plannerPath
+$caseContent = Read-OptionalText $caseContentPath
 
 Add-Result (Test-Path -LiteralPath $registryPath -PathType Leaf) `
     'central evidence registry exists'
@@ -46,6 +48,7 @@ foreach ($export in @(
     'MarkPlaced',
     'Discover',
     'GetCaseState',
+    'IsIdentitySatisfied',
     'Restore',
     'RunSelfTest'
 )) {
@@ -71,11 +74,22 @@ Add-Result (
     $registry.Contains('claim_cap')
 ) 'registry derives confidence from discovered evidence and claim caps'
 Add-Result (
+    $registry.Contains('reveals =') -and
+    $registry.Contains('identity_requirement') -and
+    $registry.Contains('identitySatisfied') -and
+    $registry.Contains('ReconcileEvidence(')
+) 'registry derives identity gates from discovered evidence facts'
+Add-Result (
     $registry.Contains('order rumor-ledger-witness') -and
     $registry.Contains('order witness-rumor-ledger') -and
     $registry.Contains('same discovered set') -and
     $registry.Contains('claim cap')
 ) 'registry self-test covers permutations and claim caps'
+Add-Result (
+    $registry.Contains('identity allOf waits for every fact') -and
+    $registry.Contains('identity anyOf accepts either fact') -and
+    $registry.Contains('identity rejects unknown mode')
+) 'registry self-test covers allOf and anyOf identity expressions'
 
 foreach ($key in @(
     'dp_evidence_registry_schema_version',
@@ -97,13 +111,17 @@ Add-Result (
     ) -and
     $investigation.Contains('eventType == "reconcile"') -and
     $investigation.Contains('non_monotonic_confidence') -and
-    $investigation.Contains('evidence_unchanged')
+    $investigation.Contains('evidence_unchanged') -and
+    $investigation.Contains('identitySatisfied') -and
+    $investigation.Contains('identity_pending')
 ) 'investigation exposes monotonic idempotent reconciliation'
 Add-Result (
     $investigation.Contains('reconcile exact total') -and
     $investigation.Contains('reconcile idempotent') -and
     $investigation.Contains('reconcile rejects regression') -and
-    $investigation.Contains('reconcile reveal once')
+    $investigation.Contains('reconcile reveal once') -and
+    $investigation.Contains('threshold waits for hard identity') -and
+    $investigation.Contains('unchanged confidence reveals after identity')
 ) 'investigation self-test covers reconciliation invariants'
 
 $catalogIndex = $init.IndexOf(
@@ -138,7 +156,15 @@ Add-Result (
 ) 'seeder projects snapshot case-start evidence into the registry'
 Add-Result (Test-Path -LiteralPath $plannerPath -PathType Leaf) `
     'pure lead planner exists'
-foreach ($export in 'Transition', 'Evaluate', 'Publish', 'Apply', 'RunSelfTest') {
+foreach ($export in @(
+    'Transition',
+    'Evaluate',
+    'SelectGuidance',
+    'Publish',
+    'PublishGuidance',
+    'Apply',
+    'RunSelfTest'
+)) {
     Add-Result (
         $planner.Contains("function DarkPassengerLeadPlanner.$export")
     ) "lead planner exports $export"
@@ -150,6 +176,23 @@ Add-Result (
     $planner.Contains('parallel after rumor') -and
     $planner.Contains('same confidence')
 ) 'lead planner self-test covers all nonlinear clue orders'
+Add-Result (
+    $planner.Contains('visibility_mode == "step-active"') -and
+    $planner.Contains('visibility_mode == "facts-known"') -and
+    $planner.Contains('visibility_mode == "target-revealed"') -and
+    $planner.Contains('requires_fact_ids') -and
+    $planner.Contains('investigationState.revealed == true')
+) 'lead planner evaluates every CaseKit guidance visibility mode'
+Add-Result (
+    $planner.Contains('guidance waits for prerequisite facts') -and
+    $planner.Contains('guidance expires after evidence') -and
+    $planner.Contains('target guidance waits for reveal')
+) 'lead planner self-test covers guidance lifecycle gates'
+Add-Result (
+    $planner.Contains('DarkPassengerInvestigation.GetState()') -and
+    $planner.Contains('DarkPassengerLeadPlanner.PublishGuidance(') -and
+    $caseContent.Contains('result.guidance = variant.guidance or {}')
+) 'selected CaseKit variant guidance reaches the native signal publisher'
 Add-Result (
     $planner.Contains('hints_unlocked_by') -and
     $planner.Contains('status ~= "discovered"') -and

@@ -1,5 +1,12 @@
 Set-StrictMode -Version Latest
 
+$areaSelectionModule = Join-Path $PSScriptRoot `
+    'VanillaInvestigationAreaSelection.psm1'
+if (-not (Test-Path -LiteralPath $areaSelectionModule -PathType Leaf)) {
+    throw "Vanilla area selection module not found: $areaSelectionModule"
+}
+Import-Module $areaSelectionModule -Force
+
 function Read-DpJsonFile {
     param([Parameter(Mandatory)][string]$LiteralPath)
 
@@ -23,6 +30,56 @@ function Read-DpCaseSpec {
 function Read-DpCaseSettlementBindings {
     param([Parameter(Mandatory)][string]$LiteralPath)
     return Read-DpJsonFile -LiteralPath $LiteralPath
+}
+
+function Get-DpCaseSettlementBindings {
+    param(
+        [Parameter(Mandatory)]$Bindings,
+        [Parameter(Mandatory)][int]$CaseCode,
+        [string]$Region,
+        [string]$Settlement
+    )
+
+    return @($Bindings.settlements | Where-Object {
+        $binding = $_
+        $caseCodeProperty = $binding.PSObject.Properties['caseCode']
+        $caseMatches = $null -eq $caseCodeProperty -or
+            [int]$caseCodeProperty.Value -eq $CaseCode
+        $regionMatches = [string]::IsNullOrWhiteSpace($Region) -or
+            [string]$binding.region -eq $Region
+        $settlementMatches = [string]::IsNullOrWhiteSpace($Settlement) -or
+            [string]$binding.settlement -eq $Settlement
+        $caseMatches -and $regionMatches -and $settlementMatches
+    })
+}
+
+function Get-DpScopedCaseSettlementBindings {
+    param(
+        [Parameter(Mandatory)]$Bindings,
+        [Parameter(Mandatory)]$CaseSpec,
+        [string]$Region = ''
+    )
+
+    $caseCodeProperty = $CaseSpec.PSObject.Properties['code']
+    $caseCode = if ($null -ne $caseCodeProperty) {
+        [int]$caseCodeProperty.Value
+    }
+    else { 0 }
+    $effectiveRegion = if (-not [string]::IsNullOrWhiteSpace($Region)) {
+        $Region
+    }
+    else { [string]$CaseSpec.constraints.region }
+    $scoped = @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+        -CaseCode $caseCode `
+        -Region $effectiveRegion)
+    $explicit = @($scoped | Where-Object {
+        $null -ne $_.PSObject.Properties['caseCode']
+    })
+    if ($explicit.Count -gt 0) { return $explicit }
+    return @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+        -CaseCode $caseCode `
+        -Region $effectiveRegion `
+        -Settlement ([string]$CaseSpec.constraints.settlement))
 }
 
 function Test-DpTextValue {
@@ -168,6 +225,29 @@ function Get-DpJournalStates {
     return $states.ToArray()
 }
 
+function Get-DpCaseActivationSignals {
+    param(
+        [Parameter(Mandatory)][object[]]$CaseSpecs,
+        [int]$StartSignalTag = 122
+    )
+
+    $signals = [System.Collections.Generic.List[object]]::new()
+    $index = 0
+    foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
+        $caseCode = [int]$case.code
+        $signals.Add([ordered]@{
+            case_id = [string]$case.id
+            case_code = $caseCode
+            signal_tag = $StartSignalTag + $index
+            signal_name = "dp_case_active_$caseCode"
+            buff_guid = Get-DpStableGuid `
+                -Seed "darkpassenger-case-active-$caseCode"
+        })
+        $index++
+    }
+    return $signals.ToArray()
+}
+
 function Get-DpDialogueVariants {
     param([Parameter(Mandatory)]$CaseSpec)
 
@@ -212,15 +292,14 @@ function Get-DpDialogueVariants {
     return $result.ToArray()
 }
 
-function Get-DpOverheardDefinition {
+function ConvertTo-DpOverheardDefinition {
     param(
         [Parameter(Mandatory)]$CaseSpec,
-        [Parameter(Mandatory)]$Binding
+        [Parameter(Mandatory)]$Binding,
+        [Parameter(Mandatory)]$Overheard,
+        [Parameter(Mandatory)][bool]$Legacy
     )
 
-    $property = $CaseSpec.native.PSObject.Properties['overheard']
-    if ($null -eq $property) { return $null }
-    $overheard = $property.Value
     $evidence = @($CaseSpec.evidence | Where-Object {
         [string]$_.id -eq [string]$overheard.evidenceId
     })
@@ -228,11 +307,44 @@ function Get-DpOverheardDefinition {
         throw "Overheard dialogue '$($overheard.graphName)' has unknown evidence."
     }
     $bindingProperty = $Binding.roles.PSObject.Properties['overheard']
-    if ($null -eq $bindingProperty) {
-        throw "Case '$($CaseSpec.id)' has no overheard settlement binding."
+    $speakerProperty = $overheard.PSObject.Properties['speakers']
+    $pairs = if ($null -ne $bindingProperty -and
+        @($bindingProperty.Value.pairs).Count -gt 0) {
+        @($bindingProperty.Value.pairs)
     }
-    $pairs = @($bindingProperty.Value.pairs)
+    elseif ($null -ne $speakerProperty) {
+        @([ordered]@{
+            id = [string]$overheard.id
+            speakers = @(
+                $speakerProperty.Value.speakerA,
+                $speakerProperty.Value.speakerB
+            )
+        })
+    }
+    else {
+        if ($null -eq $bindingProperty) {
+            throw "Case '$($CaseSpec.id)' has no overheard settlement binding."
+        }
+        @($bindingProperty.Value.pairs)
+    }
+    $id = if ($null -ne $overheard.PSObject.Properties['id'] -and
+        -not [string]::IsNullOrWhiteSpace([string]$overheard.id)) {
+        [string]$overheard.id
+    }
+    else { "$($CaseSpec.id)_overheard" }
+    $activationMode = if (
+        $null -ne $overheard.PSObject.Properties['activation']
+    ) { [string]$overheard.activation.mode } else { 'proximity' }
+    $signalName = if ($Legacy) { 'dp_overheard_available' } else {
+        'dp_overheard_' + ($id -replace '[^A-Za-z0-9_]', '_') + '_available'
+    }
+    $signalSeed = if ($Legacy) { 'darkpassenger-overheard-available' } else {
+        "darkpassenger-overheard-$id-available"
+    }
     return [ordered]@{
+        id = $id
+        legacy = $Legacy
+        activation_mode = $activationMode
         evidence_id = [string]$overheard.evidenceId
         evidence_code = [int]$evidence[0].code
         graph_name = [string]$overheard.graphName
@@ -246,10 +358,40 @@ function Get-DpOverheardDefinition {
         hearing_distance = [int]$overheard.hearingDistance
         repeat_after_seconds = [int]$overheard.repeatAfterSeconds
         available_tag = [int]$overheard.availableTag
-        buff_guid = Get-DpStableGuid -Seed 'darkpassenger-overheard-available'
+        buff_name = $signalName
+        buff_guid = Get-DpStableGuid -Seed $signalSeed
         responses = @($overheard.responses)
-        pairs = $pairs
+        pairs = @($pairs)
     }
+}
+
+function Get-DpOverheardDefinitions {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $scenesProperty = $CaseSpec.native.PSObject.Properties['overheardScenes']
+    if ($null -ne $scenesProperty) {
+        return @($scenesProperty.Value | ForEach-Object {
+            ConvertTo-DpOverheardDefinition -CaseSpec $CaseSpec `
+                -Binding $Binding -Overheard $_ -Legacy $false
+        })
+    }
+    $property = $CaseSpec.native.PSObject.Properties['overheard']
+    if ($null -eq $property) { return @() }
+    return @(ConvertTo-DpOverheardDefinition -CaseSpec $CaseSpec `
+        -Binding $Binding -Overheard $property.Value -Legacy $true)
+}
+
+function Get-DpOverheardDefinition {
+    param(
+        [Parameter(Mandatory)]$CaseSpec,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    return @(Get-DpOverheardDefinitions -CaseSpec $CaseSpec `
+        -Binding $Binding | Select-Object -First 1)[0]
 }
 
 function ConvertTo-DpLuaString {
@@ -417,9 +559,9 @@ function ConvertTo-DpRuntimeCase {
                 buff_guid = $_.buff_guid
             }
         })
-    $overheard = Get-DpOverheardDefinition `
+    $overheardScenes = @(Get-DpOverheardDefinitions `
         -CaseSpec $CaseSpec `
-        -Binding $Binding
+        -Binding $Binding)
     return [ordered]@{
         id = [string]$CaseSpec.id
         code = [int]$CaseSpec.code
@@ -431,12 +573,22 @@ function ConvertTo-DpRuntimeCase {
         target_policy = $CaseSpec.targetPolicy
         crime_profile = $CaseSpec.crimeProfile
         reveal_threshold = [int]$CaseSpec.revealThreshold
+        identity_requirement = if ($null -ne (
+            $CaseSpec.PSObject.Properties['identityRequirement']
+        )) {
+            $CaseSpec.identityRequirement
+        }
+        else { $null }
         rumors = $rumors
         evidence_steps = @($evidence | Select-Object -Skip 1)
         evidence = $evidence.ToArray()
         journal_states = @(Get-DpJournalStates -CaseSpec $CaseSpec)
         dialogue_variants = $dialogueVariants
-        overheard = $overheard
+        overheard = if ($overheardScenes.Count -gt 0) {
+            $overheardScenes[0]
+        }
+        else { $null }
+        overheard_scenes = $overheardScenes
         bindings = $Binding.roles
         text = $CaseSpec.text
     }
@@ -460,10 +612,10 @@ function ConvertTo-DpCaseCatalogLua {
     $lines.Add('')
 
     foreach ($case in $CaseSpecs) {
-        $binding = @($Bindings.settlements | Where-Object {
-            [string]$_.region -eq [string]$case.constraints.region -and
-            [string]$_.settlement -eq [string]$case.constraints.settlement
-        })[0]
+        $binding = @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+            -CaseCode ([int]$case.code) `
+            -Region ([string]$case.constraints.region) `
+            -Settlement ([string]$case.constraints.settlement))[0]
         $runtimeCase = ConvertTo-DpRuntimeCase `
             -CaseSpec $case `
             -Binding $binding
@@ -638,6 +790,9 @@ function ConvertTo-DpRuntimeSceneDefinitions {
                         'document-in-container'
                 ) { 'case_start' } else { 'on_event' }
                 evidence_module = [string]$step.action.evidenceModule
+                activation_mode = if (
+                    $null -ne $step.action.PSObject.Properties['activation']
+                ) { [string]$step.action.activation.mode } else { $null }
                 resolved_bindings = $resolvedBindings
                 compiled_assets = $step.presentations
             })
@@ -653,6 +808,8 @@ function Get-DpCaseCleanupManifest {
         [Parameter(Mandatory)][object[]]$RuntimeScenes,
         $Binding,
         [object[]]$QuestItemPlacementSignals = @(),
+        [object[]]$GuidanceSignals = @(),
+        $CaseActivationSignal,
         $Trophy
     )
 
@@ -669,6 +826,12 @@ function Get-DpCaseCleanupManifest {
     )
 
     $signalBuffGuids = [System.Collections.Generic.List[string]]::new()
+    if ($null -ne $CaseActivationSignal -and
+        -not [string]::IsNullOrWhiteSpace(
+            [string]$CaseActivationSignal.buff_guid
+        )) {
+        $signalBuffGuids.Add([string]$CaseActivationSignal.buff_guid)
+    }
     foreach ($state in @(Get-DpJournalStates -CaseSpec $CaseSpec)) {
         if (-not [string]::IsNullOrWhiteSpace([string]$state.buff_guid)) {
             $signalBuffGuids.Add([string]$state.buff_guid)
@@ -682,12 +845,22 @@ function Get-DpCaseCleanupManifest {
         }
     }
     if ($null -ne $Binding) {
-        $overheard = Get-DpOverheardDefinition `
+        $overheardScenes = @(Get-DpOverheardDefinitions `
             -CaseSpec $CaseSpec `
-            -Binding $Binding
-        if ($null -ne $overheard -and
-            -not [string]::IsNullOrWhiteSpace([string]$overheard.buff_guid)) {
-            $signalBuffGuids.Add([string]$overheard.buff_guid)
+            -Binding $Binding)
+        foreach ($overheard in $overheardScenes) {
+            if (-not [string]::IsNullOrWhiteSpace(
+                [string]$overheard.buff_guid
+            )) {
+                $signalBuffGuids.Add([string]$overheard.buff_guid)
+            }
+        }
+    }
+    foreach ($guidanceSignal in @($GuidanceSignals)) {
+        if (-not [string]::IsNullOrWhiteSpace(
+            [string]$guidanceSignal.buff_guid
+        )) {
+            $signalBuffGuids.Add([string]$guidanceSignal.buff_guid)
         }
     }
 
@@ -698,13 +871,29 @@ function Get-DpCaseCleanupManifest {
             continue
         }
         $source = "evidence:$([string]$evidence.id)"
-        $signal = @($QuestItemPlacementSignals | Where-Object {
+        $signals = @($QuestItemPlacementSignals | Where-Object {
             [string]$_.source -eq $source
-        })[0]
+        })
+        $bindingContainerGuid = if ($null -ne $Binding -and
+            $null -ne $Binding.roles.PSObject.Properties['document']) {
+            [string]$Binding.roles.document.containerGuid
+        }
+        else { '' }
+        $signal = if (-not [string]::IsNullOrWhiteSpace(
+            $bindingContainerGuid
+        )) {
+            @($signals | Where-Object {
+                [string]$_.request_key -eq
+                    $bindingContainerGuid.ToLowerInvariant()
+            } | Select-Object -First 1)
+        }
+        else { @($signals | Select-Object -First 1) }
+        if ($signal -is [array]) { $signal = $signal | Select-Object -First 1 }
         if ($null -eq $signal) { continue }
         $scene = @($RuntimeScenes | Where-Object {
             [int]$_.evidence_code -eq [int]$evidence.code
-        })[0]
+        } | Select-Object -First 1)
+        if ($scene -is [array]) { $scene = $scene | Select-Object -First 1 }
         $destination = if ($null -ne $scene -and
             $null -ne $scene.resolved_bindings) {
             if ($scene.resolved_bindings -is
@@ -811,7 +1000,9 @@ function ConvertTo-DpCaseVariantCatalogLua {
         [Parameter(Mandatory)][object[]]$CaseSpecs,
         [Parameter(Mandatory)][object[]]$Candidates,
         $Bindings,
-        [object[]]$QuestItemPlacementSignals = @()
+        [object[]]$QuestItemPlacementSignals = @(),
+        [object[]]$GuidanceSignals = @(),
+        [object[]]$CaseActivationSignals = @()
     )
 
     $storyById = @{}
@@ -821,6 +1012,10 @@ function ConvertTo-DpCaseVariantCatalogLua {
     $caseByCode = @{}
     foreach ($caseSpec in @($CaseSpecs)) {
         $caseByCode[[int]$caseSpec.code] = $caseSpec
+    }
+    $caseActivationByCode = @{}
+    foreach ($signal in @($CaseActivationSignals)) {
+        $caseActivationByCode[[int]$signal.case_code] = $signal
     }
     $candidateByEntityName = @{}
     foreach ($candidate in @($Candidates)) {
@@ -859,22 +1054,99 @@ function ConvertTo-DpCaseVariantCatalogLua {
                     -CandidateByEntityName $candidateByEntityName
         }
         $target = $runtimeBindings.target
+        $caseBindings = @()
+        if ($null -ne $Bindings -and $null -ne $caseSpec) {
+            $caseBindings = @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+                -CaseCode ([int]$variant.caseCode) `
+                -Region ([string]$variant.region) `
+                -Settlement ([string]$variant.settlement))
+        }
+        $caseBinding = if (@($caseBindings).Count -eq 1) {
+            $caseBindings[0]
+        }
+        else { $null }
+        if ($null -ne $caseBinding) {
+            foreach ($roleMap in @(
+                @{ Semantic = 'rumorSource'; Native = 'innkeeper' },
+                @{ Semantic = 'witness'; Native = 'witness' }
+            )) {
+                $semanticBinding = $runtimeBindings[$roleMap.Semantic]
+                $nativeRoleProperty =
+                    $caseBinding.roles.PSObject.Properties[$roleMap.Native]
+                if ($null -eq $semanticBinding -or
+                    $null -eq $nativeRoleProperty) {
+                    continue
+                }
+                $dialogueRoleProperty =
+                    $nativeRoleProperty.Value.PSObject.Properties[
+                        'dialogueRole'
+                    ]
+                if ($null -ne $dialogueRoleProperty -and
+                    -not [string]::IsNullOrWhiteSpace(
+                        [string]$dialogueRoleProperty.Value
+                    )) {
+                    $semanticBinding['dialogue_role'] =
+                        [string]$dialogueRoleProperty.Value
+                }
+            }
+        }
+        $bindingCoversVariant = $false
+        if ($null -ne $caseBinding) {
+            $variantIdsProperty =
+                $caseBinding.PSObject.Properties['nativeVariantIds']
+            $bindingCoversVariant = $null -eq $variantIdsProperty -or
+                @($variantIdsProperty.Value) -contains [string]$variant.variantId
+        }
+        $supportedRegions = if (
+            $null -ne $caseSpec -and
+            $null -ne $caseSpec.constraints.PSObject.Properties['regions']
+        ) { @($caseSpec.constraints.regions) } elseif ($null -ne $caseSpec) {
+            @([string]$caseSpec.constraints.region)
+        } else { @() }
+        $nativeRegionAvailable = $false
+        if ($null -ne $caseSpec -and
+            $null -ne $caseSpec.native.PSObject.Properties['regions']) {
+            $nativeRegionAvailable = $null -ne
+                $caseSpec.native.regions.PSObject.Properties[
+                    [string]$variant.region
+                ]
+        }
+        elseif ($null -ne $caseSpec) {
+            $nativeRegionAvailable =
+                [string]$caseSpec.constraints.region -eq [string]$variant.region
+        }
         $nativeReady = $null -ne $caseSpec -and
-            [string]$caseSpec.constraints.region -eq [string]$variant.region -and
-            [string]$caseSpec.constraints.settlement -eq
-                [string]$variant.settlement -and
+            $supportedRegions -contains [string]$variant.region -and
+            $nativeRegionAvailable -and
+            $null -ne $caseBinding -and $bindingCoversVariant -and
             [int]$target.candidate_slot -gt 0
         $runtimeScenes = @(ConvertTo-DpRuntimeSceneDefinitions `
             -Story $story -VariantBindings $variant.bindings `
             -CandidateByEntityName $candidateByEntityName)
         $trophy = ConvertTo-DpNativeTrophyDefinition -Variant $variant
-        $caseBinding = if ($null -ne $Bindings) {
-            @($Bindings.settlements | Where-Object {
-                [string]$_.region -eq [string]$caseSpec.constraints.region -and
-                [string]$_.settlement -eq [string]$caseSpec.constraints.settlement
-            })[0]
+        $variantGuidanceSignals = @($GuidanceSignals | Where-Object {
+            [string]$_.variant_id -eq [string]$variant.variantId
+        } | Sort-Object signal_tag, qualified_id)
+        $runtimeGuidance = @($variantGuidanceSignals | ForEach-Object {
+            [ordered]@{
+                id = [string]$_.qualified_id
+                evidence_code = [int]$_.step_evidence_code
+                visibility_mode = [string]$_.visibility_mode
+                requires_fact_ids = @($_.requires_fact_ids | ForEach-Object {
+                    [string]$_
+                })
+                lifetime = [string]$_.lifetime
+                buff_guid = [string]$_.buff_guid
+                signal_tag = [int]$_.signal_tag
+                alias = [string]$_.alias
+                asset_kind = [string]$_.asset_kind
+            }
+        })
+        $overheardScenes = if ($nativeReady) {
+            @(Get-DpOverheardDefinitions -CaseSpec $caseSpec `
+                -Binding $caseBinding)
         }
-        else { $null }
+        else { @() }
         $cleanupManifest = if ($nativeReady) {
             Get-DpCaseCleanupManifest `
                 -CaseSpec $caseSpec `
@@ -882,6 +1154,10 @@ function ConvertTo-DpCaseVariantCatalogLua {
                 -RuntimeScenes $runtimeScenes `
                 -Binding $caseBinding `
                 -QuestItemPlacementSignals $QuestItemPlacementSignals `
+                -GuidanceSignals $variantGuidanceSignals `
+                -CaseActivationSignal $caseActivationByCode[
+                    [int]$variant.caseCode
+                ] `
                 -Trophy $trophy
         }
         else { $null }
@@ -892,6 +1168,12 @@ function ConvertTo-DpCaseVariantCatalogLua {
             story_id = [string]$variant.storyId
             case_id = [string]$variant.caseId
             case_code = [int]$variant.caseCode
+            case_activation_buff_guid = if (
+                $caseActivationByCode.ContainsKey([int]$variant.caseCode)
+            ) {
+                [string]$caseActivationByCode[[int]$variant.caseCode].buff_guid
+            }
+            else { '' }
             composition_id = [string]$variant.compositionId
             region = [string]$variant.region
             settlement = [string]$variant.settlement
@@ -903,12 +1185,23 @@ function ConvertTo-DpCaseVariantCatalogLua {
             trophy = $trophy
             bindings = $runtimeBindings
             scenes = $runtimeScenes
+            overheard_scenes = $overheardScenes
+            guidance = $runtimeGuidance
             cleanup_manifest = $cleanupManifest
         })
     }
 
+    $catalogRevisionSeed = ConvertTo-Json `
+        -InputObject $runtimeVariants.ToArray() `
+        -Depth 100 `
+        -Compress
+    $catalogRevision = Get-DpStableRuntimeCode `
+        -Value $catalogRevisionSeed
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('-- Generated by Compile-CaseSpecs.ps1. Do not edit.')
+    $lines.Add(
+        "DarkPassengerCaseVariantCatalogRevision = $catalogRevision"
+    )
     $lines.Add('DarkPassengerCaseVariantCatalog = {}')
     $lines.Add('DarkPassengerCaseVariantCatalogOrder = {')
     foreach ($variant in $runtimeVariants) {
@@ -961,7 +1254,8 @@ function ConvertTo-DpLocalizationXml {
         [Parameter(Mandatory)][string]$BaseLiteralPath,
         [Parameter(Mandatory)][object[]]$CaseSpecs,
         [Parameter(Mandatory)][ValidateSet('ru', 'en')][string]$Language,
-        $CompiledDefinitions
+        $CompiledDefinitions,
+        [AllowEmptyCollection()][object[]]$GuidanceSignals = @()
     )
 
     [xml]$base = [System.IO.File]::ReadAllText($BaseLiteralPath)
@@ -1025,6 +1319,31 @@ function ConvertTo-DpLocalizationXml {
         }
     }
 
+    foreach ($signal in @($GuidanceSignals | Sort-Object `
+        objective_name_key, objective_active_key -Unique)) {
+        if (-not [bool]$signal.objective_authored) { continue }
+        foreach ($entry in @(
+            [ordered]@{
+                key = [string]$signal.objective_name_key
+                value = [string]$signal.objective_name_localization.$Language
+            },
+            [ordered]@{
+                key = [string]$signal.objective_active_key
+                value = [string]$signal.objective_active_localization.$Language
+            }
+        )) {
+            if ($values.Contains($entry.key)) {
+                if ([string]$values[$entry.key] -ne $entry.value) {
+                    throw "Generated guidance localization key " +
+                        "'$($entry.key)' conflicts."
+                }
+                continue
+            }
+            $values[$entry.key] = $entry.value
+            $rows.Add($entry)
+        }
+    }
+
     $compiledVariants = if ($null -eq $CompiledDefinitions) {
         @()
     }
@@ -1054,6 +1373,14 @@ function ConvertTo-DpLocalizationXml {
         }
     }
 
+    $unresolved = @($rows | Where-Object {
+        [string]$_.value -match '\{\{[^{}]+\}\}'
+    } | Select-Object -First 1)
+    if ($unresolved.Count -gt 0) {
+        throw "Localization key '$([string]$unresolved[0].key)' contains " +
+            'an unresolved authored template token.'
+    }
+
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('<?xml version="1.0" encoding="utf-8"?>')
     $lines.Add('<Table>')
@@ -1075,54 +1402,57 @@ function ConvertTo-DpStormRoleXml {
 
     $rules = @([regex]::Matches($BaseXml, '(?s)<rule\b.*?</rule>'))
     $additions = [System.Collections.Generic.List[string]]::new()
+    $generatedAssignments = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
     foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
-        $binding = @($Bindings.settlements | Where-Object {
-            [string]$_.region -eq [string]$case.constraints.region -and
-            [string]$_.settlement -eq [string]$case.constraints.settlement
-        })[0]
-        $roleBindings = [System.Collections.Generic.List[object]]::new()
-        foreach ($role in 'innkeeper', 'witness') {
-            $property = $binding.roles.PSObject.Properties[$role]
-            if ($null -eq $property) { continue }
-            $roleBindings.Add([ordered]@{
-                suffix = $role
-                value = $property.Value
-            })
-        }
-        $overheardProperty = $binding.roles.PSObject.Properties['overheard']
-        if ($null -ne $overheardProperty) {
-            foreach ($pair in @($overheardProperty.Value.pairs)) {
-                foreach ($speaker in @($pair.speakers)) {
-                    $roleBindings.Add([ordered]@{
-                        suffix = 'overheard_' + [string]$pair.id + '_' +
-                            [string]$speaker.role
-                        value = $speaker
-                    })
+        foreach ($binding in @(Get-DpScopedCaseSettlementBindings `
+            -Bindings $Bindings -CaseSpec $case)) {
+            $roleBindings = [System.Collections.Generic.List[object]]::new()
+            foreach ($role in 'innkeeper', 'witness') {
+                $property = $binding.roles.PSObject.Properties[$role]
+                if ($null -eq $property) { continue }
+                $roleBindings.Add([ordered]@{
+                    suffix = $role
+                    value = $property.Value
+                })
+            }
+            $overheardProperty = $binding.roles.PSObject.Properties['overheard']
+            if ($null -ne $overheardProperty) {
+                foreach ($pair in @($overheardProperty.Value.pairs)) {
+                    foreach ($speaker in @($pair.speakers)) {
+                        $roleBindings.Add([ordered]@{
+                            suffix = 'overheard_' + [string]$pair.id + '_' +
+                                [string]$speaker.role
+                            value = $speaker
+                        })
+                    }
                 }
             }
-        }
-        foreach ($entry in $roleBindings) {
-            $roleBinding = $entry.value
-            $entityName = [string]$roleBinding.entityName
-            $dialogueRole = [string]$roleBinding.dialogueRole
-            $existing = @($rules | Where-Object {
-                $_.Value.Contains("<hasName name=`"$entityName`" />") -and
-                $_.Value.Contains("<addRole name=`"$dialogueRole`" />")
-            })
-            if ($existing.Count -gt 0) { continue }
+            foreach ($entry in $roleBindings) {
+                $roleBinding = $entry.value
+                $entityName = [string]$roleBinding.entityName
+                $dialogueRole = [string]$roleBinding.dialogueRole
+                $assignment = "$entityName|$dialogueRole"
+                if (-not $generatedAssignments.Add($assignment)) { continue }
+                $existing = @($rules | Where-Object {
+                    $_.Value.Contains("<hasName name=`"$entityName`" />") -and
+                    $_.Value.Contains("<addRole name=`"$dialogueRole`" />")
+                })
+                if ($existing.Count -gt 0) { continue }
 
-            $ruleName = 'darkpassenger_' +
-                ([string]$case.constraints.settlement -replace '[^A-Za-z0-9_]', '_') +
-                '_' + ([string]$entry.suffix -replace '[^A-Za-z0-9_]', '_')
-            if ($BaseXml.Contains("<rule name=`"$ruleName`">") -or
-                @($additions | Where-Object {
-                    $_.Contains("<rule name=`"$ruleName`">")
-                }).Count -gt 0) {
-                throw "Storm rule name collision: $ruleName"
-            }
-            $entityXml = ConvertTo-DpXmlText $entityName
-            $roleXml = ConvertTo-DpXmlText $dialogueRole
-            $additions.Add(@"
+                $ruleName = 'darkpassenger_' + [int]$case.code + '_' +
+                    ([string]$binding.settlement -replace '[^A-Za-z0-9_]', '_') +
+                    '_' + ([string]$entry.suffix -replace '[^A-Za-z0-9_]', '_')
+                if ($BaseXml.Contains("<rule name=`"$ruleName`">") -or
+                    @($additions | Where-Object {
+                        $_.Contains("<rule name=`"$ruleName`">")
+                    }).Count -gt 0) {
+                    throw "Storm rule name collision: $ruleName"
+                }
+                $entityXml = ConvertTo-DpXmlText $entityName
+                $roleXml = ConvertTo-DpXmlText $dialogueRole
+                $additions.Add(@"
     <rule name="$ruleName">
       <selectors>
         <hasName name="$entityXml" />
@@ -1132,6 +1462,7 @@ function ConvertTo-DpStormRoleXml {
       </operations>
     </rule>
 "@.TrimEnd())
+            }
         }
     }
     if ($additions.Count -eq 0) { return $BaseXml }
@@ -1161,21 +1492,25 @@ function ConvertTo-DpDialogueRoleTableXml {
         [System.StringComparer]::Ordinal
     )
     foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
-        $matchingBindings = @($Bindings.settlements | Where-Object {
-            [string]$_.region -eq [string]$case.constraints.region -and
-            [string]$_.settlement -eq [string]$case.constraints.settlement
-        })
-        if ($matchingBindings.Count -ne 1) {
-            throw "Case '$($case.id)' requires exactly one settlement binding."
+        $matchingBindings = @(Get-DpScopedCaseSettlementBindings `
+            -Bindings $Bindings -CaseSpec $case)
+        if ($matchingBindings.Count -eq 0) {
+            throw "Case '$($case.id)' requires at least one settlement binding."
         }
-        foreach ($roleName in @(Get-DpSettlementDialogueRoleNames `
-            -SettlementBinding $matchingBindings[0])) {
-            [void]$requiredNames.Add([string]$roleName)
+        foreach ($matchingBinding in $matchingBindings) {
+            foreach ($roleName in @(Get-DpSettlementDialogueRoleNames `
+                -SettlementBinding $matchingBinding)) {
+                [void]$requiredNames.Add([string]$roleName)
+            }
         }
     }
 
-    $knownNames = [ordered]@{}
-    $knownIds = [ordered]@{}
+    $knownNames = [System.Collections.Generic.Dictionary[string, object]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    $knownIds = [System.Collections.Generic.Dictionary[string, string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
     foreach ($match in [regex]::Matches($BaseXml, '<role\b[^>]*/>')) {
         $nameMatch = [regex]::Match(
             $match.Value,
@@ -1193,27 +1528,37 @@ function ConvertTo-DpDialogueRoleTableXml {
             -not $metaRoleMatch.Success) {
             throw "Malformed RPG role row: $($match.Value)"
         }
-        $knownNames[[string]$nameMatch.Groups[1].Value] = [ordered]@{
+        $knownName = [string]$nameMatch.Groups[1].Value
+        $knownId = [string]$idMatch.Groups[1].Value
+        if ($knownNames.ContainsKey($knownName)) {
+            throw "Duplicate RPG role name '$knownName' in the base RPG table."
+        }
+        if ($knownIds.ContainsKey($knownId)) {
+            throw "Duplicate RPG role id '$knownId' in the base RPG table."
+        }
+        $knownNames[$knownName] = [ordered]@{
             roleId = [string]$idMatch.Groups[1].Value
             metaRole = [string]$metaRoleMatch.Groups[1].Value
         }
-        $knownIds[[string]$idMatch.Groups[1].Value] =
-            [string]$nameMatch.Groups[1].Value
+        $knownIds[$knownId] = $knownName
     }
 
-    $additions = [System.Collections.Generic.List[string]]::new()
     foreach ($roleName in @($requiredNames | Sort-Object)) {
         $matches = @($definitions | Where-Object {
-            [string]$_.name -eq $roleName
+            [string]$_.name -ceq $roleName
         })
         if ($matches.Count -ne 1) {
             throw "Dialogue role '$roleName' requires exactly one registry definition."
         }
-        $definition = $matches[0]
+    }
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($definition in @($definitions | Sort-Object name)) {
+        $roleName = [string]$definition.name
         $roleId = [string]$definition.roleId
         $metaRole = [string]$definition.metaRole
 
-        if ($knownNames.Contains($roleName)) {
+        if ($knownNames.ContainsKey($roleName)) {
             $known = $knownNames[$roleName]
             if ([string]$known.roleId -ne $roleId -or
                 [string]$known.metaRole -ne $metaRole) {
@@ -1221,7 +1566,7 @@ function ConvertTo-DpDialogueRoleTableXml {
             }
             continue
         }
-        if ($knownIds.Contains($roleId)) {
+        if ($knownIds.ContainsKey($roleId)) {
             throw "Dialogue role id '$roleId' is already used by '$($knownIds[$roleId])'."
         }
 
@@ -1274,6 +1619,15 @@ function ConvertTo-DpScriptContextXml {
         if ($null -ne $overheardProperty -and
             (Test-DpTextValue $overheardProperty.Value.context)) {
             $contexts.Add([string]$overheardProperty.Value.context)
+        }
+        $overheardScenesProperty =
+            $case.native.PSObject.Properties['overheardScenes']
+        if ($null -ne $overheardScenesProperty) {
+            foreach ($scene in @($overheardScenesProperty.Value)) {
+                if (Test-DpTextValue $scene.context) {
+                    $contexts.Add([string]$scene.context)
+                }
+            }
         }
         foreach ($context in $contexts) {
             if ($names.Add($context)) {
@@ -1328,12 +1682,21 @@ function ConvertTo-DpItemTableXml {
     foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
         $documentSteps = @($case.evidence | Where-Object kind -eq 'document')
         if ($documentSteps.Count -eq 0) { continue }
-        $binding = @($Bindings.settlements | Where-Object {
-            [string]$_.region -eq [string]$case.constraints.region -and
-            [string]$_.settlement -eq [string]$case.constraints.settlement
-        })[0]
+        $binding = @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+            -CaseCode ([int]$case.code) `
+            -Region ([string]$case.constraints.region) `
+            -Settlement ([string]$case.constraints.settlement))[0]
         foreach ($step in $documentSteps) {
-            $id = [string]$binding.roles.document.documentGuid
+            $id = if ($null -ne $step.item.PSObject.Properties['guid']) {
+                [string]$step.item.guid
+            }
+            elseif ($null -ne $binding) {
+                [string]$binding.roles.document.documentGuid
+            }
+            else { '' }
+            if ([string]::IsNullOrWhiteSpace($id)) {
+                throw "Document '$([string]$step.id)' has no item GUID."
+            }
             $name = [string]$step.item.name
             if ($knownIds.Contains($id)) {
                 if ([string]$knownIds[$id] -ne $name) {
@@ -1496,7 +1859,7 @@ function ConvertTo-DpOverheardDialogueXml {
     )
 
     $roleMap = @{}
-    foreach ($pair in @($Binding.roles.overheard.pairs)) {
+    foreach ($pair in @($Overheard.pairs)) {
         foreach ($speaker in @($pair.speakers)) {
             $semanticRole = [string]$speaker.role
             $dialogueRole = [string]$speaker.dialogueRole
@@ -1555,11 +1918,311 @@ function ConvertTo-DpOverheardDialogueXml {
     return ($lines -join "`n") + "`n"
 }
 
+function ConvertTo-DpOverheardNativeWiring {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Scenes,
+        [Parameter(Mandatory)]$Binding
+    )
+
+    $nodeLines = [System.Collections.Generic.List[string]]::new()
+    $assetLines = [System.Collections.Generic.List[string]]::new()
+    $dialogues = [System.Collections.Generic.List[object]]::new()
+    $seenAssets = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($scene in $Scenes) {
+        $stem = if ([bool]$scene.legacy) { 'overheard' } else {
+            'overheardScene_' + ([string]$scene.id -replace '[^A-Za-z0-9_]', '_')
+        }
+        $tagNode = if ([bool]$scene.legacy) {
+            'overheardAvailableTags'
+        }
+        else { "${stem}AvailableTags" }
+        $nodeLines.Add(
+            "        <MakeArray Name=`"$tagNode`" TypeT=`"wh::rpgmodule::BuffDefinitionAITags`">"
+        )
+        $nodeLines.Add(
+            "          <Constant Name=`"A`" Value=`"$($scene.available_tag)`" />"
+        )
+        $nodeLines.Add('        </MakeArray>')
+        $scenePairs = @($scene.pairs)
+        for ($pairIndex = 0; $pairIndex -lt $scenePairs.Count; $pairIndex++) {
+            $pair = $scenePairs[$pairIndex]
+            $speakers = @($pair.speakers)
+            $pairToken = ([string]$pair.id -replace '[^A-Za-z0-9_]', '_')
+            if ([string]::IsNullOrWhiteSpace($pairToken)) {
+                $pairToken = [string]$pairIndex
+            }
+            $pairName = if ($pairIndex -eq 0) { 'Primary' } else {
+                "Fallback_$pairToken"
+            }
+            $pairNode = if ([bool]$scene.legacy) {
+                "overheard${pairName}Speakers"
+            }
+            else { "${stem}_${pairName}Speakers" }
+            $triggerNode = if ([bool]$scene.legacy) {
+                "overheard${pairName}AvailableTrigger"
+            }
+            else { "${stem}_${pairName}AvailableTrigger" }
+            $stateNode = if ([bool]$scene.legacy) {
+                "overheard${pairName}Available"
+            }
+            else { "${stem}_${pairName}Available" }
+            $switchNode = if ([bool]$scene.legacy) {
+                "overheardSwitch$pairName"
+            }
+            else { "${stem}_Switch$pairName" }
+            $nodeLines.Add(
+                "        <MakeArray Name=`"$pairNode`" TypeT=`"wh::rpgmodule::Souls`">"
+            )
+            for ($speakerIndex = 0; $speakerIndex -lt $speakers.Count; $speakerIndex++) {
+                $letter = [char]([int][char]'A' + $speakerIndex)
+                $nodeLines.Add(
+                    "          <Asset Name=`"$letter`" Alias=`"$($speakers[$speakerIndex].questAlias)`" />"
+                )
+                $assetKey = "$($speakers[$speakerIndex].questAlias)|" +
+                    [string]$speakers[$speakerIndex].soulGuid
+                if ($seenAssets.Add($assetKey)) {
+                    $assetLines.Add(
+                        "        <SoulAsset Name=`"$($speakers[$speakerIndex].questAlias)`" SharedSoulGuids=`"$($speakers[$speakerIndex].soulGuid)`" />"
+                    )
+                }
+            }
+            $nodeLines.Add('        </MakeArray>')
+            $nodeLines.Add("        <BuffTagTrigger Name=`"$triggerNode`">")
+            $nodeLines.Add(
+                "          <Asset Name=`"Souls`" Alias=`"$($speakers[0].questAlias)`" />"
+            )
+            $nodeLines.Add(
+                "          <Edge From=`"$tagNode.Array`" To=`"BuffTags`" />"
+            )
+            $nodeLines.Add('          <Edge From="questProgress.Active" To="IsActive" />')
+            $nodeLines.Add('        </BuffTagTrigger>')
+            $nodeLines.Add("        <State Name=`"$stateNode`" TypeT=`"bool`">")
+            $nodeLines.Add(
+                "          <Edge From=`"$triggerNode.OnAdded`" To=`"SetTrue`" />"
+            )
+            $nodeLines.Add(
+                "          <Edge From=`"$triggerNode.OnRemoved`" To=`"SetFalse`" />"
+            )
+            foreach ($resultTrigger in @(
+                'satisfactionTrigger',
+                'cleanResultTrigger',
+                'controlledResultTrigger',
+                'noisyResultTrigger',
+                'externalResultTrigger'
+            )) {
+                $nodeLines.Add(
+                    "          <Edge From=`"$resultTrigger.OnAdded`" To=`"SetFalse`" />"
+                )
+            }
+            $nodeLines.Add('        </State>')
+            $nodeLines.Add(
+                "        <switchdialog Name=`"$switchNode`" Namespace=`"utils.speech`">"
+            )
+            $nodeLines.Add(
+                "          <Asset Name=`"linksource`" Alias=`"$($speakers[0].questAlias)`" />"
+            )
+            $nodeLines.Add(
+                "          <Constant Name=`"alias`" Value=`"$($scene.decision_alias)`" />"
+            )
+            $nodeLines.Add('          <Constant Name="dialogtype" Value="Ingame" />')
+            $nodeLines.Add(
+                "          <Constant Name=`"repeatafterseconds`" Value=`"$($scene.repeat_after_seconds)`" />"
+            )
+            $nodeLines.Add('          <Constant Name="repeataftersecondsvariation" Value="0" />')
+            $nodeLines.Add('          <Constant Name="playdialoganimations" Value="false" />')
+            $nodeLines.Add('          <Constant Name="maxscheduledpriority" Value="-1" />')
+            $nodeLines.Add('          <Constant Name="context" Value="speech_readyForSwitchDialog" />')
+            $nodeLines.Add('          <Constant Name="perceivingplayer" Value="false" />')
+            $nodeLines.Add(
+                "          <Constant Name=`"playerdistance`" Value=`"$($scene.hearing_distance)`" />"
+            )
+            $nodeLines.Add('          <Asset Name="playerinarea" Alias="land" />')
+            $nodeLines.Add('          <Constant Name="continuosinitiatorchecks" Value="false" />')
+            $nodeLines.Add('          <Constant Name="lookatenabled" Value="false" />')
+            $nodeLines.Add('          <Asset Name="lookattarget" Alias="player" />')
+            $nodeLines.Add('          <Constant Name="boostperceptionpriority" Value="false" />')
+            $nodeLines.Add('          <Constant Name="perceptiondebuff" Value="false" />')
+            $nodeLines.Add('          <Constant Name="subtitlesdown" Value="false" />')
+            $nodeLines.Add("          <Edge From=`"$pairNode.Array`" To=`"souls`" />")
+            $nodeLines.Add("          <Edge From=`"$stateNode.State`" To=`"active`" />")
+            $nodeLines.Add('        </switchdialog>')
+        }
+        $dialogNode = if ([bool]$scene.legacy) {
+            'overheardEvidenceDialog'
+        }
+        else { "${stem}EvidenceDialog" }
+        $requestState = if ([bool]$scene.legacy) {
+            'overheardClueRequestActive'
+        }
+        else { "${stem}ClueRequestActive" }
+        $pulseNode = if ([bool]$scene.legacy) {
+            'overheardCluePulse'
+        }
+        else { "${stem}CluePulse" }
+        $requestNode = if ([bool]$scene.legacy) {
+            'overheardClueRequest'
+        }
+        else { "${stem}ClueRequest" }
+        $nodeLines.Add(
+            "        <$($scene.graph_name) Name=`"$dialogNode`" />"
+        )
+        $nodeLines.Add("        <State Name=`"$requestState`" TypeT=`"bool`">")
+        $nodeLines.Add(
+            "          <Edge From=`"$dialogNode.$($scene.clue_port)`" To=`"SetTrue`" />"
+        )
+        $nodeLines.Add(
+            "          <Edge From=`"$pulseNode.OnFinished`" To=`"SetFalse`" />"
+        )
+        $nodeLines.Add('          <Edge From="questProgress.OnActive" To="SetFalse" />')
+        $nodeLines.Add('        </State>')
+        $nodeLines.Add("        <Timer Name=`"$pulseNode`">")
+        $nodeLines.Add('          <Constant Name="Duration" Value="3s" />')
+        $nodeLines.Add('          <Constant Name="TimeType" Value="GameTime" />')
+        $nodeLines.Add(
+            "          <Edge From=`"$dialogNode.$($scene.clue_port)`" To=`"SetRunning`" />"
+        )
+        $nodeLines.Add('        </Timer>')
+        $nodeLines.Add("        <SetEntityContext Name=`"$requestNode`">")
+        $nodeLines.Add(
+            "          <Constant Name=`"Context`" Value=`"$($scene.context)`" />"
+        )
+        $nodeLines.Add('          <Asset Name="Souls" Alias="player" />')
+        $nodeLines.Add(
+            "          <Edge From=`"$requestState.State`" To=`"IsActive`" />"
+        )
+        $nodeLines.Add('        </SetEntityContext>')
+        $dialogues.Add([ordered]@{
+            fileName = [string]$scene.file_name
+            xml = ConvertTo-DpOverheardDialogueXml `
+                -Overheard $scene -Binding $Binding
+        })
+    }
+    return [ordered]@{
+        nodes = $nodeLines -join "`n"
+        assets = $assetLines -join "`n"
+        dialogues = $dialogues.ToArray()
+    }
+}
+
+function ConvertTo-DpCaseNamespacedNodeFragment {
+    param(
+        [AllowEmptyString()][string]$Xml,
+        [Parameter(Mandatory)][string]$Prefix
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Xml)) { return $Xml }
+    $document = [System.Xml.XmlDocument]::new()
+    $document.PreserveWhitespace = $true
+    $document.LoadXml("<Root>`n$Xml`n</Root>")
+    $names = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
+    foreach ($node in @($document.DocumentElement.ChildNodes)) {
+        if ($node.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+        $name = $node.GetAttribute('Name')
+        if (-not [string]::IsNullOrWhiteSpace($name)) {
+            $null = $names.Add($name)
+        }
+    }
+    $result = $Xml
+    foreach ($name in @($names | Sort-Object Length -Descending)) {
+        $qualified = $Prefix + '_' + $name
+        $result = $result.Replace("Name=`"$name`"", "Name=`"$qualified`"")
+        $result = $result.Replace("From=`"$name.", "From=`"$qualified.")
+        $result = $result.Replace("To=`"$name.", "To=`"$qualified.")
+    }
+    return $result
+}
+
+function Get-DpNativeSettlementToken {
+    param([Parameter(Mandatory)][string]$Settlement)
+
+    $token = $Settlement -replace '[^A-Za-z0-9_]', '_'
+    if ($token -match '^[0-9]') { $token = "s_$token" }
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        throw "Native settlement id '$Settlement' has no usable token."
+    }
+    return $token
+}
+
+function Copy-DpSettlementScopedDialogue {
+    param(
+        [Parameter(Mandatory)]$Dialogue,
+        [Parameter(Mandatory)][int]$CaseCode,
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$Settlement,
+        [string]$ScopeSuffix = '',
+        [switch]$Overheard
+    )
+
+    $copy = $Dialogue | ConvertTo-Json -Depth 100 |
+        ConvertFrom-Json -Depth 100
+    $regionToken = Get-DpNativeSettlementToken -Settlement $Region
+    $settlementToken = Get-DpNativeSettlementToken -Settlement $Settlement
+    $suffixToken = if ([string]::IsNullOrWhiteSpace($ScopeSuffix)) { '' } else {
+        '_' + (Get-DpNativeSettlementToken -Settlement $ScopeSuffix)
+    }
+    $prefix = "dpcase${CaseCode}_${regionToken}_${settlementToken}${suffixToken}_"
+    if ($Overheard) {
+        $copy.graph_name = $prefix + [string]$copy.graph_name
+        $copy.file_name = $prefix + [string]$copy.file_name
+    }
+    else {
+        $copy.graphName = $prefix + [string]$copy.graphName
+        $copy.fileName = $prefix + [string]$copy.fileName
+    }
+    return $copy
+}
+
 function ConvertTo-DpNativeRegionWiring {
     param(
         [Parameter(Mandatory)]$CaseSpec,
-        [Parameter(Mandatory)]$Binding
+        [Parameter(Mandatory)]
+        [Alias('Binding')]
+        [object[]]$Bindings,
+        [string]$Region = '',
+        $NativeRegion,
+        $CaseActivationSignal
     )
+
+    $Bindings = @($Bindings | Sort-Object settlement)
+    if ($Bindings.Count -eq 0) {
+        throw "Case '$($CaseSpec.id)' has no native binding for region '$Region'."
+    }
+    $primaryBinding = $Bindings[0]
+    $CaseSpec = $CaseSpec | ConvertTo-Json -Depth 100 |
+        ConvertFrom-Json -Depth 100
+    if ([string]::IsNullOrWhiteSpace($Region)) {
+        $Region = [string]$CaseSpec.constraints.region
+    }
+    $CaseSpec.constraints.region = $Region
+    $CaseSpec.constraints.settlement = [string]$primaryBinding.settlement
+    if ($null -eq $NativeRegion -and
+        $null -ne $CaseSpec.native.PSObject.Properties['regions']) {
+        $NativeRegion = $CaseSpec.native.regions.PSObject.Properties[
+            $Region
+        ].Value
+    }
+    if ($null -ne $NativeRegion) {
+        $CaseSpec.native.questName = [string]$NativeRegion.questName
+        $CaseSpec.native.dialogFolder = [string]$NativeRegion.dialogFolder
+    }
+    foreach ($property in $CaseSpec.native.contexts.PSObject.Properties) {
+        $property.Value = ([string]$property.Value) -replace
+            '_(kutnohorsko|trosecko)$', "_$Region"
+    }
+    $overheardScenesProperty =
+        $CaseSpec.native.PSObject.Properties['overheardScenes']
+    if ($null -ne $overheardScenesProperty) {
+        foreach ($scene in @($overheardScenesProperty.Value)) {
+            $scene.context = ([string]$scene.context) -replace
+                '_(kutnohorsko|trosecko)$', "_$Region"
+        }
+    }
 
     $native = $CaseSpec.native
     $rumor = @($native.dialogues | Where-Object kind -eq 'rumor')
@@ -1569,10 +2232,34 @@ function ConvertTo-DpNativeRegionWiring {
     }
     $rumor = $rumor[0]
     $witness = $witness[0]
-    $overheard = Get-DpOverheardDefinition `
-        -CaseSpec $CaseSpec `
-        -Binding $Binding
     $folder = [string]$native.dialogFolder
+    $caseCode = [int]$CaseSpec.code
+    $nodePrefix = "case$caseCode"
+    if ($null -eq $CaseActivationSignal) {
+        $CaseActivationSignal = [pscustomobject][ordered]@{
+            case_id = [string]$CaseSpec.id
+            case_code = $caseCode
+            signal_tag = 122
+            signal_name = "dp_case_active_$caseCode"
+            buff_guid = Get-DpStableGuid `
+                -Seed "darkpassenger-case-active-$caseCode"
+        }
+    }
+    $caseActiveNodes = @"
+        <MakeArray Name="${nodePrefix}ActiveTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
+          <Constant Name="A" Value="$([int]$CaseActivationSignal.signal_tag)" />
+        </MakeArray>
+        <BuffTagTrigger Name="${nodePrefix}ActiveTrigger">
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="${nodePrefix}ActiveTags.Array" To="BuffTags" />
+          <Edge From="questProgress.Active" To="IsActive" />
+        </BuffTagTrigger>
+        <State Name="${nodePrefix}Active" TypeT="bool">
+          <Edge From="${nodePrefix}ActiveTrigger.OnAdded" To="SetTrue" />
+          <Edge From="${nodePrefix}ActiveTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+        </State>
+"@
     $rumorTag = [int]$native.signals.rumorAvailableTag
     $witnessTag = [int]$native.signals.witnessAvailableTag
     $rumorContext = [string]$native.contexts.rumorHeard
@@ -1679,17 +2366,222 @@ function ConvertTo-DpNativeRegionWiring {
     $rumorVariantNodeXml = $rumorVariantNodes -join "`n"
     $rumorVariantPortEdgeXml = $rumorVariantPortEdges -join "`n"
 
-    $overheardDefinition = if ($null -ne $overheard) {
-        "        <Definition File=`"$folder/$($overheard.file_name)`" />"
+    $definitionFiles = [System.Collections.Generic.List[string]]::new()
+    $compiledDialogues = [System.Collections.Generic.List[object]]::new()
+    $settlementModules = [System.Collections.Generic.List[object]]::new()
+    $rumorBindingNodes = [System.Collections.Generic.List[string]]::new()
+    $witnessBindingNodes = [System.Collections.Generic.List[string]]::new()
+    $rumorHeardEdges = [System.Collections.Generic.List[string]]::new()
+    $witnessHeardEdges = [System.Collections.Generic.List[string]]::new()
+    $overheardNodeFragments = [System.Collections.Generic.List[string]]::new()
+    $overheardAssetFragments = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($binding in $Bindings) {
+        $settlement = [string]$binding.settlement
+        $bindingToken = Get-DpNativeSettlementToken -Settlement $settlement
+        $targetSlotValues = if (
+            $null -ne $binding.PSObject.Properties['targetCandidateSlots']
+        ) {
+            @($binding.targetCandidateSlots)
+        } else {
+            @()
+        }
+        $targetSlots = @($targetSlotValues | ForEach-Object {
+            [int]$_
+        } | Sort-Object -Unique)
+
+        $scopedRumor = Copy-DpSettlementScopedDialogue `
+            -Dialogue $rumor -CaseCode $caseCode -Region $Region `
+            -Settlement $settlement
+        $scopedWitness = Copy-DpSettlementScopedDialogue `
+            -Dialogue $witness -CaseCode $caseCode -Region $Region `
+            -Settlement $settlement
+        foreach ($dialogue in @($scopedRumor, $scopedWitness)) {
+            $definitionFiles.Add("$folder/$([string]$dialogue.fileName)")
+        }
+        $compiledDialogues.Add([ordered]@{
+            settlement = $settlement
+            graphName = [string]$scopedRumor.graphName
+            fileName = [string]$scopedRumor.fileName
+            xml = ConvertTo-DpDialogueXml -Dialogue $scopedRumor `
+                -Binding $binding -Variants $rumorVariants
+        })
+        $compiledDialogues.Add([ordered]@{
+            settlement = $settlement
+            graphName = [string]$scopedWitness.graphName
+            fileName = [string]$scopedWitness.fileName
+            xml = ConvertTo-DpDialogueXml -Dialogue $scopedWitness `
+                -Binding $binding
+        })
+
+        $bindingActiveEdges = [System.Collections.Generic.List[string]]::new()
+        $rumorTargetGates = [System.Collections.Generic.List[string]]::new()
+        $rumorTargetEdges = [System.Collections.Generic.List[string]]::new()
+        $witnessTargetGates = [System.Collections.Generic.List[string]]::new()
+        $witnessTargetEdges = [System.Collections.Generic.List[string]]::new()
+        if ($targetSlots.Count -eq 0) {
+            $bindingActiveEdges.Add(
+                "          <Edge From=`"${nodePrefix}ActiveTrigger.OnAdded`" To=`"SetTrue`" />"
+            )
+        }
+        foreach ($targetSlot in $targetSlots) {
+            $slotNode = 'targetSlot{0:D3}' -f $targetSlot
+            $bindingGate = "${bindingToken}BindingGate$targetSlot"
+            $bindingPhaseGate =
+                "${bindingToken}BindingPhaseGate$targetSlot"
+            $rumorGate = "${bindingToken}RumorTargetGate$targetSlot"
+            $witnessGate = "${bindingToken}WitnessTargetGate$targetSlot"
+            $rumorBindingNodes.Add(@"
+        <If Name="$bindingGate">
+          <Edge From="${nodePrefix}Active.State" To="Condition" />
+          <Edge From="${slotNode}Tagged.True" To="Exec" />
+        </If>
+        <If Name="$bindingPhaseGate">
+          <Edge From="${slotNode}TagCheck.HaveBuffTag" To="Condition" />
+          <Edge From="${nodePrefix}ActiveTrigger.OnAdded" To="Exec" />
+        </If>
+"@.TrimEnd())
+            $bindingActiveEdges.Add(
+                "          <Edge From=`"$bindingGate.True`" To=`"SetTrue`" />"
+            )
+            $bindingActiveEdges.Add(
+                "          <Edge From=`"$bindingPhaseGate.True`" To=`"SetTrue`" />"
+            )
+            $rumorTargetGates.Add(@"
+        <If Name="$rumorGate">
+          <Edge From="rumorDialogueAvailable.State" To="Condition" />
+          <Edge From="$bindingGate.True" To="Exec" />
+          <Edge From="$bindingPhaseGate.True" To="Exec" />
+        </If>
+"@.TrimEnd())
+            $rumorTargetEdges.Add(
+                "          <Edge From=`"$rumorGate.True`" To=`"SetTrue`" />"
+            )
+            $witnessTargetGates.Add(@"
+        <If Name="$witnessGate">
+          <Edge From="witnessDialogueAvailable.State" To="Condition" />
+          <Edge From="${nodePrefix}_$bindingGate.True" To="Exec" />
+          <Edge From="${nodePrefix}_$bindingPhaseGate.True" To="Exec" />
+        </If>
+"@.TrimEnd())
+            $witnessTargetEdges.Add(
+                "          <Edge From=`"$witnessGate.True`" To=`"SetTrue`" />"
+            )
+        }
+
+        $rumorBindingNodes.Add(@"
+        <State Name="${bindingToken}BindingActive" TypeT="bool">
+$($bindingActiveEdges -join "`n")
+          <Edge From="${nodePrefix}ActiveTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+        </State>
+$($rumorTargetGates -join "`n")
+        <If Name="${bindingToken}RumorPhaseGate">
+          <Edge From="${bindingToken}BindingActive.State" To="Condition" />
+          <Edge From="rumorAvailableTrigger.OnAdded" To="Exec" />
+        </If>
+        <State Name="${bindingToken}RumorAvailable" TypeT="bool">
+$($rumorTargetEdges -join "`n")
+          <Edge From="${bindingToken}RumorPhaseGate.True" To="SetTrue" />
+          <Edge From="rumorAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <$($scopedRumor.graphName) Name="${bindingToken}InnkeeperRumorDialog">
+          <Edge From="${bindingToken}RumorAvailable.State" To="available" />
+$rumorVariantPortEdgeXml
+        </$($scopedRumor.graphName)>
+"@.TrimEnd())
+        $rumorHeardEdges.Add(
+            "          <Edge From=`"${bindingToken}InnkeeperRumorDialog.heard`" To=`"SetTrue`" />"
+        )
+
+        $witnessBindingNodes.Add(@"
+$($witnessTargetGates -join "`n")
+        <If Name="${bindingToken}WitnessPhaseGate">
+          <Edge From="${nodePrefix}_${bindingToken}BindingActive.State" To="Condition" />
+          <Edge From="witnessAvailableTrigger.OnAdded" To="Exec" />
+        </If>
+        <State Name="${bindingToken}WitnessAvailable" TypeT="bool">
+$($witnessTargetEdges -join "`n")
+          <Edge From="${bindingToken}WitnessPhaseGate.True" To="SetTrue" />
+          <Edge From="witnessAvailableTrigger.OnRemoved" To="SetFalse" />
+          <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
+          <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
+          <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="controlledResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
+          <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
+        </State>
+        <$($scopedWitness.graphName) Name="${bindingToken}TavernWitnessDialog">
+          <Edge From="${bindingToken}WitnessAvailable.State" To="available" />
+        </$($scopedWitness.graphName)>
+"@.TrimEnd())
+        $witnessHeardEdges.Add(
+            "          <Edge From=`"${bindingToken}TavernWitnessDialog.heard`" To=`"SetTrue`" />"
+        )
+
+        $bindingOverheardScenes = @(Get-DpOverheardDefinitions `
+            -CaseSpec $CaseSpec -Binding $binding | ForEach-Object {
+                $scene = $_
+                foreach ($pair in @($scene.pairs)) {
+                    $singlePairScene = $scene | ConvertTo-Json -Depth 100 |
+                        ConvertFrom-Json -Depth 100
+                    $singlePairScene.pairs = @($pair)
+                    $singlePairScene.legacy = $false
+                    $singlePairScene.id =
+                        [string]$scene.id + '_' + [string]$pair.id
+                    $scoped = Copy-DpSettlementScopedDialogue `
+                        -Dialogue $singlePairScene -CaseCode $caseCode `
+                        -Region $Region -Settlement $settlement `
+                        -ScopeSuffix ([string]$pair.id) -Overheard
+                    $scoped.decision_alias =
+                        "dp_case${caseCode}_${bindingToken}_" +
+                        [string]$scoped.decision_alias
+                    $scoped
+                }
+            })
+        $bindingOverheard = ConvertTo-DpOverheardNativeWiring `
+            -Scenes $bindingOverheardScenes -Binding $binding
+        if (-not [string]::IsNullOrWhiteSpace([string]$bindingOverheard.nodes)) {
+            $overheardNodeFragments.Add([string]$bindingOverheard.nodes)
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$bindingOverheard.assets)) {
+            $overheardAssetFragments.Add([string]$bindingOverheard.assets)
+        }
+        foreach ($dialogue in @($bindingOverheard.dialogues)) {
+            $scene = @($bindingOverheardScenes | Where-Object {
+                [string]$_.file_name -eq [string]$dialogue.fileName
+            })[0]
+            $definitionFiles.Add("$folder/$([string]$dialogue.fileName)")
+            $compiledDialogues.Add([ordered]@{
+                settlement = $settlement
+                graphName = [string]$scene.graph_name
+                fileName = [string]$dialogue.fileName
+                xml = [string]$dialogue.xml
+            })
+        }
+        $settlementModules.Add([ordered]@{
+            settlement = $settlement
+            targetCandidateSlots = $targetSlots
+            roles = $binding.roles
+            dialogues = @($compiledDialogues | Where-Object {
+                [string]$_.settlement -eq $settlement
+            })
+        })
     }
-    else { '' }
-    $definitions = @"
-      <Definitions>
-        <Definition File="$folder/$($rumor.fileName)" />
-        <Definition File="$folder/$($witness.fileName)" />
-$overheardDefinition
-      </Definitions>
-"@
+
+    $definitionLines = @($definitionFiles | Sort-Object -Unique |
+        ForEach-Object { "        <Definition File=`"$_`" />" })
+    $definitions = @(
+        '      <Definitions>',
+        ($definitionLines -join "`n"),
+        '      </Definitions>'
+    ) -join "`n"
     $rumorNodes = @"
         <MakeArray Name="rumorAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">
           <Constant Name="A" Value="$rumorTag" />
@@ -1710,13 +2602,10 @@ $overheardDefinition
           <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
         </State>
 $rumorVariantNodeXml
-        <$($rumor.graphName) Name="innkeeperRumorDialog">
-          <Edge From="rumorDialogueAvailable.State" To="available" />
-$rumorVariantPortEdgeXml
-        </$($rumor.graphName)>
+$($rumorBindingNodes -join "`n")
         <State Name="rumorDialogueRequestActive" TypeT="bool">
           <Edge From="questProgress.OnActive" To="SetFalse" />
-          <Edge From="innkeeperRumorDialog.heard" To="SetTrue" />
+$($rumorHeardEdges -join "`n")
           <Edge From="firstLeadTrigger.OnAdded" To="SetFalse" />
           <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
           <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
@@ -1749,12 +2638,10 @@ $rumorVariantPortEdgeXml
           <Edge From="noisyResultTrigger.OnAdded" To="SetFalse" />
           <Edge From="externalResultTrigger.OnAdded" To="SetFalse" />
         </State>
-        <$($witness.graphName) Name="tavernWitnessDialog">
-          <Edge From="witnessDialogueAvailable.State" To="available" />
-        </$($witness.graphName)>
+$($witnessBindingNodes -join "`n")
         <State Name="witnessDialogueRequestActive" TypeT="bool">
           <Edge From="questProgress.OnActive" To="SetFalse" />
-          <Edge From="tavernWitnessDialog.heard" To="SetTrue" />
+$($witnessHeardEdges -join "`n")
           <Edge From="revealTagTrigger.OnAdded" To="SetFalse" />
           <Edge From="satisfactionTrigger.OnAdded" To="SetFalse" />
           <Edge From="cleanResultTrigger.OnAdded" To="SetFalse" />
@@ -1768,128 +2655,8 @@ $rumorVariantPortEdgeXml
           <Edge From="witnessDialogueRequestActive.State" To="IsActive" />
         </SetEntityContext>
 "@
-    $overheardNodes = ''
-    $overheardAssets = ''
-    $overheardDialogue = $null
-    if ($null -ne $overheard) {
-        $nodeLines = [System.Collections.Generic.List[string]]::new()
-        $assetLines = [System.Collections.Generic.List[string]]::new()
-        $nodeLines.Add('        <MakeArray Name="overheardAvailableTags" TypeT="wh::rpgmodule::BuffDefinitionAITags">')
-        $nodeLines.Add(
-            "          <Constant Name=`"A`" Value=`"$($overheard.available_tag)`" />"
-        )
-        $nodeLines.Add('        </MakeArray>')
-        for ($pairIndex = 0; $pairIndex -lt $overheard.pairs.Count; $pairIndex++) {
-            $pair = $overheard.pairs[$pairIndex]
-            $speakers = @($pair.speakers)
-            $pairName = if ($pairIndex -eq 0) { 'Primary' } else { 'Fallback' }
-            $pairNode = "overheard${pairName}Speakers"
-            $triggerNode = "overheard${pairName}AvailableTrigger"
-            $stateNode = "overheard${pairName}Available"
-            $switchNode = "overheardSwitch$pairName"
-            $nodeLines.Add(
-                "        <MakeArray Name=`"$pairNode`" TypeT=`"wh::rpgmodule::Souls`">"
-            )
-            for ($speakerIndex = 0; $speakerIndex -lt $speakers.Count; $speakerIndex++) {
-                $letter = [char]([int][char]'A' + $speakerIndex)
-                $nodeLines.Add(
-                    "          <Asset Name=`"$letter`" Alias=`"$($speakers[$speakerIndex].questAlias)`" />"
-                )
-                $assetLines.Add(
-                    "        <SoulAsset Name=`"$($speakers[$speakerIndex].questAlias)`" SharedSoulGuids=`"$($speakers[$speakerIndex].soulGuid)`" />"
-                )
-            }
-            $nodeLines.Add('        </MakeArray>')
-            $nodeLines.Add("        <BuffTagTrigger Name=`"$triggerNode`">")
-            $nodeLines.Add(
-                "          <Asset Name=`"Souls`" Alias=`"$($speakers[0].questAlias)`" />"
-            )
-            $nodeLines.Add('          <Edge From="overheardAvailableTags.Array" To="BuffTags" />')
-            $nodeLines.Add('          <Edge From="questProgress.Active" To="IsActive" />')
-            $nodeLines.Add('        </BuffTagTrigger>')
-            $nodeLines.Add("        <State Name=`"$stateNode`" TypeT=`"bool`">")
-            $nodeLines.Add(
-                "          <Edge From=`"$triggerNode.OnAdded`" To=`"SetTrue`" />"
-            )
-            $nodeLines.Add(
-                "          <Edge From=`"$triggerNode.OnRemoved`" To=`"SetFalse`" />"
-            )
-            foreach ($resultTrigger in @(
-                'satisfactionTrigger',
-                'cleanResultTrigger',
-                'controlledResultTrigger',
-                'noisyResultTrigger',
-                'externalResultTrigger'
-            )) {
-                $nodeLines.Add(
-                    "          <Edge From=`"$resultTrigger.OnAdded`" To=`"SetFalse`" />"
-                )
-            }
-            $nodeLines.Add('        </State>')
-            $nodeLines.Add(
-                "        <switchdialog Name=`"$switchNode`" Namespace=`"utils.speech`">"
-            )
-            $nodeLines.Add(
-                "          <Asset Name=`"linksource`" Alias=`"$($speakers[0].questAlias)`" />"
-            )
-            $nodeLines.Add(
-                "          <Constant Name=`"alias`" Value=`"$($overheard.decision_alias)`" />"
-            )
-            $nodeLines.Add('          <Constant Name="dialogtype" Value="Ingame" />')
-            $nodeLines.Add(
-                "          <Constant Name=`"repeatafterseconds`" Value=`"$($overheard.repeat_after_seconds)`" />"
-            )
-            $nodeLines.Add('          <Constant Name="repeataftersecondsvariation" Value="0" />')
-            $nodeLines.Add('          <Constant Name="playdialoganimations" Value="false" />')
-            $nodeLines.Add('          <Constant Name="maxscheduledpriority" Value="52" />')
-            $nodeLines.Add('          <Constant Name="context" Value="-" />')
-            $nodeLines.Add('          <Constant Name="perceivingplayer" Value="false" />')
-            $nodeLines.Add(
-                "          <Constant Name=`"playerdistance`" Value=`"$($overheard.hearing_distance)`" />"
-            )
-            $nodeLines.Add('          <Constant Name="continuosinitiatorchecks" Value="false" />')
-            $nodeLines.Add('          <Constant Name="lookatenabled" Value="false" />')
-            $nodeLines.Add('          <Asset Name="lookattarget" Alias="player" />')
-            $nodeLines.Add('          <Constant Name="boostperceptionpriority" Value="false" />')
-            $nodeLines.Add('          <Constant Name="perceptiondebuff" Value="false" />')
-            $nodeLines.Add('          <Constant Name="subtitlesdown" Value="false" />')
-            $nodeLines.Add("          <Edge From=`"$pairNode.Array`" To=`"souls`" />")
-            $nodeLines.Add("          <Edge From=`"$stateNode.State`" To=`"active`" />")
-            $nodeLines.Add('        </switchdialog>')
-        }
-        $nodeLines.Add(
-            "        <$($overheard.graph_name) Name=`"overheardEvidenceDialog`" />"
-        )
-        $nodeLines.Add('        <State Name="overheardClueRequestActive" TypeT="bool">')
-        $nodeLines.Add(
-            "          <Edge From=`"overheardEvidenceDialog.$($overheard.clue_port)`" To=`"SetTrue`" />"
-        )
-        $nodeLines.Add('          <Edge From="overheardCluePulse.OnFinished" To="SetFalse" />')
-        $nodeLines.Add('          <Edge From="questProgress.OnActive" To="SetFalse" />')
-        $nodeLines.Add('        </State>')
-        $nodeLines.Add('        <Timer Name="overheardCluePulse">')
-        $nodeLines.Add('          <Constant Name="Duration" Value="3s" />')
-        $nodeLines.Add('          <Constant Name="TimeType" Value="GameTime" />')
-        $nodeLines.Add(
-            "          <Edge From=`"overheardEvidenceDialog.$($overheard.clue_port)`" To=`"SetRunning`" />"
-        )
-        $nodeLines.Add('        </Timer>')
-        $nodeLines.Add('        <SetEntityContext Name="overheardClueRequest">')
-        $nodeLines.Add(
-            "          <Constant Name=`"Context`" Value=`"$($overheard.context)`" />"
-        )
-        $nodeLines.Add('          <Asset Name="Souls" Alias="player" />')
-        $nodeLines.Add('          <Edge From="overheardClueRequestActive.State" To="IsActive" />')
-        $nodeLines.Add('        </SetEntityContext>')
-        $overheardNodes = $nodeLines -join "`n"
-        $overheardAssets = $assetLines -join "`n"
-        $overheardDialogue = [ordered]@{
-            fileName = [string]$overheard.file_name
-            xml = ConvertTo-DpOverheardDialogueXml `
-                -Overheard $overheard `
-                -Binding $Binding
-        }
-    }
+    $overheardNodes = $overheardNodeFragments -join "`n"
+    $overheardAssets = $overheardAssetFragments -join "`n"
     $witnessObjectiveNodes = @"
         <State Name="witnessObjectiveProgress" TypeT="DP_WitnessProgress">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
@@ -1932,9 +2699,32 @@ $rumorVariantPortEdgeXml
         </Objective>
 "@
 
+    $evidenceStateEdges = $evidenceStateEdges -join "`n"
+    foreach ($fragmentName in @(
+        'rumorNodes', 'witnessNodes', 'overheardNodes', 'evidenceStateNodes'
+    )) {
+        $value = Get-Variable -Name $fragmentName -ValueOnly
+        $value = ConvertTo-DpCaseNamespacedNodeFragment `
+            -Xml ([string]$value) -Prefix $nodePrefix
+        $value = $value.Replace(
+            'From="questProgress.Active" To="IsActive"',
+            "From=`"${nodePrefix}Active.State`" To=`"IsActive`""
+        )
+        Set-Variable -Name $fragmentName -Value $value
+    }
+    foreach ($journalState in $journalStates) {
+        $triggerName = 'leadStateTrigger' + [int]$journalState.code
+        $evidenceStateEdges = $evidenceStateEdges.Replace(
+            "From=`"$triggerName.",
+            "From=`"${nodePrefix}_$triggerName."
+        )
+    }
+    $rumorNodes = $caseActiveNodes.TrimEnd() + "`n" + $rumorNodes
+
     return [ordered]@{
         caseId = [string]$CaseSpec.id
-        region = [string]$CaseSpec.constraints.region
+        caseCode = $caseCode
+        region = $Region
         settlement = [string]$CaseSpec.constraints.settlement
         questName = [string]$native.questName
         dialogFolder = $folder
@@ -1944,27 +2734,124 @@ $rumorVariantPortEdgeXml
         overheardNodes = $overheardNodes.TrimEnd()
         overheardAssets = $overheardAssets.TrimEnd()
         evidenceStateNodes = $evidenceStateNodes -join "`n"
-        evidenceStateEdges = $evidenceStateEdges -join "`n"
+        evidenceStateEdges = $evidenceStateEdges
         evidenceType = $evidenceTypeEnums -join "`n"
         evidenceLogs = $evidenceLogs -join "`n"
         journalStates = $journalStates
+        journalObjectives = if (
+            $null -ne $native.PSObject.Properties['journal']
+        ) { $native.journal.objectives } else { $null }
+        caseActivationSignal = $CaseActivationSignal
         evidenceWitnessEdge = ''
         witnessObjectiveNodes = ''
         witnessType = ''
         witnessObjective = ''
-        dialogues = @($native.dialogues | ForEach-Object {
-            $graphName = [string]$_.graphName
-            $variants = @($dialogueVariants | Where-Object {
-                [string]$_.dialogue_name -eq $graphName
-            })
-            [ordered]@{
-                fileName = [string]$_.fileName
-                xml = ConvertTo-DpDialogueXml `
-                    -Dialogue $_ `
-                    -Binding $Binding `
-                    -Variants $variants
-            }
-        }) + @($overheardDialogue | Where-Object { $null -ne $_ })
+        settlementModules = $settlementModules.ToArray()
+        dialogues = $compiledDialogues.ToArray()
+    }
+}
+
+function ConvertTo-DpNativeRegionBundle {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Modules
+    )
+
+    if ($Modules.Count -lt 1) {
+        throw 'Native regional bundle requires at least one story module.'
+    }
+    $Modules = @($Modules | Sort-Object caseCode, caseId)
+    $region = [string]$Modules[0].region
+    $questName = [string]$Modules[0].questName
+    $dialogFolder = [string]$Modules[0].dialogFolder
+    foreach ($module in $Modules) {
+        if ([string]$module.region -ne $region -or
+            [string]$module.questName -ne $questName -or
+            [string]$module.dialogFolder -ne $dialogFolder) {
+            throw "Native story module '$($module.caseId)' does not belong to " +
+                "regional shell '$region/$questName/$dialogFolder'."
+        }
+    }
+    $duplicateCase = $Modules | Group-Object { [string]$_.caseId } |
+        Where-Object Count -gt 1 | Select-Object -First 1
+    if ($null -ne $duplicateCase) {
+        throw "Region '$region' contains duplicate case '$($duplicateCase.Name)'."
+    }
+
+    $dialogueCandidates = @($Modules | ForEach-Object { @($_.dialogues) })
+    $bundleDialogues = [System.Collections.Generic.List[object]]::new()
+    foreach ($group in @($dialogueCandidates | Group-Object {
+        [string]$_.fileName
+    })) {
+        $fileName = [string]$group.Name
+        $payloads = @($group.Group | Group-Object { [string]$_.xml })
+        if ($payloads.Count -gt 1) {
+            throw "Regional dialogue file '$fileName' conflicts between " +
+                "StoryPack modules in '$region'."
+        }
+        $bundleDialogues.Add($group.Group[0])
+    }
+    foreach ($group in @($bundleDialogues | Where-Object {
+        -not [string]::IsNullOrWhiteSpace([string]$_.graphName)
+    } | Group-Object { [string]$_.graphName })) {
+        if ($group.Count -gt 1) {
+            throw "Regional dialogue graph '$($group.Name)' conflicts between " +
+                "StoryPack modules in '$region'."
+        }
+    }
+
+    $definitionFiles = @($Modules | ForEach-Object {
+        [regex]::Matches(
+            [string]$_.dialogDefinitions,
+            '<Definition\s+File="([^"]+)"\s*/>'
+        ) | ForEach-Object { [string]$_.Groups[1].Value }
+    } | Sort-Object -Unique)
+    $definitionLines = @($definitionFiles | ForEach-Object {
+        "        <Definition File=`"$_`" />"
+    })
+    $definitions = @(
+        '      <Definitions>',
+        ($definitionLines -join "`n"),
+        '      </Definitions>'
+    ) -join "`n"
+
+    return [ordered]@{
+        caseIds = @($Modules | ForEach-Object { [string]$_.caseId })
+        region = $region
+        settlement = [string]$Modules[0].settlement
+        questName = $questName
+        dialogFolder = $dialogFolder
+        dialogDefinitions = $definitions
+        rumorNodes = @($Modules | ForEach-Object {
+            [string]$_.rumorNodes
+        }) -join "`n"
+        witnessNodes = @($Modules | ForEach-Object {
+            [string]$_.witnessNodes
+        }) -join "`n"
+        overheardNodes = @($Modules | ForEach-Object {
+            [string]$_.overheardNodes
+        }) -join "`n"
+        overheardAssets = @($Modules | ForEach-Object {
+            [string]$_.overheardAssets
+        }) -join "`n"
+        evidenceStateNodes = @($Modules | ForEach-Object {
+            [string]$_.evidenceStateNodes
+        }) -join "`n"
+        evidenceStateEdges = [string]$Modules[0].evidenceStateEdges
+        evidenceType = [string]$Modules[0].evidenceType
+        evidenceLogs = [string]$Modules[0].evidenceLogs
+        journalStates = @($Modules[0].journalStates)
+        journalObjectives = $Modules[0].journalObjectives
+        storyModules = $Modules
+        caseActivationSignals = @($Modules | ForEach-Object {
+            $_.caseActivationSignal
+        })
+        evidenceWitnessEdge = ''
+        witnessObjectiveNodes = ''
+        witnessType = ''
+        witnessObjective = ''
+        dialogues = $bundleDialogues.ToArray()
     }
 }
 
@@ -2041,6 +2928,83 @@ function ConvertTo-DpLeadStateBuffXml {
         }
         if ($BaseXml.Contains("buff_name=`"$name`"")) {
             throw "Lead-state buff name '$name' has another guid."
+        }
+        $additions.Add(
+            "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+            "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+            "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+            "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+            "implementation=`"Cpp:Constant`" is_persistent=`"true`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buffs>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpCaseActivationTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$Signals
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @($Signals | Sort-Object case_code)) {
+        $tag = [int]$signal.signal_tag
+        $name = [string]$signal.signal_name
+        $idMatch = [regex]::Match(
+            $BaseXml,
+            "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+        )
+        if ($idMatch.Success) {
+            if (-not $idMatch.Value.Contains(
+                "buff_ai_tag_name=`"$name`""
+            )) {
+                throw "Case-activation buff tag id $tag collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Case-activation buff tag name '$name' has another id."
+        }
+        $additions.Add(
+            "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+            "buff_ai_tag_name=`"$name`" />"
+        )
+    }
+    if ($additions.Count -eq 0) { return $BaseXml }
+    $marker = "`t</buff_ai_tags>"
+    $index = $BaseXml.LastIndexOf($marker)
+    if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
+}
+
+function ConvertTo-DpCaseActivationBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][object[]]$Signals
+    )
+
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @($Signals | Sort-Object case_code)) {
+        $tag = [int]$signal.signal_tag
+        $guid = [string]$signal.buff_guid
+        $name = [string]$signal.signal_name
+        $guidMatch = [regex]::Match(
+            $BaseXml,
+            "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+        )
+        if ($guidMatch.Success) {
+            if (-not $guidMatch.Value.Contains("buff_name=`"$name`"") -or
+                -not $guidMatch.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+                throw "Case-activation buff guid $guid collides."
+            }
+            continue
+        }
+        if ($BaseXml.Contains("buff_name=`"$name`"")) {
+            throw "Case-activation buff name '$name' has another guid."
         }
         $additions.Add(
             "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
@@ -2151,22 +3115,62 @@ function ConvertTo-DpDialogueVariantBuffXml {
     return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
 }
 
+function Get-DpOverheardSignals {
+    param([Parameter(Mandatory)][object[]]$CaseSpecs)
+
+    $signals = [System.Collections.Generic.List[object]]::new()
+    foreach ($caseSpec in $CaseSpecs) {
+        $scenesProperty = $caseSpec.native.PSObject.Properties[
+            'overheardScenes'
+        ]
+        if ($null -ne $scenesProperty) {
+            foreach ($scene in @($scenesProperty.Value)) {
+                $id = [string]$scene.id
+                $slug = $id -replace '[^A-Za-z0-9_]', '_'
+                $signals.Add([ordered]@{
+                    tag = [int]$scene.availableTag
+                    name = "dp_overheard_${slug}_available"
+                    guid = Get-DpStableGuid `
+                        -Seed "darkpassenger-overheard-$id-available"
+                })
+            }
+            continue
+        }
+        $property = $caseSpec.native.PSObject.Properties['overheard']
+        if ($null -ne $property) {
+            $signals.Add([ordered]@{
+                tag = [int]$property.Value.availableTag
+                name = 'dp_overheard_available'
+                guid = Get-DpStableGuid `
+                    -Seed 'darkpassenger-overheard-available'
+            })
+        }
+    }
+    $byTag = @($signals | Group-Object { [int]$_.tag } | Where-Object {
+        @($_.Group.name | Sort-Object -Unique).Count -gt 1
+    })
+    if ($byTag.Count -gt 0) {
+        throw "Overheard availability tag $($byTag[0].Name) collides."
+    }
+    $byName = @($signals | Group-Object { [string]$_.name } | Where-Object {
+        @($_.Group.tag | Sort-Object -Unique).Count -gt 1
+    })
+    if ($byName.Count -gt 0) {
+        throw "Overheard availability name '$($byName[0].Name)' collides."
+    }
+    $unique = [ordered]@{}
+    foreach ($signal in @($signals | Sort-Object tag, name)) {
+        $key = "$([int]$signal.tag)|$([string]$signal.name)"
+        if (-not $unique.Contains($key)) { $unique[$key] = $signal }
+    }
+    return @($unique.Values)
+}
+
 function Get-DpOverheardSignal {
     param([Parameter(Mandatory)][object[]]$CaseSpecs)
 
-    $tags = @($CaseSpecs | ForEach-Object {
-        $property = $_.native.PSObject.Properties['overheard']
-        if ($null -ne $property) { [int]$property.Value.availableTag }
-    } | Sort-Object -Unique)
-    if ($tags.Count -eq 0) { return $null }
-    if ($tags.Count -ne 1) {
-        throw 'Overheard canaries must share one availability signal tag.'
-    }
-    return [ordered]@{
-        tag = [int]$tags[0]
-        name = 'dp_overheard_available'
-        guid = Get-DpStableGuid -Seed 'darkpassenger-overheard-available'
-    }
+    return @(Get-DpOverheardSignals -CaseSpecs $CaseSpecs |
+        Select-Object -First 1)[0]
 }
 
 function ConvertTo-DpOverheardTagXml {
@@ -2175,30 +3179,33 @@ function ConvertTo-DpOverheardTagXml {
         [Parameter(Mandatory)][object[]]$CaseSpecs
     )
 
-    $signal = Get-DpOverheardSignal -CaseSpecs $CaseSpecs
-    if ($null -eq $signal) { return $BaseXml }
-    $tag = [int]$signal.tag
-    $name = [string]$signal.name
-    $match = [regex]::Match(
-        $BaseXml,
-        "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
-    )
-    if ($match.Success) {
-        if (-not $match.Value.Contains("buff_ai_tag_name=`"$name`"")) {
-            throw "Overheard buff tag id $tag collides."
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @(Get-DpOverheardSignals -CaseSpecs $CaseSpecs)) {
+        $tag = [int]$signal.tag
+        $name = [string]$signal.name
+        $match = [regex]::Match(
+            $BaseXml,
+            "<buff_ai_tag\s+[^>]*buff_ai_tag_id=`"$tag`"[^>]*/>"
+        )
+        if ($match.Success) {
+            if (-not $match.Value.Contains("buff_ai_tag_name=`"$name`"")) {
+                throw "Overheard buff tag id $tag collides."
+            }
+            continue
         }
-        return $BaseXml
+        if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
+            throw "Overheard buff tag name '$name' has another id."
+        }
+        $additions.Add(
+            "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
+            "buff_ai_tag_name=`"$name`" />"
+        )
     }
-    if ($BaseXml.Contains("buff_ai_tag_name=`"$name`"")) {
-        throw "Overheard buff tag name '$name' has another id."
-    }
-    $addition =
-        "`t`t<buff_ai_tag buff_ai_tag_id=`"$tag`" " +
-        "buff_ai_tag_name=`"$name`" />`n"
+    if ($additions.Count -eq 0) { return $BaseXml }
     $marker = "`t</buff_ai_tags>"
     $index = $BaseXml.LastIndexOf($marker)
     if ($index -lt 0) { throw 'Buff tag table has no closing collection.' }
-    return $BaseXml.Insert($index, $addition)
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
 }
 
 function ConvertTo-DpOverheardBuffXml {
@@ -2207,35 +3214,38 @@ function ConvertTo-DpOverheardBuffXml {
         [Parameter(Mandatory)][object[]]$CaseSpecs
     )
 
-    $signal = Get-DpOverheardSignal -CaseSpecs $CaseSpecs
-    if ($null -eq $signal) { return $BaseXml }
-    $tag = [int]$signal.tag
-    $name = [string]$signal.name
-    $guid = [string]$signal.guid
-    $match = [regex]::Match(
-        $BaseXml,
-        "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
-    )
-    if ($match.Success) {
-        if (-not $match.Value.Contains("buff_name=`"$name`"") -or
-            -not $match.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
-            throw "Overheard buff guid $guid collides."
+    $additions = [System.Collections.Generic.List[string]]::new()
+    foreach ($signal in @(Get-DpOverheardSignals -CaseSpecs $CaseSpecs)) {
+        $tag = [int]$signal.tag
+        $name = [string]$signal.name
+        $guid = [string]$signal.guid
+        $match = [regex]::Match(
+            $BaseXml,
+            "<buff\s+[^>]*buff_id=`"$([regex]::Escape($guid))`"[^>]*/>"
+        )
+        if ($match.Success) {
+            if (-not $match.Value.Contains("buff_name=`"$name`"") -or
+                -not $match.Value.Contains("buff_ai_tag_id=`"$tag`"")) {
+                throw "Overheard buff guid $guid collides."
+            }
+            continue
         }
-        return $BaseXml
+        if ($BaseXml.Contains("buff_name=`"$name`"")) {
+            throw "Overheard buff name '$name' has another guid."
+        }
+        $additions.Add(
+            "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
+            "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
+            "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
+            "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
+            "implementation=`"Cpp:Constant`" is_persistent=`"true`" />"
+        )
     }
-    if ($BaseXml.Contains("buff_name=`"$name`"")) {
-        throw "Overheard buff name '$name' has another guid."
-    }
-    $addition =
-        "`t`t<buff buff_ai_tag_id=`"$tag`" buff_class_id=`"1`" " +
-        "buff_exclusivity_id=`"0`" buff_id=`"$guid`" " +
-        "buff_lifetime_id=`"0`" buff_name=`"$name`" " +
-        "buff_ui_visibility_id=`"0`" duration=`"-1`" icon_id=`"0`" " +
-        "implementation=`"Cpp:Constant`" is_persistent=`"true`" />`n"
+    if ($additions.Count -eq 0) { return $BaseXml }
     $marker = "`t</buffs>"
     $index = $BaseXml.LastIndexOf($marker)
     if ($index -lt 0) { throw 'Buff table has no closing collection.' }
-    return $BaseXml.Insert($index, $addition)
+    return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
 }
 
 function Get-DpEvidenceStashAlias {
@@ -2256,15 +3266,35 @@ function Get-DpQuestItemPlacementSignals {
     param(
         [Parameter(Mandatory)][object[]]$CaseSpecs,
         [Parameter(Mandatory)]$Bindings,
-        $CompiledDefinitions
+        $CompiledDefinitions,
+        [ValidateRange(1, 2147483647)]
+        [int]$StartSignalTag = 130
     )
 
-    $itemsByGuid = [ordered]@{}
+    $requestsByKey = [ordered]@{}
     foreach ($case in @($CaseSpecs | Sort-Object code, id)) {
-        $binding = @($Bindings.settlements | Where-Object {
-            [string]$_.region -eq [string]$case.constraints.region -and
-            [string]$_.settlement -eq [string]$case.constraints.settlement
-        })[0]
+        $supportedRegions = if (
+            $null -ne $case.constraints.PSObject.Properties['regions']
+        ) {
+            @($case.constraints.regions | ForEach-Object { [string]$_ })
+        }
+        elseif ($null -ne $case.PSObject.Properties['native'] -and
+            $null -ne $case.native.PSObject.Properties['regions']) {
+            @($case.native.regions.PSObject.Properties.Name)
+        }
+        else { @([string]$case.constraints.region) }
+        $caseBindings = @(
+            foreach ($supportedRegion in @(
+                $supportedRegions |
+                    Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                    Sort-Object -Unique
+            )) {
+                Get-DpScopedCaseSettlementBindings `
+                    -Bindings $Bindings `
+                    -CaseSpec $case `
+                    -Region $supportedRegion
+            }
+        )
         foreach ($evidence in @($case.evidence)) {
             $kindProperty = $evidence.PSObject.Properties['kind']
             $isReadableDocument =
@@ -2279,33 +3309,30 @@ function Get-DpQuestItemPlacementSignals {
             $roleName = if (
                 $null -ne $evidence.PSObject.Properties['role']
             ) { [string]$evidence.role } else { '' }
-            $roleProperty = if ($null -ne $binding) {
-                if ([string]::IsNullOrWhiteSpace($roleName)) {
-                    $null
-                }
-                else {
-                    $binding.roles.PSObject.Properties[$roleName]
-                }
-            }
-            else { $null }
-            $roleBinding = if ($null -ne $roleProperty) {
-                $roleProperty.Value
-            }
-            else { $null }
             $guid = if ($null -ne $item.PSObject.Properties['guid']) {
                 [string]$item.guid
             }
             else { '' }
             if ([string]::IsNullOrWhiteSpace($guid)) {
-                foreach ($propertyName in 'itemGuid', 'documentGuid') {
-                    if ($null -ne $roleBinding -and
-                        $null -ne $roleBinding.PSObject.Properties[$propertyName] -and
-                        -not [string]::IsNullOrWhiteSpace(
-                            [string]$roleBinding.$propertyName
-                        )) {
-                        $guid = [string]$roleBinding.$propertyName
-                        break
+                foreach ($caseBinding in $caseBindings) {
+                    $roleProperty = if (
+                        [string]::IsNullOrWhiteSpace($roleName)
+                    ) { $null } else {
+                        $caseBinding.roles.PSObject.Properties[$roleName]
                     }
+                    if ($null -eq $roleProperty) { continue }
+                    foreach ($propertyName in 'itemGuid', 'documentGuid') {
+                        $valueProperty =
+                            $roleProperty.Value.PSObject.Properties[$propertyName]
+                        if ($null -ne $valueProperty -and
+                            -not [string]::IsNullOrWhiteSpace(
+                                [string]$valueProperty.Value
+                            )) {
+                            $guid = [string]$valueProperty.Value
+                            break
+                        }
+                    }
+                    if (-not [string]::IsNullOrWhiteSpace($guid)) { break }
                 }
             }
             if ([string]::IsNullOrWhiteSpace($guid)) {
@@ -2314,57 +3341,63 @@ function Get-DpQuestItemPlacementSignals {
                     'concrete KCD2 item GUID.'
                 )
             }
-            $stashBinding = $null
             if ($isReadableDocument) {
-                $containerGuid = if (
-                    $null -ne $roleBinding -and
-                    $null -ne $roleBinding.PSObject.Properties['containerGuid']
-                ) {
-                    [string]$roleBinding.containerGuid
-                }
-                else { '' }
-                if ([string]::IsNullOrWhiteSpace($containerGuid)) {
-                    throw (
-                        "Quest document '$([string]$evidence.id)' has no " +
-                        'concrete KCD2 container GUID.'
-                    )
-                }
-                $region = [string]$case.constraints.region
-                $settlement = [string]$case.constraints.settlement
-                $stashBinding = [ordered]@{
-                    region = $region
-                    settlement = $settlement
-                    container_guid = $containerGuid
-                    stash_alias = Get-DpEvidenceStashAlias `
-                        -Region $region `
-                        -Settlement $settlement
+                foreach ($caseBinding in $caseBindings) {
+                    $roleProperty = if (
+                        [string]::IsNullOrWhiteSpace($roleName)
+                    ) { $null } else {
+                        $caseBinding.roles.PSObject.Properties[$roleName]
+                    }
+                    $roleBinding = if ($null -ne $roleProperty) {
+                        $roleProperty.Value
+                    }
+                    else { $null }
+                    $containerGuid = if ($null -ne $roleBinding -and
+                        $null -ne $roleBinding.PSObject.Properties['containerGuid']) {
+                        [string]$roleBinding.containerGuid
+                    }
+                    else { '' }
+                    if ([string]::IsNullOrWhiteSpace($containerGuid)) {
+                        throw (
+                            "Quest document '$([string]$evidence.id)' has no " +
+                            "container in '$([string]$caseBinding.region)/" +
+                            "$([string]$caseBinding.settlement)'."
+                        )
+                    }
+                    $requestKey = $containerGuid.ToLowerInvariant()
+                    $key = $guid.ToLowerInvariant() + '|' + $requestKey
+                    if ($requestsByKey.Contains($key)) { continue }
+                    $region = [string]$caseBinding.region
+                    $settlement = [string]$caseBinding.settlement
+                    $requestsByKey[$key] = [ordered]@{
+                        item_guid = $guid
+                        request_key = $requestKey
+                        classification = 'quest'
+                        retention = [string]$item.retention
+                        source = "evidence:$([string]$evidence.id)"
+                        is_readable_document = $true
+                        stash_bindings = @([ordered]@{
+                            region = $region
+                            settlement = $settlement
+                            container_guid = $containerGuid
+                            stash_alias = Get-DpEvidenceStashAlias `
+                                -Region $region -Settlement $settlement
+                        })
+                    }
                 }
             }
-            $key = $guid.ToLowerInvariant()
-            if (-not $itemsByGuid.Contains($key)) {
-                $itemsByGuid[$key] = [ordered]@{
-                    item_guid = $guid
-                    classification = 'quest'
-                    retention = [string]$item.retention
-                    source = "evidence:$([string]$evidence.id)"
-                    is_readable_document = $isReadableDocument
-                    stash_bindings =
-                        [System.Collections.Generic.List[object]]::new()
-                }
-            }
-            elseif ($isReadableDocument) {
-                $itemsByGuid[$key].is_readable_document = $true
-            }
-            if ($null -ne $stashBinding) {
-                $signature =
-                    "$($stashBinding.region)|$($stashBinding.settlement)|" +
-                    "$($stashBinding.container_guid)"
-                $existing = @($itemsByGuid[$key].stash_bindings | Where-Object {
-                    "$($_.region)|$($_.settlement)|$($_.container_guid)" -eq
-                        $signature
-                })
-                if ($existing.Count -eq 0) {
-                    $itemsByGuid[$key].stash_bindings.Add($stashBinding)
+            else {
+                $key = $guid.ToLowerInvariant() + '|'
+                if (-not $requestsByKey.Contains($key)) {
+                    $requestsByKey[$key] = [ordered]@{
+                        item_guid = $guid
+                        request_key = ''
+                        classification = 'quest'
+                        retention = [string]$item.retention
+                        source = "evidence:$([string]$evidence.id)"
+                        is_readable_document = $false
+                        stash_bindings = @()
+                    }
                 }
             }
         }
@@ -2381,28 +3414,30 @@ function Get-DpQuestItemPlacementSignals {
             continue
         }
         $guid = [string]$trophy.item_guid
-        $key = $guid.ToLowerInvariant()
-        if (-not $itemsByGuid.Contains($key)) {
-            $itemsByGuid[$key] = [ordered]@{
+        $key = $guid.ToLowerInvariant() + '|'
+        if (-not $requestsByKey.Contains($key)) {
+            $requestsByKey[$key] = [ordered]@{
                 item_guid = $guid
+                request_key = ''
                 classification = 'quest'
                 retention = [string]$trophy.item.retention
                 source = "trophy:$([string]$variant.variantId)"
                 is_readable_document = $false
-                stash_bindings =
-                    [System.Collections.Generic.List[object]]::new()
+                stash_bindings = @()
             }
         }
     }
 
     $signals = [System.Collections.Generic.List[object]]::new()
     $index = 0
-    foreach ($item in @($itemsByGuid.Values | Sort-Object item_guid)) {
+    foreach ($item in @($requestsByKey.Values |
+        Sort-Object item_guid, request_key)) {
         $index++
         $name = 'dp_quest_item_request_{0:d3}' -f $index
         $signals.Add([ordered]@{
             signal_index = $index
             item_guid = [string]$item.item_guid
+            request_key = [string]$item.request_key
             classification = [string]$item.classification
             retention = [string]$item.retention
             source = [string]$item.source
@@ -2418,14 +3453,424 @@ function Get-DpQuestItemPlacementSignals {
                     ([string]$item.item_guid).Replace('-', '').ToLowerInvariant()
             }
             else { '' }
-            signal_tag = 129 + $index
+            signal_tag = $StartSignalTag + $index - 1
             signal_name = $name
             buff_guid = Get-DpStableGuid -Seed (
-                "darkpassenger-quest-item-request|$([string]$item.item_guid)"
+                "darkpassenger-quest-item-request|$([string]$item.item_guid)|" +
+                [string]$item.request_key
             )
         })
     }
     return $signals.ToArray()
+}
+
+function Get-DpGuidanceToken {
+    param([Parameter(Mandatory)][string]$Seed)
+
+    return (Get-DpStableGuid -Seed $Seed).Replace('-', '').Substring(0, 16)
+}
+
+function Get-DpCaseAssetLocalizationKey {
+    param(
+        [Parameter(Mandatory)][int]$CaseCode,
+        [Parameter(Mandatory)][string]$Asset,
+        [AllowNull()]$KeyOrigins = $null
+    )
+
+    $suffix = $Asset.ToLowerInvariant() -replace '[^a-z0-9]+', '_'
+    $suffix = $suffix.Trim('_')
+    if ([string]::IsNullOrWhiteSpace($suffix)) {
+        throw "Cannot generate a native localization key for asset '$Asset'."
+    }
+    $key = 'dp_case_{0}_{1}' -f $CaseCode, $suffix
+    if ($null -ne $KeyOrigins) {
+        if ($KeyOrigins.Contains($key) -and
+            [string]$KeyOrigins[$key] -ne $Asset) {
+            throw "Generated localization key '$key' collides between " +
+                "assets '$([string]$KeyOrigins[$key])' and '$Asset'."
+        }
+        $KeyOrigins[$key] = $Asset
+    }
+    return $key
+}
+
+function Get-DpCompiledStoryAssetValue {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)][ValidateSet('ru', 'en')][string]$Language,
+        [Parameter(Mandatory)][string]$Asset
+    )
+
+    $languageProperty = $Story.localization.PSObject.Properties[$Language]
+    $assetProperty = $languageProperty.Value.PSObject.Properties[$Asset]
+    if ($null -eq $assetProperty) {
+        throw "Story '$($Story.storyId)' is missing $Language asset '$Asset'."
+    }
+    return [string]$assetProperty.Value
+}
+
+function Get-DpGuidanceSignals {
+    param(
+        [Parameter(Mandatory)]$CompiledDefinitions,
+        [Parameter(Mandatory)]$AreaManifest,
+        [AllowNull()]$AreaInventory = $null,
+        [ValidateRange(1, 2147483647)]
+        [int]$StartSignalTag = 193
+    )
+
+    $stories = @{}
+    $localizationKeyOrigins = @{}
+    foreach ($story in @($CompiledDefinitions.stories)) {
+        $storyId = [string]$story.storyId
+        $stories[$storyId] = $story
+        $origins = [ordered]@{}
+        $journal = if ($null -eq $story.PSObject.Properties['journal']) {
+            $null
+        }
+        else { $story.journal }
+        if ($null -ne $journal -and
+            $null -ne $journal.PSObject.Properties['objectives']) {
+            foreach ($objective in $journal.objectives.PSObject.Properties) {
+                $presentation = $objective.Value
+                if ($null -eq $presentation) { continue }
+                Get-DpCaseAssetLocalizationKey `
+                    -CaseCode ([int]$story.caseCode) `
+                    -Asset ([string]$presentation.nameAsset) `
+                    -KeyOrigins $origins | Out-Null
+                if ($null -eq $presentation.PSObject.Properties['states']) {
+                    continue
+                }
+                foreach ($state in $presentation.states.PSObject.Properties) {
+                    Get-DpCaseAssetLocalizationKey `
+                        -CaseCode ([int]$story.caseCode) `
+                        -Asset ([string]$state.Value) `
+                        -KeyOrigins $origins | Out-Null
+                }
+            }
+        }
+        $localizationKeyOrigins[$storyId] = $origins
+    }
+    $areaAliases = @{}
+    foreach ($settlement in @(
+        $AreaManifest.regions | ForEach-Object { @($_.settlements) }
+    )) {
+        $areaAliases[
+            "$([string]$settlement.gameRegion)/$([string]$settlement.id)"
+        ] = [string]$settlement.alias
+    }
+    $inventoryAreas = if ($null -eq $AreaInventory) {
+        @()
+    }
+    elseif ($null -ne $AreaInventory.PSObject.Properties['areas']) {
+        @($AreaInventory.areas)
+    }
+    else {
+        @($AreaInventory)
+    }
+
+    $signals = [System.Collections.Generic.List[object]]::new()
+    $signalTag = $StartSignalTag
+    foreach ($variant in @(
+        $CompiledDefinitions.variants | Sort-Object variantId
+    )) {
+        $storyId = [string]$variant.storyId
+        if (-not $stories.ContainsKey($storyId)) {
+            throw "Guidance variant '$($variant.variantId)' references unknown story."
+        }
+        $story = $stories[$storyId]
+        $evidenceByQualifiedId = @{}
+        foreach ($evidence in @($story.evidence)) {
+            $evidenceByQualifiedId[[string]$evidence.qualifiedId] = $evidence
+        }
+        foreach ($guidance in @(
+            $variant.guidanceBindings | Sort-Object qualifiedId
+        )) {
+            $binding = $guidance.binding
+            $assetKind = ''
+            $alias = ''
+            $sharedSoulGuid = ''
+            $entityGuid = ''
+            $areaSelection = if (
+                $null -ne $guidance.PSObject.Properties['areaSelection']
+            ) {
+                [string]$guidance.areaSelection
+            }
+            else { '' }
+            $targetKind = [string]$guidance.targetKind
+            $precision = [string]$guidance.precision
+            $seed = "darkpassenger-guidance|$([string]$variant.variantId)|" +
+                [string]$guidance.qualifiedId
+            $token = Get-DpGuidanceToken -Seed $seed
+            if ($null -ne $binding -and $targetKind -eq 'actor' -and
+                $precision -in @('exact', 'point') -and
+                -not [string]::IsNullOrWhiteSpace(
+                    [string]$binding.soulGuid
+                )) {
+                $assetKind = 'SoulAsset'
+                $alias = "DP_Guidance_$token"
+                $sharedSoulGuid = [string]$binding.soulGuid
+            }
+            elseif ($null -ne $binding -and
+                $targetKind -in @('entity', 'place') -and
+                $precision -in @('exact', 'point') -and
+                [string]$binding.kind -eq 'container' -and
+                -not [string]::IsNullOrWhiteSpace(
+                    [string]$binding.entityGuid
+                )) {
+                $assetKind = 'InteractionTriggerAsset'
+                $alias = "DP_Guidance_$token"
+                $entityGuid = [string]$binding.entityGuid
+            }
+            elseif ($null -ne $binding -and
+                $targetKind -in @('area', 'place') -and
+                $precision -eq 'area' -and
+                [string]$binding.kind -eq 'settlement') {
+                if ($areaSelection -eq 'smallest-common') {
+                    $anchors = if (
+                        $null -ne $guidance.PSObject.Properties['anchorBindings']
+                    ) {
+                        @($guidance.anchorBindings)
+                    }
+                    else { @() }
+                    if ($inventoryAreas.Count -eq 0) {
+                        throw "GuidanceTarget '$($guidance.qualifiedId)' " +
+                            'requires the vanilla TriggerArea inventory.'
+                    }
+                    $selectedArea = Select-CommonInvestigationArea `
+                        -Region ([string]$binding.region) `
+                        -Areas $inventoryAreas `
+                        -Anchors $anchors
+                    $assetKind = 'TriggerAreaAsset'
+                    $alias = "DP_Guidance_$token"
+                    $entityGuid = [string]$selectedArea.guid
+                }
+                else {
+                    $areaKey = "$([string]$binding.region)/" +
+                        [string]$binding.settlement
+                    if ($areaAliases.ContainsKey($areaKey)) {
+                        $assetKind = 'TriggerAreaAsset'
+                        $alias = [string]$areaAliases[$areaKey]
+                    }
+                }
+            }
+
+            $objective = if (
+                $null -ne $guidance.PSObject.Properties['objective']
+            ) { $guidance.objective } else { $null }
+            if ([string]::IsNullOrWhiteSpace($assetKind)) {
+                if ([string]$guidance.fallback -eq 'reject-variant') {
+                    throw "KCD2 cannot materialize GuidanceTarget '$($guidance.qualifiedId)' for variant '$($variant.variantId)'."
+                }
+                if ($null -eq $objective) { continue }
+            }
+            $stepQualifiedId = "$([string]$guidance.threadId)/" +
+                [string]$guidance.stepId
+            if (-not $evidenceByQualifiedId.ContainsKey($stepQualifiedId)) {
+                throw "GuidanceTarget '$($guidance.qualifiedId)' has no compiled evidence step '$stepQualifiedId'."
+            }
+            $evidence = $evidenceByQualifiedId[$stepQualifiedId]
+            $objectiveAuthored = $null -ne $objective
+            if ($objectiveAuthored) {
+                $nameAsset = [string]$objective.nameAsset
+                $activeAsset = [string]$objective.states.active
+                $objectiveNameKey = Get-DpCaseAssetLocalizationKey `
+                    -CaseCode ([int]$story.caseCode) -Asset $nameAsset `
+                    -KeyOrigins $localizationKeyOrigins[$storyId]
+                $objectiveActiveKey = Get-DpCaseAssetLocalizationKey `
+                    -CaseCode ([int]$story.caseCode) -Asset $activeAsset `
+                    -KeyOrigins $localizationKeyOrigins[$storyId]
+                $objectiveNameLocalization = [pscustomobject][ordered]@{
+                    ru = Get-DpCompiledStoryAssetValue -Story $story `
+                        -Language ru -Asset $nameAsset
+                    en = Get-DpCompiledStoryAssetValue -Story $story `
+                        -Language en -Asset $nameAsset
+                }
+                $objectiveActiveLocalization = [pscustomobject][ordered]@{
+                    ru = Get-DpCompiledStoryAssetValue -Story $story `
+                        -Language ru -Asset $activeAsset
+                    en = Get-DpCompiledStoryAssetValue -Story $story `
+                        -Language en -Asset $activeAsset
+                }
+            }
+            else {
+                $objectiveNameKey = 'dark_within_evidence_name'
+                $objectiveActiveKey = 'dark_within_guidance'
+                $objectiveNameLocalization = [pscustomobject][ordered]@{
+                    ru = 'Собрать доказательства вины'
+                    en = 'Gather proof of guilt'
+                }
+                $objectiveActiveLocalization = [pscustomobject][ordered]@{
+                    ru = 'Следовать зацепке, отмеченной на карте.'
+                    en = 'Follow the lead marked on the map.'
+                }
+            }
+            $signals.Add([pscustomobject][ordered]@{
+                variant_id = [string]$variant.variantId
+                variant_code = Get-DpStableRuntimeCode `
+                    -Value ([string]$variant.variantId)
+                story_id = $storyId
+                region = [string]$variant.region
+                settlement = [string]$variant.settlement
+                qualified_id = [string]$guidance.qualifiedId
+                step_evidence_id = [string]$evidence.qualifiedId
+                step_evidence_code = [int]$evidence.code
+                visibility_mode = [string]$guidance.visibility.mode
+                requires_fact_ids = @($guidance.visibility.requiresFacts)
+                lifetime = [string]$guidance.lifetime
+                fallback = [string]$guidance.fallback
+                signal_tag = $signalTag
+                signal_name = "dp_guidance_$token"
+                buff_guid = Get-DpStableGuid -Seed "$seed|signal"
+                objective_type = "DP_GuidanceProgress_$token"
+                objective_name = "dp_guidance_objective_$token"
+                objective_authored = $objectiveAuthored
+                objective_name_key = $objectiveNameKey
+                objective_name_text = [string]$objectiveNameLocalization.en
+                objective_name_localization = $objectiveNameLocalization
+                objective_active_key = $objectiveActiveKey
+                objective_active_text = [string]$objectiveActiveLocalization.en
+                objective_active_localization = $objectiveActiveLocalization
+                alias = $alias
+                asset_kind = $assetKind
+                shared_soul_guid = $sharedSoulGuid
+                entity_guid = $entityGuid
+                area_selection = $areaSelection
+            })
+            $signalTag++
+        }
+    }
+    return $signals.ToArray()
+}
+
+function ConvertTo-DpGuidanceNativeWiring {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Signals,
+        [Parameter(Mandatory)][string]$Region
+    )
+
+    $regionalSignals = @($Signals | Where-Object {
+        [string]$_.region -eq $Region
+    } | Sort-Object signal_tag, qualified_id)
+    $nodes = [System.Collections.Generic.List[string]]::new()
+    $types = [System.Collections.Generic.List[string]]::new()
+    $assets = [System.Collections.Generic.List[string]]::new()
+    $objectives = [System.Collections.Generic.List[string]]::new()
+    $assetDefinitions = @{}
+    foreach ($signal in $regionalSignals) {
+        $token = Get-DpGuidanceToken -Seed ([string]$signal.signal_name)
+        $nodeSuffix = "guidance$token"
+        $nodes.Add("        <MakeArray Name=`"${nodeSuffix}Tags`" TypeT=`"wh::rpgmodule::BuffDefinitionAITags`">")
+        $nodes.Add("          <Constant Name=`"A`" Value=`"$([int]$signal.signal_tag)`" />")
+        $nodes.Add('        </MakeArray>')
+        $nodes.Add("        <BuffTagTrigger Name=`"${nodeSuffix}Trigger`">")
+        $nodes.Add('          <Asset Name="Souls" Alias="player" />')
+        $nodes.Add("          <Edge From=`"${nodeSuffix}Tags.Array`" To=`"BuffTags`" />")
+        $nodes.Add('          <Edge From="questProgress.Active" To="IsActive" />')
+        $nodes.Add('        </BuffTagTrigger>')
+        $nodes.Add("        <State Name=`"${nodeSuffix}Progress`" TypeT=`"$([string]$signal.objective_type)`">")
+        $nodes.Add("          <Edge From=`"${nodeSuffix}Trigger.OnAdded`" To=`"SetActive`" />")
+        $nodes.Add("          <Edge From=`"${nodeSuffix}Trigger.OnRemoved`" To=`"SetNone`" />")
+        $nodes.Add('          <Edge From="questProgress.OnActive" To="SetNone" />')
+        $nodes.Add('        </State>')
+        $nodes.Add("        <$([string]$signal.objective_name) Name=`"${nodeSuffix}Visual`">")
+        $nodes.Add("          <Edge From=`"${nodeSuffix}Progress.State`" To=`"Progress`" />")
+        $nodes.Add("        </$([string]$signal.objective_name)>")
+
+        $types.Add("        <Type TypeName=`"$([string]$signal.objective_type)`">")
+        $types.Add('          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />')
+        $types.Add('          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />')
+        $types.Add('        </Type>')
+
+        $alias = [string]$signal.alias
+        $assetDefinition = switch ([string]$signal.asset_kind) {
+            '' { $null }
+            'SoulAsset' {
+                "        <SoulAsset Name=`"$alias`" SharedSoulGuids=`"$([string]$signal.shared_soul_guid)`" />"
+            }
+            'InteractionTriggerAsset' {
+                "        <InteractionTriggerAsset Name=`"$alias`" />"
+            }
+            'TriggerAreaAsset' {
+                if ([string]::IsNullOrWhiteSpace(
+                    [string]$signal.entity_guid
+                )) {
+                    $null
+                }
+                else {
+                    "        <TriggerAreaAsset Name=`"$alias`" />"
+                }
+            }
+            default {
+                throw "Unsupported guidance asset kind '$([string]$signal.asset_kind)'."
+            }
+        }
+        if ($null -ne $assetDefinition) {
+            if ($assetDefinitions.ContainsKey($alias) -and
+                [string]$assetDefinitions[$alias] -ne $assetDefinition) {
+                throw "Guidance asset alias '$alias' has conflicting definitions."
+            }
+            if (-not $assetDefinitions.ContainsKey($alias)) {
+                $assetDefinitions[$alias] = $assetDefinition
+                $assets.Add($assetDefinition)
+            }
+        }
+
+        $objectiveNameKey = ConvertTo-DpXmlText `
+            ([string]$signal.objective_name_key)
+        $objectiveNameText = ConvertTo-DpXmlText `
+            ([string]$signal.objective_name_text)
+        $objectiveActiveKey = ConvertTo-DpXmlText `
+            ([string]$signal.objective_active_key)
+        $objectiveActiveText = ConvertTo-DpXmlText `
+            ([string]$signal.objective_active_text)
+        $objectives.Add("        <Objective TypeT=`"$([string]$signal.objective_type)`" Name=`"$([string]$signal.objective_name)`">")
+        $objectives.Add("          <LocalizedName StringName=`"$objectiveNameKey`" Text=`"$objectiveNameText`">")
+        $objectives.Add("            <Localization Text=`"$objectiveNameText`" Language=`"WHS`" />")
+        $objectives.Add('          </LocalizedName>')
+        $objectives.Add('          <Logs>')
+        $objectives.Add('            <EnumLog Type="None" Name="None" />')
+        $markerAttribute = if ([string]::IsNullOrWhiteSpace($alias)) {
+            ''
+        }
+        else { " Marker=`"$alias`"" }
+        $objectives.Add("            <EnumLog Type=`"Started`" Name=`"Active`" IsTracked=`"true`"$markerAttribute>")
+        $objectives.Add("              <Log StringName=`"$objectiveActiveKey`" Text=`"$objectiveActiveText`">")
+        $objectives.Add("                <Localization Text=`"$objectiveActiveText`" Language=`"WHS`" />")
+        $objectives.Add('              </Log>')
+        $objectives.Add('            </EnumLog>')
+        $objectives.Add('          </Logs>')
+        $objectives.Add('        </Objective>')
+    }
+
+    return [pscustomobject][ordered]@{
+        nodes = $nodes -join "`n"
+        types = $types -join "`n"
+        assets = $assets -join "`n"
+        objectives = $objectives -join "`n"
+    }
+}
+
+function Get-DpGuidanceWaitingLinks {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Signals,
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$QuestHolderGuid
+    )
+
+    return @($Signals | Where-Object {
+        [string]$_.region -eq $Region -and
+        [string]$_.asset_kind -in @(
+            'InteractionTriggerAsset',
+            'TriggerAreaAsset'
+        ) -and
+        -not [string]::IsNullOrWhiteSpace([string]$_.entity_guid)
+    } | Sort-Object alias | ForEach-Object {
+        [pscustomobject][ordered]@{
+            sourceGuid = $QuestHolderGuid
+            targetGuid = [string]$_.entity_guid
+            linkDefinition = "asset['$([string]$_.alias)']"
+        }
+    })
 }
 
 function ConvertTo-DpQuestItemPlacementTagXml {
@@ -2509,6 +3954,30 @@ function ConvertTo-DpQuestItemPlacementBuffXml {
     return $BaseXml.Insert($index, ($additions -join "`n") + "`n")
 }
 
+function ConvertTo-DpGuidanceTagXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Signals
+    )
+
+    if ($Signals.Count -eq 0) { return $BaseXml }
+    return ConvertTo-DpQuestItemPlacementTagXml `
+        -BaseXml $BaseXml `
+        -Signals $Signals
+}
+
+function ConvertTo-DpGuidanceBuffXml {
+    param(
+        [Parameter(Mandatory)][string]$BaseXml,
+        [Parameter(Mandatory)][AllowEmptyCollection()][object[]]$Signals
+    )
+
+    if ($Signals.Count -eq 0) { return $BaseXml }
+    return ConvertTo-DpQuestItemPlacementBuffXml `
+        -BaseXml $BaseXml `
+        -Signals $Signals
+}
+
 function ConvertTo-DpQuestItemPlacementNodesXml {
     param(
         [Parameter(Mandatory)][object[]]$Signals,
@@ -2516,6 +3985,9 @@ function ConvertTo-DpQuestItemPlacementNodesXml {
     )
 
     $lines = [System.Collections.Generic.List[string]]::new()
+    $readTriggers = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::OrdinalIgnoreCase
+    )
     foreach ($signal in @($Signals)) {
         $stashBindings = @(
             $signal.stash_bindings |
@@ -2568,7 +4040,8 @@ function ConvertTo-DpQuestItemPlacementNodesXml {
             $lines.Add("          <Edge From=`"questItemRequestTrigger$suffix.OnAdded`" To=`"Exec`" />")
             $lines.Add('        </EventMemberFunction>')
         }
-        if ([bool]$signal.is_readable_document) {
+        if ([bool]$signal.is_readable_document -and
+            $readTriggers.Add([string]$signal.item_guid)) {
             $lines.Add("        <UseBookTrigger Name=`"questDocumentReadTrigger$suffix`">")
             $lines.Add("          <Constant Name=`"Book`" Value=`"$([string]$signal.item_guid)`" />")
             $lines.Add('          <Edge From="watcherActive.State" To="IsActive" />')
@@ -2623,14 +4096,35 @@ function ConvertTo-DpQuestItemPlacementCatalogLua {
     param([Parameter(Mandatory)][object[]]$Signals)
 
     $entries = [ordered]@{}
-    foreach ($signal in @($Signals)) {
-        $entries[[string]$signal.item_guid] = [ordered]@{
-            item_guid = [string]$signal.item_guid
-            buff_guid = [string]$signal.buff_guid
-            signal_tag = [int]$signal.signal_tag
-            retention = [string]$signal.retention
-            backend = [string]$signal.backend
-            read_context = [string]$signal.read_context
+    foreach ($group in @($Signals | Group-Object { [string]$_.item_guid } |
+        Sort-Object Name)) {
+        $signals = @($group.Group | Sort-Object request_key, signal_tag)
+        $first = $signals[0]
+        $requests = [ordered]@{}
+        foreach ($signal in $signals) {
+            $requestKey = if ([string]::IsNullOrWhiteSpace(
+                [string]$signal.request_key
+            )) { '__default' } else { [string]$signal.request_key }
+            $requests[$requestKey] = [ordered]@{
+                buff_guid = [string]$signal.buff_guid
+                signal_tag = [int]$signal.signal_tag
+                request_key = [string]$signal.request_key
+            }
+        }
+        $entries[([string]$first.item_guid).ToLowerInvariant()] = [ordered]@{
+            item_guid = [string]$first.item_guid
+            buff_guid = [string]$first.buff_guid
+            signal_tag = [int]$first.signal_tag
+            retention = [string]$first.retention
+            backend = [string]$first.backend
+            read_context = [string]$first.read_context
+            default_request_key = if ($signals.Count -eq 1) {
+                if ([string]::IsNullOrWhiteSpace(
+                    [string]$first.request_key
+                )) { '__default' } else { [string]$first.request_key }
+            }
+            else { '' }
+            requests = $requests
         }
     }
     return @(
@@ -2714,10 +4208,9 @@ function Get-DpCaseSpecValidationErrors {
         $errors.Add("$prefix constraints.settlement is required")
     }
 
-    $binding = @($Bindings.settlements | Where-Object {
-        [string]$_.region -eq $region -and
-        [string]$_.settlement -eq $settlement
-    })
+    $binding = @(Get-DpCaseSettlementBindings -Bindings $Bindings `
+        -CaseCode ([int]$CaseSpec.code) `
+        -Region $region -Settlement $settlement)
     if ($binding.Count -ne 1 -and
         (Test-DpTextValue $region) -and
         (Test-DpTextValue $settlement)) {
@@ -2732,7 +4225,7 @@ function Get-DpCaseSpecValidationErrors {
         foreach ($roleName in @(Get-DpSettlementDialogueRoleNames `
             -SettlementBinding $binding[0])) {
             if (@($definitions | Where-Object {
-                [string]$_.name -eq [string]$roleName
+                [string]$_.name -ceq [string]$roleName
             }).Count -ne 1) {
                 $errors.Add(
                     "$prefix dialogue role '$roleName' must have one registry definition"
@@ -2980,6 +4473,86 @@ function Get-DpCaseSpecValidationErrors {
             }
         }
     }
+    $overheardScenesProperty =
+        $CaseSpec.native.PSObject.Properties['overheardScenes']
+    if ($null -ne $overheardProperty -and
+        $null -ne $overheardScenesProperty) {
+        $errors.Add(
+            "$prefix native must use either overheard or overheardScenes"
+        )
+    }
+    if ($null -ne $overheardScenesProperty) {
+        $seenSceneIds = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::Ordinal
+        )
+        $seenSceneTags = [System.Collections.Generic.HashSet[int]]::new()
+        foreach ($scene in @($overheardScenesProperty.Value)) {
+            $sceneId = [string]$scene.id
+            $scenePrefix = "$prefix native.overheardScenes '$sceneId'"
+            if (-not (Test-DpTextValue $sceneId) -or
+                -not $seenSceneIds.Add($sceneId)) {
+                $errors.Add("$scenePrefix id is missing or duplicated")
+            }
+            foreach ($field in @(
+                'evidenceId',
+                'graphName',
+                'fileName',
+                'rootKey',
+                'decisionAlias',
+                'sequenceName',
+                'cluePort',
+                'clueLabel',
+                'context'
+            )) {
+                if (-not (Test-DpTextValue $scene.$field)) {
+                    $errors.Add("$scenePrefix.$field is required")
+                }
+            }
+            $mode = [string]$scene.activation.mode
+            if ($mode -notin @('proximity', 'interaction')) {
+                $errors.Add("$scenePrefix activation mode is invalid")
+            }
+            if ([int]$scene.hearingDistance -le 0 -or
+                [int]$scene.repeatAfterSeconds -lt 0 -or
+                [int]$scene.availableTag -le 0) {
+                $errors.Add("$scenePrefix scheduler values are invalid")
+            }
+            if (-not $seenSceneTags.Add([int]$scene.availableTag)) {
+                $errors.Add("$scenePrefix availability tag is duplicated")
+            }
+            $responses = @($scene.responses)
+            if ($responses.Count -eq 0) {
+                $errors.Add("$scenePrefix requires responses")
+            }
+            foreach ($response in $responses) {
+                if ([string]$response.role -notin @('speakerA', 'speakerB') -or
+                    -not (Test-DpTextValue $response.key)) {
+                    $errors.Add("$scenePrefix response is invalid")
+                }
+            }
+            foreach ($role in @('speakerA', 'speakerB')) {
+                $speaker = $scene.speakers.PSObject.Properties[$role].Value
+                if ($null -eq $speaker) {
+                    $errors.Add("$scenePrefix $role is required")
+                    continue
+                }
+                foreach ($field in @(
+                    'entityName',
+                    'soulGuid',
+                    'questAlias',
+                    'dialogueRole'
+                )) {
+                    if (-not (Test-DpTextValue $speaker.$field)) {
+                        $errors.Add("$scenePrefix $role $field is required")
+                    }
+                }
+                if ([string]$speaker.soulGuid -notmatch
+                    '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') {
+                    $errors.Add("$scenePrefix $role soulGuid is invalid")
+                }
+            }
+        }
+    }
     if (-not (Test-DpTextValue $CaseSpec.native.witnessObjective.assetName)) {
         $errors.Add("$prefix native.witnessObjective.assetName is required")
     }
@@ -2992,6 +4565,9 @@ function Get-DpCaseSpecValidationErrors {
         [System.StringComparer]::Ordinal
     )
     $seenEvidenceCodes = [System.Collections.Generic.HashSet[int]]::new()
+    $revealedFactIds = [System.Collections.Generic.HashSet[string]]::new(
+        [System.StringComparer]::Ordinal
+    )
     $confidenceTotal = 0
     foreach ($step in $evidence) {
         $evidenceId = [string]$step.id
@@ -3130,12 +4706,60 @@ function Get-DpCaseSpecValidationErrors {
                 "$prefix evidence '$evidenceId' reveals must contain a fact"
             )
         }
+        foreach ($revealedFact in @($revealedFacts)) {
+            $null = $revealedFactIds.Add([string]$revealedFact)
+        }
+    }
+    $identityProperty = $CaseSpec.PSObject.Properties['identityRequirement']
+    if ($null -ne $identityProperty) {
+        $identityModes = @(
+            $identityProperty.Value.PSObject.Properties.Name |
+                Where-Object { $_ -in @('allOf', 'anyOf') }
+        )
+        if ($identityModes.Count -ne 1 -or
+            @($identityProperty.Value.PSObject.Properties).Count -ne 1) {
+            $errors.Add(
+                "$prefix identityRequirement must define exactly one of " +
+                "'allOf' or 'anyOf'"
+            )
+        }
+        else {
+            $mode = [string]$identityModes[0]
+            $facts = @($identityProperty.Value.$mode | ForEach-Object {
+                [string]$_
+            })
+            if ($facts.Count -eq 0) {
+                $errors.Add(
+                    "$prefix identityRequirement.$mode must contain a fact"
+                )
+            }
+            foreach ($fact in $facts) {
+                if (-not $revealedFactIds.Contains($fact)) {
+                    $errors.Add(
+                        "$prefix identityRequirement references unknown " +
+                        "fact '$fact'"
+                    )
+                }
+            }
+        }
     }
     if ($null -ne $overheardProperty -and
         @($evidence | Where-Object {
             [string]$_.id -eq [string]$overheardProperty.Value.evidenceId
         }).Count -ne 1) {
         $errors.Add("$prefix native.overheard evidenceId is unknown")
+    }
+    if ($null -ne $overheardScenesProperty) {
+        foreach ($scene in @($overheardScenesProperty.Value)) {
+            if (@($evidence | Where-Object {
+                [string]$_.id -eq [string]$scene.evidenceId
+            }).Count -ne 1) {
+                $errors.Add(
+                    "$prefix native.overheardScenes '$($scene.id)' " +
+                    'evidenceId is unknown'
+                )
+            }
+        }
     }
 
     $directionCount = @(Get-DpDirectionEvidence -CaseSpec $CaseSpec).Count
@@ -3269,6 +4893,8 @@ function Get-DpValidatedCaseSpecs {
 Export-ModuleMember -Function @(
     'Read-DpCaseSpec',
     'Read-DpCaseSettlementBindings',
+    'Get-DpCaseSettlementBindings',
+    'Get-DpScopedCaseSettlementBindings',
     'Get-DpCaseSpecValidationErrors',
     'Get-DpValidatedCaseSpecs',
     'ConvertTo-DpLuaString',
@@ -3280,14 +4906,23 @@ Export-ModuleMember -Function @(
     'ConvertTo-DpDialogueXml',
     'ConvertTo-DpOverheardDialogueXml',
     'ConvertTo-DpNativeRegionWiring',
+    'ConvertTo-DpNativeRegionBundle',
     'Get-DpJournalStates',
+    'Get-DpCaseActivationSignals',
     'Get-DpDialogueVariants',
     'ConvertTo-DpLeadStateTagXml',
     'ConvertTo-DpLeadStateBuffXml',
+    'ConvertTo-DpCaseActivationTagXml',
+    'ConvertTo-DpCaseActivationBuffXml',
     'ConvertTo-DpDialogueVariantTagXml',
     'ConvertTo-DpDialogueVariantBuffXml',
     'ConvertTo-DpOverheardTagXml',
     'ConvertTo-DpOverheardBuffXml',
+    'Get-DpGuidanceSignals',
+    'ConvertTo-DpGuidanceNativeWiring',
+    'Get-DpGuidanceWaitingLinks',
+    'ConvertTo-DpGuidanceTagXml',
+    'ConvertTo-DpGuidanceBuffXml',
     'Get-DpEvidenceStashAlias',
     'Get-DpQuestItemPlacementSignals',
     'ConvertTo-DpQuestItemPlacementTagXml',

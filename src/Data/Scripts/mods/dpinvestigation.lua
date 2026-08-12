@@ -7,9 +7,6 @@ DarkPassengerInvestigation.REVEAL_BUFF_GUID =
 DarkPassengerInvestigation.TARGET_BUFF_GUID =
     "a6046bb4-57c1-4a95-b743-880aba11f5ba"
 DarkPassengerInvestigation.ACTIVE_TARGET_SLOT_KEY = "dp_active_target_slot"
-DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES = {
-    kutnohorsko = "pritoky",
-}
 
 local KEYS = {
     schema = "dp_investigation_schema_version",
@@ -151,10 +148,6 @@ local function RemoveRevealBuff(entity)
     return ok
 end
 
-function DarkPassengerInvestigation.GetSettlementOverride(gameRegion)
-    return DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES[gameRegion]
-end
-
 function DarkPassengerInvestigation.GetState()
     return ReadState()
 end
@@ -230,8 +223,12 @@ function DarkPassengerInvestigation.Transition(state, event)
         if not nextState.revealed and
            nextState.confidence >=
                DarkPassengerInvestigation.REVEAL_THRESHOLD then
-            nextState.revealed = true
-            result.revealRequested = true
+            if event.identitySatisfied == false then
+                result.reason = "identity_pending"
+            else
+                nextState.revealed = true
+                result.revealRequested = true
+            end
         end
         return nextState, result
     end
@@ -247,21 +244,21 @@ function DarkPassengerInvestigation.Transition(state, event)
             result.reason = "non_monotonic_confidence"
             return nextState, result
         end
-        if total == nextState.confidence then
-            result.accepted = true
-            result.reason = "evidence_unchanged"
-            return nextState, result
-        end
         local previous = nextState.confidence
         nextState.confidence = total
         result.accepted = true
         result.delta = nextState.confidence - previous
-        result.reason = "evidence_reconciled"
+        result.reason = total == previous and
+            "evidence_unchanged" or "evidence_reconciled"
         if not nextState.revealed and
            nextState.confidence >=
                DarkPassengerInvestigation.REVEAL_THRESHOLD then
-            nextState.revealed = true
-            result.revealRequested = true
+            if event.identitySatisfied == false then
+                result.reason = "identity_pending"
+            else
+                nextState.revealed = true
+                result.revealRequested = true
+            end
         end
         return nextState, result
     end
@@ -338,8 +335,16 @@ function DarkPassengerInvestigation.Open(candidate, entity)
     DarkPassengerInvestigation.state = nextState
     PersistState(nextState)
     if DarkPassengerEvidence ~= nil and
-       DarkPassengerEvidence.OnInvestigationOpened ~= nil then
-        DarkPassengerEvidence.OnInvestigationOpened(nextState.generation)
+       DarkPassengerEvidence.OnInvestigationOpened ~= nil and
+       not DarkPassengerEvidence.OnInvestigationOpened(nextState.generation) then
+        InvestigationLog(
+            "open rolled back: case content unavailable generation=" ..
+            tostring(nextState.generation)
+        )
+        DarkPassengerInvestigation.Clear(
+            DarkPassengerInvestigation.entity
+        )
+        return false
     end
     InvestigationLog(
         "opened generation=" .. tostring(nextState.generation) ..
@@ -423,7 +428,11 @@ function DarkPassengerInvestigation.AddEvidence(amount, label, generation)
     return result
 end
 
-function DarkPassengerInvestigation.ReconcileEvidence(total, generation)
+function DarkPassengerInvestigation.ReconcileEvidence(
+    total,
+    generation,
+    identitySatisfied
+)
     local current = ReadState()
     local nextState, result = DarkPassengerInvestigation.Transition(
         current,
@@ -431,6 +440,7 @@ function DarkPassengerInvestigation.ReconcileEvidence(total, generation)
             type = "reconcile",
             total = total,
             generation = generation,
+            identitySatisfied = identitySatisfied,
         }
     )
     result.previous = current.confidence
@@ -674,13 +684,34 @@ function DarkPassengerInvestigation.RunSelfTest()
     reconcileState, reconcileResult =
         DarkPassengerInvestigation.Transition(
             reconcileState,
-            { type = "reconcile", total = 70, generation = 2 }
+            {
+                type = "reconcile",
+                total = 70,
+                generation = 2,
+                identitySatisfied = false,
+            }
+        )
+    Expect(
+        reconcileResult.accepted and not reconcileState.revealed and
+        reconcileResult.reason == "identity_pending",
+        "threshold waits for hard identity"
+    )
+    reconcileState, reconcileResult =
+        DarkPassengerInvestigation.Transition(
+            reconcileState,
+            {
+                type = "reconcile",
+                total = 70,
+                generation = 2,
+                identitySatisfied = true,
+            }
         )
     Expect(
         reconcileResult.accepted and reconcileState.revealed and
         reconcileResult.revealRequested,
-        "reconcile reveal once"
+        "unchanged confidence reveals after identity"
     )
+    Expect(reconcileState.revealed, "reconcile reveal once")
     state, result = DarkPassengerInvestigation.Transition(
         state,
         { type = "evidence", amount = 10, generation = 1 }

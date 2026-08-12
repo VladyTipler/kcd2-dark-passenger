@@ -35,6 +35,30 @@
   for the initial playable content milestone before expanding toward one
   hundred base stories.
 
+## Current implementation checkpoint
+
+- Settlement discovery is automatic inside each story adapter's supported
+  region. Manual settlement profiles are optional overrides rather than a
+  whitelist.
+- Native bindings are scoped by case, region and settlement; one regional
+  quest container serves every compatible settlement variant.
+- The current deck compiles 56 native-ready variants across seven settlements,
+  including eight Troskovice variants without a settlement profile.
+- Quest-item definitions remain story-level while transient placement is
+  selected per active settlement container; generated world waiting-links now
+  cover every scoped evidence stash rather than only reviewed profiles.
+- Current production still has one StoryPack per region. Before adding a second
+  story in one region, its story-specific native nodes must be namespaced and
+  merged into the existing single regional quest container.
+- `identityRequirement.allOf` and `.anyOf` compile into the runtime reveal gate.
+- One semantic `GuidanceTarget` covers actors, entities, places and areas.
+- Lua owns visibility; finite precompiled Skald assets own presentation.
+- Every transient guidance signal is deterministic and cleanup-owned.
+- Compiler-to-level XML integration, packaged build and the 925-check main
+  regression suite pass.
+- Next content proof: finish the approved love-triangle dossier as an authored
+  StoryPack, reviewing exact dialogue, documents and rumors before activation.
+
 ## Immediate implementation slice
 
 The plan below is the full roadmap, not one refactoring batch. The next
@@ -892,4 +916,6 @@ git commit -m "docs: document casekit authoring workflow"
 - Variant cap and ranking weights after real content volume exists.
 - Profession capability sources beyond faction/work links need one focused
   world-data audit.
+- Same-region StoryPacks: native-node namespace and merge contract inside one
+  regional quest container.
 - Standalone publication timing: after three archetypes, not before.

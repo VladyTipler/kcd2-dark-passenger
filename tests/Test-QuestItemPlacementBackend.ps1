@@ -4,6 +4,10 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $modulePath = Join-Path $repoRoot 'tools\CaseSpecCompiler.psm1'
 $runtimePath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dpquestitemplacement.lua'
+$belongingsRuntimePath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpbelongings.lua'
+$seederRuntimePath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpevidenceseeder.lua'
 $compileScriptPath = Join-Path $repoRoot 'tools\Compile-CaseSpecs.ps1'
 
 Import-Module $modulePath -Force
@@ -24,9 +28,11 @@ function Add-Result {
 
 $caseSpecs = @(
     [pscustomobject]@{
+        code = 1001
         constraints = [pscustomobject]@{
             region = 'kutnohorsko'
             settlement = 'pritoky'
+            regions = @('kutnohorsko', 'trosecko')
         }
         evidence = @(
             [pscustomobject]@{
@@ -51,12 +57,37 @@ $caseSpecs = @(
 $bindings = [pscustomobject]@{
     settlements = @(
         [pscustomobject]@{
+            caseCode = 1001
             region = 'kutnohorsko'
             settlement = 'pritoky'
             roles = [pscustomobject]@{
                 document = [pscustomobject]@{
                     documentGuid = '73762008-de9b-4c42-b509-235e63e60840'
                     containerGuid = '277db45d-28ac-0286'
+                }
+            }
+        },
+        [pscustomobject]@{
+            caseCode = 1001
+            region = 'kutnohorsko'
+            settlement = 'sasau'
+            nativeVariantIds = @('fixture.sasau')
+            roles = [pscustomobject]@{
+                document = [pscustomobject]@{
+                    documentGuid = '73762008-de9b-4c42-b509-235e63e60840'
+                    containerGuid = 'aaaaaaaa-bbbb-cccc'
+                }
+            }
+        },
+        [pscustomobject]@{
+            caseCode = 1001
+            region = 'trosecko'
+            settlement = 'troskovice'
+            nativeVariantIds = @('fixture.troskovice')
+            roles = [pscustomobject]@{
+                document = [pscustomobject]@{
+                    documentGuid = '73762008-de9b-4c42-b509-235e63e60840'
+                    containerGuid = '042bf770-1c46-03bf'
                 }
             }
         }
@@ -82,10 +113,11 @@ $compiledDefinitions = [pscustomobject]@{
 $signals = @(Get-DpQuestItemPlacementSignals `
     -CaseSpecs $caseSpecs `
     -Bindings $bindings `
-    -CompiledDefinitions $compiledDefinitions)
+    -CompiledDefinitions $compiledDefinitions `
+    -StartSignalTag 240)
 
-Add-Result ($signals.Count -eq 2) `
-    'one signal is emitted per unique quest item and loot is excluded'
+Add-Result ($signals.Count -eq 4) `
+    'quest documents emit one addressed signal per compatible regional stash'
 Add-Result (
     @($signals.item_guid) -contains '73762008-de9b-4c42-b509-235e63e60840'
 ) 'quest evidence document is included'
@@ -96,6 +128,7 @@ Add-Result (
     @($signals | Where-Object {
         $_.item_guid -eq '73762008-de9b-4c42-b509-235e63e60840' -and
         $_.backend -eq 'quest_effect_stash' -and
+        $_.request_key -eq '277db45d-28ac-0286' -and
         @($_.stash_bindings).Count -eq 1 -and
         $_.stash_bindings[0].region -eq 'kutnohorsko' -and
         $_.stash_bindings[0].settlement -eq 'pritoky' -and
@@ -105,10 +138,27 @@ Add-Result (
     }).Count -eq 1
 ) 'quest document compiles to a concrete regional stash binding'
 Add-Result (
+    @($signals | Where-Object {
+        $_.item_guid -eq '73762008-de9b-4c42-b509-235e63e60840' -and
+        $_.request_key -eq 'aaaaaaaa-bbbb-cccc' -and
+        @($_.stash_bindings).Count -eq 1 -and
+        $_.stash_bindings[0].settlement -eq 'sasau'
+    }).Count -eq 1
+) 'same document class receives an independent addressable stash request'
+Add-Result (
+    @($signals | Where-Object {
+        $_.item_guid -eq '73762008-de9b-4c42-b509-235e63e60840' -and
+        $_.request_key -eq '042bf770-1c46-03bf' -and
+        @($_.stash_bindings).Count -eq 1 -and
+        $_.stash_bindings[0].region -eq 'trosecko' -and
+        $_.stash_bindings[0].settlement -eq 'troskovice'
+    }).Count -eq 1
+) 'multi-region story emits the same quest document for Troskovice'
+Add-Result (
     @($signals.signal_tag | Sort-Object -Unique).Count -eq $signals.Count -and
     (@($signals | ForEach-Object { [int]$_.signal_tag }) |
-        Measure-Object -Minimum).Minimum -ge 130
-) 'placement signals use unique reserved tags'
+        Measure-Object -Minimum).Minimum -eq 240
+) 'placement signals use a caller-owned non-overlapping tag range'
 
 $highItemEvidence = @(
     1..130 | ForEach-Object {
@@ -170,15 +220,15 @@ $mergedQuestItemCatalog = Merge-DpQuestItemCatalogLua `
     -Signals $signals
 
 Add-Result (
-    ([regex]::Matches($tagXml, '<buff_ai_tag ')).Count -eq 2
-) 'quest-item tags are generated once'
+    ([regex]::Matches($tagXml, '<buff_ai_tag ')).Count -eq 4
+) 'quest-item request tags are generated once per concrete destination'
 Add-Result (
-    ([regex]::Matches($buffXml, '<buff ')).Count -eq 2 -and
+    ([regex]::Matches($buffXml, '<buff ')).Count -eq 4 -and
     $buffXml.Contains('buff_ui_visibility_id="0"') -and
     $buffXml.Contains('is_persistent="false"')
 ) 'hidden transient request buffs are generated once'
 Add-Result (
-    ([regex]::Matches($nodes, '<AddQuestItem ')).Count -eq 1 -and
+    ([regex]::Matches($nodes, '<AddQuestItem ')).Count -eq 2 -and
     $nodes.Contains(
         '<Constant Name="ItemClassGUID" Value="73762008-de9b-4c42-b509-235e63e60840" />'
     ) -and
@@ -189,19 +239,65 @@ Add-Result (
         '<Asset Name="StartingLocation" Alias="DP_EvidenceStash_kutnohorsko_pritoky" />'
     ) -and
     -not $nodes.Contains('<AddStashDefaultItem ') -and
-    ([regex]::Matches($nodes, 'MethodName="CreateItems"')).Count -eq 1
-) 'quest documents use AddQuestItem while non-stash items keep their backend'
+    ([regex]::Matches($nodes, 'MethodName="CreateItems"')).Count -eq 1 -and
+    ([regex]::Matches($nodes, '<UseBookTrigger ')).Count -eq 1
+) 'addressed documents use AddQuestItem without duplicate read triggers'
 Add-Result (
     $assets.Contains(
         '<StashAsset Name="DP_EvidenceStash_kutnohorsko_pritoky" />'
     ) -and
-    ([regex]::Matches($assets, '<StashAsset ')).Count -eq 1
+    $assets.Contains(
+        '<StashAsset Name="DP_EvidenceStash_kutnohorsko_sasau" />'
+    ) -and
+    ([regex]::Matches($assets, '<StashAsset ')).Count -eq 2
 ) 'regional quest assets declare every generated evidence stash alias once'
 Add-Result (
     $catalog.Contains('DarkPassengerQuestItemPlacementCatalog') -and
     $catalog.Contains('73762008-de9b-4c42-b509-235e63e60840') -and
-    $catalog.Contains('backend = "quest_effect_stash"')
-) 'Lua placement catalog maps item classes to native request buffs'
+    $catalog.Contains('backend = "quest_effect_stash"') -and
+    $catalog.Contains('requests =') -and
+    $catalog.Contains('["277db45d-28ac-0286"]') -and
+    $catalog.Contains('["aaaaaaaa-bbbb-cccc"]')
+) 'Lua placement catalog maps one item class to addressed native requests'
+
+$sharedContainerSignals = @(
+    [ordered]@{
+        item_guid = '73762008-de9b-4c42-b509-235e63e60840'
+        request_key = '042bf770-1c46-03bf'
+        buff_guid = '11111111-1111-1111-1111-111111111111'
+        signal_tag = 310
+        retention = 'case'
+        backend = 'quest_effect_stash'
+        read_context = 'dp_document_read_73762008'
+    },
+    [ordered]@{
+        item_guid = 'd5833fd4-f7bf-4957-86f5-d661db38bcf3'
+        request_key = '042bf770-1c46-03bf'
+        buff_guid = '22222222-2222-2222-2222-222222222222'
+        signal_tag = 311
+        retention = 'case'
+        backend = 'quest_effect_stash'
+        read_context = 'dp_document_read_d5833fd4'
+    }
+)
+$sharedContainerCatalog = ConvertTo-DpQuestItemPlacementCatalogLua `
+    -Signals $sharedContainerSignals
+$firstSharedItemBlock = [regex]::Match(
+    $sharedContainerCatalog,
+    '(?ms)^    \["73762008-de9b-4c42-b509-235e63e60840"\] = \{.*?^    \},$'
+).Value
+$secondSharedItemBlock = [regex]::Match(
+    $sharedContainerCatalog,
+    '(?ms)^    \["d5833fd4-f7bf-4957-86f5-d661db38bcf3"\] = \{.*?^    \},$'
+).Value
+Add-Result (
+    -not [string]::IsNullOrWhiteSpace($firstSharedItemBlock) -and
+    -not [string]::IsNullOrWhiteSpace($secondSharedItemBlock) -and
+    $firstSharedItemBlock.Contains('signal_tag = 310') -and
+    -not $firstSharedItemBlock.Contains('signal_tag = 311') -and
+    $secondSharedItemBlock.Contains('signal_tag = 311') -and
+    -not $secondSharedItemBlock.Contains('signal_tag = 310')
+) 'catalog keeps separate native requests for two documents sharing one stash'
 Add-Result (
     $mergedQuestItemCatalog.Contains(
         '11111111-1111-1111-1111-111111111111'
@@ -215,6 +311,12 @@ Add-Result (
 $runtime = if (Test-Path -LiteralPath $runtimePath) {
     [System.IO.File]::ReadAllText($runtimePath)
 } else { '' }
+$belongingsRuntime = if (Test-Path -LiteralPath $belongingsRuntimePath) {
+    [System.IO.File]::ReadAllText($belongingsRuntimePath)
+} else { '' }
+$seederRuntime = if (Test-Path -LiteralPath $seederRuntimePath) {
+    [System.IO.File]::ReadAllText($seederRuntimePath)
+} else { '' }
 Add-Result (Test-Path -LiteralPath $runtimePath -PathType Leaf) `
     'quest-item placement runtime exists'
 Add-Result (
@@ -222,12 +324,36 @@ Add-Result (
     $runtime.Contains('MoveItemOfClass(') -and
     $runtime.Contains('soul:AddBuff(') -and
     $runtime.Contains('entry.backend == "quest_effect_stash"') -and
+    $runtime.Contains('requestKey') -and
+    $runtime.Contains('entry.requests') -and
     -not $runtime.Contains('inventory:CreateItem(')
 ) 'Lua requests stash defaults without moving documents through player inventory'
 Add-Result (
     $runtime.Contains('soul:RemoveAllBuffsByGuid(entry.buff_guid)') -and
     -not $runtime.Contains('soul:RemoveBuff(entry.buff_guid)')
 ) 'request cleanup removes transient buffs by definition guid'
+Add-Result (
+    $runtime.Contains('string.lower(tostring(itemGuid or ""))') -and
+    $runtime.Contains('string.lower(tostring(requestKey or ""))')
+) 'Lua resolves mixed-case item and destination GUIDs'
+Add-Result (
+    $runtime.Contains('DarkPassengerQuestItemPlacement.pendingRequests') -and
+    $runtime.Contains('REISSUE_INTERVAL_SECONDS') -and
+    $runtime.Contains('return false, "native_pending"')
+) 'accepted native placement requests enter a throttled pending state'
+Add-Result (
+    $belongingsRuntime.Contains('local placed, reason = EnsurePlaced(generation)') -and
+    $belongingsRuntime.Contains('return placed, reason') -and
+    $seederRuntime -match (
+        'local placed, placementReason\s*=\s*' +
+        'DarkPassengerBelongings\.EnsurePlaced\('
+    ) -and
+    -not $seederRuntime.Contains('return false, "document_deferred"')
+) 'placement reason propagates across quest-item, belongings and seeder boundary'
+Add-Result (
+    $seederRuntime.Contains('lastDeferredByEvidence') -and
+    $seederRuntime.Contains('LogDeferredOnce(')
+) 'evidence polling logs a deferred state only when that state changes'
 $compileScript = [System.IO.File]::ReadAllText($compileScriptPath)
 Add-Result (
     $compileScript.Contains('dp_quest_item_placement_catalog.lua') -and

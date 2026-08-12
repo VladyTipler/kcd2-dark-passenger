@@ -353,6 +353,78 @@ function Get-AreaGeometryValidation {
     return $validation
 }
 
+function Select-CommonInvestigationArea {
+    param(
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][object[]]$Areas,
+        [Parameter(Mandatory)][object[]]$Anchors
+    )
+
+    if ($Anchors.Count -eq 0) {
+        throw 'Common investigation area selection requires at least one anchor.'
+    }
+
+    $ranked = [Collections.Generic.List[object]]::new()
+    foreach ($area in @($Areas)) {
+        if ([string]$area.region -ne $Region) {
+            continue
+        }
+        $classification = Get-AreaSemanticClassification -Area $area
+        if (-not $classification.allowed) {
+            continue
+        }
+        $containsEveryAnchor = $true
+        foreach ($anchor in $Anchors) {
+            if (-not (Test-AreaContainsPoint `
+                -Area $area `
+                -Point (Get-AnchorPoint $anchor))) {
+                $containsEveryAnchor = $false
+                break
+            }
+        }
+        if (-not $containsEveryAnchor) {
+            continue
+        }
+        $validation = Get-AreaGeometryValidation -Area $area
+        if (-not $validation.valid) {
+            continue
+        }
+        $surfaceArea = Get-OptionalPropertyValue `
+            -Object $area -Name 'surfaceArea' -Default $null
+        if ($null -eq $surfaceArea) {
+            $surfaceArea = Get-PolygonSurfaceArea -Polygon @($area.polygon)
+        }
+        $ranked.Add([pscustomobject]@{
+            area = $area
+            stableTerritory = if ([int]$classification.stability -ge 2) {
+                0
+            }
+            else { 1 }
+            surfaceArea = [double]$surfaceArea
+            semanticStability = [int]$classification.stability
+        })
+    }
+
+    $winner = @($ranked | Sort-Object `
+        @{ Expression = { [int]$_.stableTerritory } },
+        @{ Expression = { [double]$_.surfaceArea } },
+        @{ Expression = { -[int]$_.semanticStability } },
+        @{ Expression = { [string]$_.area.guid } } |
+        Select-Object -First 1)
+    if ($winner.Count -gt 0) {
+        return $winner[0].area
+    }
+
+    $anchorIds = [Collections.Generic.List[string]]::new()
+    for ($index = 0; $index -lt $Anchors.Count; $index++) {
+        $anchorIds.Add((Get-AnchorId -Anchor $Anchors[$index] -Index $index))
+    }
+    throw (
+        "No safe common investigation area for '$Region' anchors: " +
+        ($anchorIds -join ', ')
+    )
+}
+
 function Select-SettlementInvestigationAreas {
     param(
         [Parameter(Mandatory)]$Settlement,
@@ -631,5 +703,6 @@ Export-ModuleMember -Function @(
     'Test-VanillaAreaGeometry',
     'Get-AreaSemanticClassification',
     'Get-InvestigationAreaScore',
+    'Select-CommonInvestigationArea',
     'Select-SettlementInvestigationAreas'
 )

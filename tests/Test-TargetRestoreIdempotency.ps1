@@ -15,20 +15,80 @@ if (-not $restoreMatch.Success) {
     throw 'RestoreExisting function not found.'
 }
 
+$persistedLookupIndex = $restoreMatch.Value.IndexOf(
+    'local persistedCandidate ='
+)
+$runtimeLookupIndex = $restoreMatch.Value.IndexOf(
+    'local runtimeCandidate ='
+)
+$persistedBindIndex = $restoreMatch.Value.IndexOf(
+    'BindRecoveredTarget(persistedCandidate, persistedEntity)'
+)
+$persistedGuardIndex = $restoreMatch.Value.IndexOf(
+    'if IsRecoveredTargetBound(persistedCandidate, persistedEntity) then'
+)
+if ($persistedLookupIndex -lt 0 -or $runtimeLookupIndex -lt 0 -or
+    $persistedBindIndex -lt 0 -or $persistedGuardIndex -lt 0 -or
+    $persistedLookupIndex -gt $runtimeLookupIndex -or
+    $persistedBindIndex -gt $runtimeLookupIndex -or
+    $persistedGuardIndex -gt $persistedBindIndex) {
+    throw (
+        'Save restore must prefer the persisted slot, but an already bound ' +
+        'persisted target must return before BindRecoveredTarget side effects.'
+    )
+}
+
+'PASS: persisted target identity wins and repeated restore is side-effect free.'
+
 $guardIndex = $restoreMatch.Value.IndexOf(
     'if IsRecoveredTargetBound(runtimeCandidate, runtimeEntity) then'
+)
+$buffGuardIndex = $restoreMatch.Value.IndexOf(
+    'if HasTargetBuff(runtimeEntity) then'
 )
 $bindIndex = $restoreMatch.Value.IndexOf(
     'BindRecoveredTarget(runtimeCandidate, runtimeEntity)'
 )
-if ($guardIndex -lt 0 -or $bindIndex -lt 0 -or $guardIndex -gt $bindIndex) {
+if ($guardIndex -lt 0 -or $buffGuardIndex -lt 0 -or
+    $bindIndex -lt 0 -or $guardIndex -gt $buffGuardIndex -or
+    $guardIndex -gt $bindIndex) {
     throw (
-        'Already synchronized runtime target must return before ' +
-        'BindRecoveredTarget side effects.'
+        'Already synchronized runtime target must return before transient ' +
+        'buff checks and BindRecoveredTarget side effects.'
     )
 }
 
 'PASS: repeated target restore is side-effect free.'
+
+$boundMatch = [regex]::Match(
+    $runtimeText,
+    '(?ms)^local function IsRecoveredTargetBound\(candidate, entity\).*?^end$'
+)
+if (-not $boundMatch.Success) {
+    throw 'IsRecoveredTargetBound function not found.'
+}
+if (-not (
+    $runtimeText.Contains('local function EntityIdsEqual(left, right)') -and
+    $boundMatch.Value.Contains(
+        'EntityIdsEqual(DarkPassengerTarget.targetEntityId, entity.id)'
+    ) -and
+    $boundMatch.Value.Contains(
+        'EntityIdsEqual(investigationEntity.id, entity.id)'
+    ) -and
+    -not $boundMatch.Value.Contains(
+        'DarkPassengerTarget.targetEntityId == entity.id'
+    ) -and
+    -not $boundMatch.Value.Contains(
+        'DarkPassengerInvestigation.entity == entity'
+    )
+)) {
+    throw (
+        'Every recovered-target identity check must compare stable entity IDs, ' +
+        'not transient Lua wrappers.'
+    )
+}
+
+'PASS: recovered target identity uses stable entity IDs.'
 
 foreach ($requiredToken in @(
     'function DarkPassengerTarget.BeginRestoreCycle(reason)',

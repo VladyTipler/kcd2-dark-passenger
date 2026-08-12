@@ -128,8 +128,28 @@
           "kind": "lead",
           "action": {
             "evidenceModule": "overheard-dialogue",
+            "activation": {"mode": "interaction"},
             "bindings": {"speakerA": "gossipSourceA", "speakerB": "gossipSourceB"}
           },
+          "guidance": [
+            {
+              "id": "listen-area",
+              "target": {
+                "kind": "area",
+                "slot": "settlement",
+                "areaSelection": "smallest-common",
+                "anchorSlots": ["gossipSourceA", "gossipSourceB"]
+              },
+              "precision": "area",
+              "objective": {
+                "nameAsset": "objective.guidance.listen.name",
+                "states": {"active": "objective.guidance.listen.active"}
+              },
+              "visibility": {"mode": "step-active", "requiresFacts": []},
+              "lifetime": "step",
+              "fallback": "reject-variant"
+            }
+          ],
           "requiresFacts": [],
           "presentations": [
             {

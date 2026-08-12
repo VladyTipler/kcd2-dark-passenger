@@ -58,6 +58,44 @@ function Test-CaseKitAnonymousCharacter {
     )
 }
 
+function Test-CaseKitTavernMetadata {
+    param(
+        [string]$FactionName,
+        [string]$EditorLayer
+    )
+
+    $value = "$FactionName/$EditorLayer"
+    return $value -match '(?i)(?:^|[/_])(inn|tavern)(?:[/_]|$)'
+}
+
+function Test-CaseKitInnkeeperMetadata {
+    param(
+        [string]$EntityName,
+        [string]$CharacterName,
+        [string]$EditorLayer
+    )
+
+    return (
+        $EntityName -match '(?i)(?:^|_)(?:innkeeper|inkeeper)$' -or
+        $EditorLayer -match '(?i)/(?:innkeeper|inkeeper|vavrinec)(?:/|$)' -or
+        $CharacterName -match '(?i)^char_HOSPODSK[AY]_'
+    )
+}
+
+function Test-CaseKitTavernWorkerMetadata {
+    param(
+        [string]$FactionName,
+        [string]$CharacterName,
+        [bool]$IsInnkeeper
+    )
+
+    return (
+        $IsInnkeeper -or
+        $FactionName -match '(?i)(?:inn|tavern)_staff(?:_|$)' -or
+        $CharacterName -match '(?i)^char_(?:HOSPODSK[AY]|SENKYR|DEVECKA_.*HOSPOD)'
+    )
+}
+
 function Get-CaseKitActorSemantics {
     param(
         [Parameter(Mandatory)]$Actor,
@@ -80,18 +118,30 @@ function Get-CaseKitActorSemantics {
 
     $faction = [string]$Actor.factionName
     $layer = [string]$Actor.editorLayer
-    if ($faction -match '(?i)(inn|tavern)_staff') {
+    $entityName = [string]$Actor.entityName
+    $isTavern = Test-CaseKitTavernMetadata `
+        -FactionName $faction -EditorLayer $layer
+    $isInnkeeper = Test-CaseKitInnkeeperMetadata `
+        -EntityName $entityName -CharacterName $characterName `
+        -EditorLayer $layer
+    $isTavernWorker = Test-CaseKitTavernWorkerMetadata `
+        -FactionName $faction -CharacterName $characterName `
+        -IsInnkeeper $isInnkeeper
+    if ($isTavernWorker) {
         $capabilities.Add('role.tavern_worker')
+        $capabilities.Add('interaction.dialogue')
+        $capabilities.Add('interaction.overheard')
     }
-    if (
-        $layer -match '(?i)/(innkeeper|vavrinec)(?:/|$)' -or
-        $characterName -match '(?i)^char_HOSPODSKY_'
-    ) {
+    if ($isInnkeeper) {
         $capabilities.Add('role.innkeeper')
     }
-    if ($layer -match '(?i)/(inn|tavern)(?:/|$)') {
+    if ($isTavern) {
         $capabilities.Add('place.inn')
         $capabilities.Add('workplace.inn')
+    }
+    if ($isTavern -and -not $isTavernWorker -and
+        (Test-CaseKitAnonymousCharacter -CharacterName $characterName)) {
+        $capabilities.Add('interaction.overheard')
     }
 
     $hasHome = @(
@@ -213,8 +263,14 @@ function ConvertTo-CaseKitWorldContainer {
         $capabilities.Add('container.trade')
     }
     $layer = [string]$Container.editorLayer
-    if ($layer -match '(?i)/(inn|tavern)(?:/|$)') {
+    $isTavern = Test-CaseKitTavernMetadata -EditorLayer $layer
+    if ($isTavern) {
         $capabilities.Add('place.inn')
+    }
+    $isTrade = $capabilities.Contains('container.trade')
+    $isChest = [string]$Container.entityName -match '(?i)chest(?:[._/]|$)'
+    if ($isTavern -and $isChest -and -not $isTrade) {
+        $capabilities.Add('container.evidence')
     }
 
     return [ordered]@{
@@ -280,6 +336,13 @@ function Read-CaseKitKcd2WorldEntities {
     foreach ($container in @(
         Get-CaseKitPropertyValue -InputObject $raw -Name 'containers' @()
     )) {
+        if ($null -eq $container.PSObject.Properties['shopStash']) {
+            throw (
+                "Raw world container '$([string]$container.entityName)' is " +
+                'missing shopStash classification. Regenerate the world ' +
+                'snapshot before compiling cases.'
+            )
+        }
         $entities.Add((ConvertTo-CaseKitWorldContainer -Container $container))
     }
     return @($entities)

@@ -4,7 +4,9 @@ param(
     [string]$AreaInventoryPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'build\generated\vanilla-trigger-areas.json'),
     [string]$SettlementProfileRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'config\settlements'),
     [string]$OutputRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Levels'),
-    [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua')
+    [string]$LuaOutputPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\Data\Scripts\mods\generated\dp_investigation_area_catalog.lua'),
+    [string]$CompiledDefinitionsPath,
+    [string]$SettlementBindingsPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -128,6 +130,20 @@ $areaInventory =
 if ($areaInventory.schemaVersion -ne 1) {
     throw "Unsupported TriggerArea inventory schemaVersion '$($areaInventory.schemaVersion)'."
 }
+$guidanceSignals = @()
+if (-not [string]::IsNullOrWhiteSpace($CompiledDefinitionsPath)) {
+    if (-not (Test-Path -LiteralPath $CompiledDefinitionsPath -PathType Leaf)) {
+        throw "Compiled CaseKit definitions not found: $CompiledDefinitionsPath"
+    }
+    $compiledDefinitions = [System.IO.File]::ReadAllText(
+        $CompiledDefinitionsPath
+    ) | ConvertFrom-Json -Depth 100
+    $guidanceSignals = @(Get-DpGuidanceSignals `
+        -CompiledDefinitions $compiledDefinitions `
+        -AreaManifest $manifest `
+        -AreaInventory $areaInventory `
+        -StartSignalTag 1)
+}
 $areasByRegionAndGuid = @{}
 foreach ($area in @($areaInventory.areas)) {
     $areaKey = '{0}|{1}' -f [string]$area.region, [string]$area.guid
@@ -141,6 +157,41 @@ if (-not (Test-Path -LiteralPath $SettlementProfileRoot -PathType Container)) {
     throw "Settlement profile root not found: $SettlementProfileRoot"
 }
 $evidenceStashesByRegion = @{}
+$evidenceStashTargets = @{}
+function Add-EvidenceStash {
+    param(
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$Settlement,
+        [Parameter(Mandatory)][string]$ContainerGuid,
+        [Parameter(Mandatory)][string]$Source
+    )
+
+    if ($ContainerGuid -notmatch
+        '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$') {
+        throw "$Source has invalid evidence container GUID '$ContainerGuid'."
+    }
+    $alias = Get-DpEvidenceStashAlias `
+        -Region $Region -Settlement $Settlement
+    if ($evidenceStashTargets.ContainsKey($alias)) {
+        if ([string]$evidenceStashTargets[$alias] -ne $ContainerGuid) {
+            throw (
+                "Evidence stash alias '$alias' resolves to multiple containers: " +
+                "'$($evidenceStashTargets[$alias])' and '$ContainerGuid'."
+            )
+        }
+        return
+    }
+    $evidenceStashTargets[$alias] = $ContainerGuid
+    if (-not $evidenceStashesByRegion.ContainsKey($Region)) {
+        $evidenceStashesByRegion[$Region] =
+            [System.Collections.Generic.List[object]]::new()
+    }
+    $evidenceStashesByRegion[$Region].Add([pscustomobject]@{
+        settlement = $Settlement
+        containerGuid = $ContainerGuid
+        alias = $alias
+    })
+}
 foreach ($profileFile in @(
     Get-ChildItem -LiteralPath $SettlementProfileRoot -File -Filter '*.json' |
         Sort-Object FullName
@@ -156,26 +207,26 @@ foreach ($profileFile in @(
     $region = [string]$profile.region
     $settlement = [string]$profile.settlement
     $containerGuid = [string]$documentRole.containerGuid
-    if (
-        $containerGuid -notmatch
-            '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}$'
-    ) {
-        throw (
-            "Settlement profile '$($profileFile.Name)' has invalid " +
-            "evidence container GUID '$containerGuid'."
-        )
+    Add-EvidenceStash -Region $region -Settlement $settlement `
+        -ContainerGuid $containerGuid `
+        -Source "Settlement profile '$($profileFile.Name)'"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($SettlementBindingsPath)) {
+    if (-not (Test-Path -LiteralPath $SettlementBindingsPath -PathType Leaf)) {
+        throw "Case settlement bindings not found: $SettlementBindingsPath"
     }
-    if (-not $evidenceStashesByRegion.ContainsKey($region)) {
-        $evidenceStashesByRegion[$region] =
-            [System.Collections.Generic.List[object]]::new()
+    $caseBindings = Read-DpCaseSettlementBindings `
+        -LiteralPath $SettlementBindingsPath
+    foreach ($binding in @($caseBindings.settlements)) {
+        $document = $binding.roles.PSObject.Properties['document']
+        if ($null -eq $document) { continue }
+        Add-EvidenceStash `
+            -Region ([string]$binding.region) `
+            -Settlement ([string]$binding.settlement) `
+            -ContainerGuid ([string]$document.Value.containerGuid) `
+            -Source "Case binding '$([int]$binding.caseCode)/$([string]$binding.settlement)'"
     }
-    $evidenceStashesByRegion[$region].Add([pscustomobject]@{
-        settlement = $settlement
-        containerGuid = $containerGuid
-        alias = Get-DpEvidenceStashAlias `
-            -Region $region `
-            -Settlement $settlement
-    })
 }
 
 $regionSpecifications = @(
@@ -322,6 +373,29 @@ foreach ($specification in $regionSpecifications) {
         )
         $waitingLinkLines.Add(
             "      <LinkDefinition>asset[&apos;$([string]$stash.alias)&apos;]</LinkDefinition>"
+        )
+        $waitingLinkLines.Add('    </WaitingLink>')
+    }
+    foreach ($guidanceLink in @(Get-DpGuidanceWaitingLinks `
+        -Signals $guidanceSignals `
+        -Region ([string]$specification.region) `
+        -QuestHolderGuid ([string]$specification.questHolderGuid))) {
+        $signature =
+            "$([string]$guidanceLink.sourceGuid)|" +
+            "$([string]$guidanceLink.targetGuid)|" +
+            [string]$guidanceLink.linkDefinition
+        if (-not $linkSignatures.Add($signature)) {
+            throw "Duplicate guidance link '$signature'."
+        }
+        $encodedDefinition = ([string]$guidanceLink.linkDefinition).Replace(
+            "'",
+            '&apos;'
+        )
+        $waitingLinkLines.Add(
+            "    <WaitingLink SourceId=`"$([string]$guidanceLink.sourceGuid)`" TargetId=`"$([string]$guidanceLink.targetGuid)`">"
+        )
+        $waitingLinkLines.Add(
+            "      <LinkDefinition>$encodedDefinition</LinkDefinition>"
         )
         $waitingLinkLines.Add('    </WaitingLink>')
     }

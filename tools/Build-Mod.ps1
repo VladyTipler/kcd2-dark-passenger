@@ -1,6 +1,8 @@
 param(
     [switch]$SkipPackaging,
-    [string]$DevGameRoot = $env:KCD2_DEV_ROOT
+    [string]$DevGameRoot = $env:KCD2_DEV_ROOT,
+    [string]$ReferenceDataRoot = $env:KCD2_REFERENCE_DATA_ROOT,
+    [string]$WorldSoulTablePath = $env:KCD2_WORLD_SOUL_TABLE
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,10 +15,14 @@ $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
 $caseCompilerPath = Join-Path $PSScriptRoot 'Compile-CaseSpecs.ps1'
 $caseKitCompilerPath = Join-Path $repoRoot `
     'casekit\cli\Compile-CaseKit.ps1'
+$worldIndexBuilderPath = Join-Path $repoRoot `
+    'casekit\cli\Build-WorldSemanticIndex.ps1'
 $archetypeRoot = Join-Path $repoRoot 'content\archetypes'
 $storyRoot = Join-Path $repoRoot 'content\stories'
 $evidenceModuleRoot = Join-Path $repoRoot 'content\evidence-modules'
 $worldIndexPath = Join-Path $repoRoot 'config\world-semantic-index.json'
+$settlementCatalogPath = Join-Path $repoRoot `
+    'config\settlement-investigation-areas.json'
 $settlementProfileRoot = Join-Path $repoRoot 'config\settlements'
 $stableIdRegistryPath = Join-Path $repoRoot 'config\casekit-stable-ids.json'
 $kcd2AdapterPath = Join-Path $repoRoot 'config\casekit-kcd2-native.json'
@@ -29,6 +35,7 @@ $levelRegistryMergeModulePath =
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
 $generatedLocalizationRoot = Join-Path $buildParent 'generated\localization'
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
+$victimCatalogPath = Join-Path $repoRoot 'config\victim-candidates.json'
 
 $resolvedRepoRoot = [System.IO.Path]::GetFullPath($repoRoot)
 $resolvedBuildRoot = [System.IO.Path]::GetFullPath($buildRoot)
@@ -72,7 +79,53 @@ if (-not $resolvedBuildRoot.StartsWith(
     throw "Refusing to replace build path outside repository build root: $resolvedBuildRoot"
 }
 
-& $areaBindingGeneratorPath
+if (-not [string]::IsNullOrWhiteSpace($ReferenceDataRoot)) {
+    if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
+        throw 'KCD2_DEV_ROOT or -DevGameRoot is required to refresh world data.'
+    }
+    if ([string]::IsNullOrWhiteSpace($WorldSoulTablePath)) {
+        $WorldSoulTablePath = Join-Path $DevGameRoot `
+            'Data\libs\CryHttp\xzar2\table-souls.json'
+    }
+    if (-not (Test-Path -LiteralPath $WorldSoulTablePath)) {
+        throw 'KCD2_WORLD_SOUL_TABLE or -WorldSoulTablePath must point to table-souls.json.'
+    }
+    & $worldExporterPath `
+        -KuttenbergObjectsPath (Join-Path $ReferenceDataRoot `
+            'kutnohorsko\kut_objects_mission0.xml') `
+        -TroskyObjectsPath (Join-Path $ReferenceDataRoot `
+            'trosecko\tros_objects_mission0.xml') `
+        -SoulTablePath $WorldSoulTablePath `
+        -OutputPath $rawEvidencePath
+}
+elseif (-not (Test-Path -LiteralPath $rawEvidencePath)) {
+    & $worldExporterPath
+}
+
+& $worldIndexBuilderPath `
+    -RawWorldPath $rawEvidencePath `
+    -VictimCatalogPath $victimCatalogPath `
+    -OutputPath $worldIndexPath
+
+& $caseKitCompilerPath `
+    -ArchetypeRoot $archetypeRoot `
+    -StoryRoot $storyRoot `
+    -EvidenceModuleRoot $evidenceModuleRoot `
+    -WorldIndexPath $worldIndexPath `
+    -SettlementCatalogPath $settlementCatalogPath `
+    -SettlementProfileRoot $settlementProfileRoot `
+    -StableIdRegistryPath $stableIdRegistryPath `
+    -Kcd2AdapterPath $kcd2AdapterPath `
+    -MaxVariantsPerCombination 8 `
+    -OutputRoot $caseVariantRoot
+
+& $areaBindingGeneratorPath `
+    -CompiledDefinitionsPath (
+        Join-Path $caseVariantRoot 'compiled-definitions.json'
+    ) `
+    -SettlementBindingsPath (
+        Join-Path $caseVariantRoot 'case-settlement-bindings.json'
+    )
 
 if (Test-Path -LiteralPath $resolvedBuildRoot) {
     Remove-Item -LiteralPath $resolvedBuildRoot -Recurse -Force
@@ -83,24 +136,9 @@ foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force) {
     Copy-Item -LiteralPath $item.FullName -Destination $resolvedBuildRoot -Recurse
 }
 
-& $caseKitCompilerPath `
-    -ArchetypeRoot $archetypeRoot `
-    -StoryRoot $storyRoot `
-    -EvidenceModuleRoot $evidenceModuleRoot `
-    -WorldIndexPath $worldIndexPath `
-    -SettlementProfileRoot $settlementProfileRoot `
-    -StableIdRegistryPath $stableIdRegistryPath `
-    -Kcd2AdapterPath $kcd2AdapterPath `
-    -MaxVariantsPerCombination 8 `
-    -OutputRoot $caseVariantRoot
-
 & $caseCompilerPath `
     -CaseVariantRoot $caseVariantRoot `
     -BuildRoot $buildParent
-
-if (-not (Test-Path -LiteralPath $rawEvidencePath)) {
-    & $worldExporterPath
-}
 
 & $generatorPath
 
@@ -312,6 +350,10 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
                 $sourceGuid -eq $questHolderGuid -and
                 $definition -match
                     "^asset\['DP_EvidenceStash_[A-Za-z0-9_]+'\]$"
+            $isGuidanceLink =
+                $sourceGuid -eq $questHolderGuid -and
+                $definition -match
+                    "^asset\['DP_Guidance_[A-Za-z0-9_]+'\]$"
             $isLegacyPritokyLink =
                 $region -eq 'kutnohorsko' -and
                 $sourceGuid -eq $questHolderGuid -and
@@ -339,6 +381,7 @@ foreach ($region in @('kutnohorsko', 'trosecko')) {
             -not (
                 $isSettlementLink -or
                 $isEvidenceStashLink -or
+                $isGuidanceLink -or
                 $isLegacyPritokyLink -or
                 $isConfessionHolderLink -or
                 $isConfessionLyingSpotLink -or

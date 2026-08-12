@@ -63,6 +63,9 @@ foreach ($token in @(
     'preparedGeneration',
     'Script.SetTimerForFunction',
     'DarkPassengerLeadPlanner.Apply('
+    'dp_case_lifecycle_applied_revision'
+    'DarkPassengerCaseVariantCatalogRevision'
+    'PersistAppliedRevision('
 )) {
     Add-Result ($lifecycle.Contains($token)) "lifecycle contains $token"
 }
@@ -89,6 +92,77 @@ Add-Result (
 Add-Result (
     $lifecycle.Contains('ACTIVATION_DELAY_MS = 2000')
 ) 'lifecycle waits beyond the native one-second quest activation timer'
+Add-Result (
+    $lifecycle.Contains(
+        'local function RemoveSignalBuffs(manifest, preservedBuffGuid)'
+    ) -and
+    $lifecycle.Contains(
+        'tostring(buffGuid) ~= tostring(preservedBuffGuid)'
+    )
+) 'prepare cleanup can preserve the selected case activation buff'
+Add-Result (
+    $lifecycle.Contains(
+        'ClearPresentation(generation, manifest, activationBuffGuid)'
+    )
+) 'prepare passes the selected case activation buff through cleanup'
+Add-Result (
+    $lifecycle.Contains('ClearPresentation(generation, manifest)')
+) 'final case cleanup still removes every presentation buff'
+Add-Result (
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.activatedGeneration == generation and'
+    ) -and
+    $lifecycle.Contains('return true, "already_activated"') -and
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.preparedGeneration == generation and'
+    ) -and
+    $lifecycle.Contains(
+        'ScheduleActivation(generation, DarkPassengerCaseLifecycle.timerSerial, 1)'
+    )
+) 'reconcile reschedules the same pending serial without invalidating it'
+Add-Result (
+    $lifecycle.Contains(
+        'function DarkPassengerCaseLifecycle.BeginRestoreCycle(reason)'
+    ) -and
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.timerSerial ='
+    ) -and
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.preparedGeneration = 0'
+    ) -and
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.activatedGeneration = 0'
+    )
+) 'loading another save invalidates transient lifecycle state'
+Add-Result (
+    $main.Contains(
+        'DarkPassengerCaseLifecycle.BeginRestoreCycle("player_reload")'
+    ) -and
+    $main.Contains(
+        'DarkPassengerCaseLifecycle.BeginRestoreCycle("player_init")'
+    )
+) 'player lifecycle resets transient case activation before restoring a save'
+Add-Result (
+    $main.Contains('function DarkPassengerTest.OnPlayerReload(...)') -and
+    $main.Contains('function DarkPassengerTest.OnPlayerInit(...)') -and
+    $main.Contains(
+        'return DarkPassengerTest.OnPlayerReload(...)'
+    ) -and
+    $main.Contains(
+        'return DarkPassengerTest.OnPlayerInit(...)'
+    )
+) 'save lifecycle hooks dispatch through hot-reload-safe trampolines'
+Add-Result (
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.activatedRevision == revision'
+    ) -and
+    $lifecycle.Contains(
+        'DarkPassengerCaseLifecycle.preparedRevision == revision'
+    ) -and
+    $lifecycle.Contains(
+        'PersistAppliedRevision(generation, revision)'
+    )
+) 'same generation is repaired again only after compiled content revision changes'
 
 if ($script:failures.Count -gt 0) {
     Write-Host "RESULT: FAIL ($($script:failures.Count)/$($script:checks))"

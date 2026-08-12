@@ -1,6 +1,7 @@
 param(
     [string]$ReferenceDataRoot = $env:KCD2_REFERENCE_DATA_ROOT,
-    [string]$DevGameRoot = $env:KCD2_DEV_ROOT
+    [string]$DevGameRoot = $env:KCD2_DEV_ROOT,
+    [string]$GameDataRoot = $env:KCD2_GAME_ROOT
 )
 
 $ErrorActionPreference = 'Stop'
@@ -10,6 +11,9 @@ if ([string]::IsNullOrWhiteSpace($ReferenceDataRoot)) {
 }
 if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
     throw 'Set KCD2_DEV_ROOT or pass -DevGameRoot.'
+}
+if ([string]::IsNullOrWhiteSpace($GameDataRoot)) {
+    $GameDataRoot = $DevGameRoot
 }
 
 $testRoot = Split-Path -Parent $PSScriptRoot
@@ -84,9 +88,9 @@ $questItemCatalogLuaPath = "$stageRoot\Data\Scripts\mods\generated\dp_quest_item
 $questItemGeneratorPath = "$testRoot\tools\Generate-QuestItemCatalog.ps1"
 $kuttenbergWaitingLinksPath = "$stageRoot\Data\Levels\kutnohorsko\waitinglinks.xml"
 $kuttenbergBaseLevelPakPath =
-    Join-Path $DevGameRoot 'Data\Levels\kutnohorsko\level.pak'
+    Join-Path $GameDataRoot 'Data\Levels\kutnohorsko\level.pak'
 $troskyBaseLevelPakPath =
-    Join-Path $DevGameRoot 'Data\Levels\trosecko\level.pak'
+    Join-Path $GameDataRoot 'Data\Levels\trosecko\level.pak'
 $assetLinkerRoot = $ReferenceDataRoot
 $kuttenbergBaseWaitingLinksPath = "$assetLinkerRoot\kutnohorsko\kut_waitinglinks.xml"
 $kuttenbergObjectsPath = "$assetLinkerRoot\kutnohorsko\kut_objects_mission0.xml"
@@ -106,6 +110,10 @@ $caseCompatibilityPath =
 $areaInventoryPath = "$testRoot\build\generated\vanilla-trigger-areas.json"
 $englishPath = "$testRoot\localization\English\text__darkpassengertest.xml"
 $russianPath = "$testRoot\localization\Russian\text__darkpassengertest.xml"
+$generatedEnglishPath =
+    "$testRoot\build\generated\localization\English\text__darkpassengertest.xml"
+$generatedRussianPath =
+    "$testRoot\build\generated\localization\Russian\text__darkpassengertest.xml"
 
 $expectedGuid = '16de3823-48bf-4f86-8498-ce45819a48f0'
 $expectedTag = '23'
@@ -180,6 +188,67 @@ function Has-NoUtf8Bom {
         $bytes[1] -eq 0xBB -and
         $bytes[2] -eq 0xBF
     )
+}
+
+function Get-CaseActivationCodes {
+    param([Parameter(Mandatory)][string]$XmlText)
+
+    return @(
+        [regex]::Matches(
+            $XmlText,
+            '<BuffTagTrigger Name="case(\d+)ActiveTrigger">'
+        ) |
+            ForEach-Object { [int]$_.Groups[1].Value } |
+            Sort-Object -Unique
+    )
+}
+
+function Test-CaseGatedTransition {
+    param(
+        [Parameter(Mandatory)][string]$XmlText,
+        [Parameter(Mandatory)][int]$CaseCode,
+        [Parameter(Mandatory)][string]$From,
+        [Parameter(Mandatory)][string]$To
+    )
+
+    $directEdge = '<Edge From="{0}" To="{1}" />' -f $From, $To
+    if ($XmlText.Contains($directEdge)) { return $true }
+
+    $gates = @([regex]::Matches(
+        $XmlText,
+        '(?s)<If Name="([^"]+)">\s*' +
+            '<Edge From="case' + $CaseCode +
+            'Active\.State" To="Condition" />\s*' +
+            '<Edge From="' + [regex]::Escape($From) +
+            '" To="Exec" />\s*</If>'
+    ))
+    if ($gates.Count -eq 0) { return $false }
+
+    return @($gates | Where-Object {
+        $XmlText.Contains(
+            '<Edge From="{0}.True" To="{1}" />' -f @(
+                $_.Groups[1].Value,
+                $To
+            )
+        )
+    }).Count -gt 0
+}
+
+function Test-EveryCaseTransition {
+    param(
+        [Parameter(Mandatory)][string]$XmlText,
+        [Parameter(Mandatory)][int[]]$CaseCodes,
+        [Parameter(Mandatory)][string]$From,
+        [Parameter(Mandatory)][string]$To
+    )
+
+    return @($CaseCodes | Where-Object {
+        -not (Test-CaseGatedTransition `
+            -XmlText $XmlText `
+            -CaseCode $_ `
+            -From $From `
+            -To $To)
+    }).Count -eq 0
 }
 
 $generatorDeterministic = $false
@@ -322,6 +391,8 @@ if (Test-Path -LiteralPath $caseCompatibilityPath) {
 }
 $englishText = Read-OptionalText -LiteralPath $englishPath
 $russianText = Read-OptionalText -LiteralPath $russianPath
+$generatedEnglishText = Read-OptionalText -LiteralPath $generatedEnglishPath
+$generatedRussianText = Read-OptionalText -LiteralPath $generatedRussianPath
 $manifestText = Read-OptionalText -LiteralPath $manifestPath
 $baseWaitingLinkCount = -1
 $baseRegionModuleLinkCount = -1
@@ -583,6 +654,7 @@ Add-Result (
     $questText -notmatch '\{\{DP_[A-Z_]+\}\}'
 ) 'generated quest contains no unresolved template tokens'
 
+$kuttenbergCaseCodes = @(Get-CaseActivationCodes -XmlText $questText)
 if ($enabledPritokyCandidates.Count -eq 37) {
     foreach ($candidate in $enabledPritokyCandidates) {
         $slotName = 'Target{0:D3}' -f [int]$candidate.slot
@@ -631,16 +703,17 @@ if ($enabledPritokyCandidates.Count -eq 37) {
             $questText.Contains("<If Name=`"$($slotNode)Revealed`"")
         ) "generated quest has hidden selection and reveal checks for $slotName"
         Add-Result (
-            $questText -match (
-                "(?s)<State Name=`"targetObjectiveProgress`" TypeT=`"DP_TargetProgress`">.*?" +
-                "<Edge From=`"$($slotNode)Revealed.True`" To=`"Set$slotName`" />.*?" +
-                "</State>"
-            ) -and
-            $questText -match (
-                "(?s)<State Name=`"objectiveProgress`" TypeT=`"DP_SearchProgress`">.*?" +
-                "<Edge From=`"$($slotNode)Revealed.True`" To=`"SetDone`" />.*?" +
-                "</State>"
-            )
+            $kuttenbergCaseCodes.Count -gt 0 -and
+            (Test-EveryCaseTransition `
+                -XmlText $questText `
+                -CaseCodes $kuttenbergCaseCodes `
+                -From "$($slotNode)Revealed.True" `
+                -To "Set$slotName") -and
+            (Test-EveryCaseTransition `
+                -XmlText $questText `
+                -CaseCodes $kuttenbergCaseCodes `
+                -From "$($slotNode)Revealed.True" `
+                -To 'SetDone')
         ) "tag 30 reveals $slotName and completes the search area"
 
         Add-Result (
@@ -659,11 +732,12 @@ if ($enabledPritokyCandidates.Count -eq 37) {
             ([regex]::Matches(
                 $questText,
                 "Marker=`"$escapedAlias`""
-            ).Count -eq 1) -and
-            ([regex]::Matches(
-                $questText,
-                "From=`"$($slotNode)Revealed.True`" To=`"Set$slotName`""
-            ).Count -eq 1)
+            ).Count -eq $kuttenbergCaseCodes.Count) -and
+            (Test-EveryCaseTransition `
+                -XmlText $questText `
+                -CaseCodes $kuttenbergCaseCodes `
+                -From "$($slotNode)Revealed.True" `
+                -To "Set$slotName")
         ) "exact marker and objective update for $slotName exist only once"
     }
 }
@@ -1018,30 +1092,34 @@ if ($null -ne $questXml) {
         $questXml.SelectNodes('//EnumLog[@Marker]') |
             ForEach-Object { $_.Marker }
     )
-    $enabledKuttenbergCandidateCount = @(
+    $expectedKuttenbergCandidateAliases = @(
         $candidateCatalog.candidates |
             Where-Object {
                 $_.enabled -eq $true -and
                 $_.gameRegion -eq 'kutnohorsko'
-            }
-    ).Count
-    $kuttenbergSearchAreaCount = @(
+            } |
+            ForEach-Object { [string]$_.alias }
+    )
+    $expectedKuttenbergSearchAreaAliases = @(
         $supportedInvestigationAreas |
-            Where-Object gameRegion -eq 'kutnohorsko'
-    ).Count
+            Where-Object gameRegion -eq 'kutnohorsko' |
+            ForEach-Object { [string]$_.alias }
+    )
+    $uniqueMarkerAliases = @($markerAliases | Sort-Object -Unique)
     $allMarkerAliasesExist = (
-        $markerAliases.Count -eq (
-            $enabledKuttenbergCandidateCount +
-                $kuttenbergSearchAreaCount +
-                1 # Legacy Active save bridge reuses the Pritoky area alias.
-        ) -and
         @(
-            $markerAliases |
+            $uniqueMarkerAliases |
                 Where-Object {
                     $_ -notin $soulAssetAliases -and
                     $_ -notin $triggerAreaAliases
                 }
-        ).Count -eq 0
+        ).Count -eq 0 -and
+        @($expectedKuttenbergCandidateAliases | Where-Object {
+            $_ -notin $uniqueMarkerAliases
+        }).Count -eq 0 -and
+        @($expectedKuttenbergSearchAreaAliases | Where-Object {
+            $_ -notin $uniqueMarkerAliases
+        }).Count -eq 0
     )
 }
 Add-Result (
@@ -1439,20 +1517,22 @@ Add-Result (
     $questText.Contains('<Objective TypeT="DP_TargetProgress" Name="dark_within_targetk">')
 ) 'tracked target objective uses generated marker-state type'
 Add-Result (
-    $questText.Contains(
-        '<Edge From="targetSlot001Revealed.True" To="SetDone" />'
-    ) -and
-    $questText.Contains(
-        '<Edge From="targetSlot001Revealed.True" To="SetTarget001" />'
-    ) -and
-    $questText.Contains(
-        '<Edge From="targetSlot002Revealed.True" To="SetTarget002" />'
-    )
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'targetSlot001Revealed.True' -To 'SetDone') -and
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'targetSlot001Revealed.True' -To 'SetTarget001') -and
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'targetSlot002Revealed.True' -To 'SetTarget002')
 ) 'reveal completes search and hands off to one generated target state'
 Add-Result (
-    $questText.Contains('<Edge From="targetSlot001Death.OnDeath" To="SetDone"') -and
-    $questText.Contains('<Edge From="targetSlot002Death.OnDeath" To="SetDone"') -and
-    $questText.Contains('<Edge From="targetSlot003Death.OnDeath" To="SetDone"')
+    @(@('001', '002', '003') | Where-Object {
+        -not (Test-EveryCaseTransition `
+            -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+            -From "targetSlot${_}Death.OnDeath" -To 'SetDone')
+    }).Count -eq 0
 ) 'selected victim death completes the generated hunt objective'
 Add-Result (
     $questText.Contains(
@@ -1500,23 +1580,25 @@ Add-Result (
     )
 ) 'quest watches the player for the anonymous witness signal'
 Add-Result (
-    $questText.Contains(
-        '<Edge From="witnessDetectedTrigger.OnAdded" To="SetWitnessed" />'
-    ) -and
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'witnessDetectedTrigger.OnAdded' -To 'SetWitnessed') -and
     $questText.Contains(
         '<StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />'
     ) -and
     $questText -match (
         '(?s)<EnumLog Type="Started" Name="Witnessed" IsTracked="true">' +
-        '.*?StringName="dark_within_cleanup_witnessed".*?</EnumLog>'
+        '.*?StringName="dp_case_1001_objective_cleanup_witnessed".*?</EnumLog>'
     )
 ) 'first witness advances cleanup to a tracked anonymous update'
 Add-Result (
-    $questText -notmatch (
-        '(?s)<EnumLog Type="Started" Name="Witnessed".*?' +
-        '(?:Marker=|Alias="RegionalTargetSouls"|Alias="PritokySouls").*?' +
-        '</EnumLog>'
-    )
+    @([regex]::Matches(
+        $questText,
+        '(?s)<EnumLog Type="Started" Name="Witnessed".*?</EnumLog>'
+    ) | Where-Object {
+        $_.Value -match
+            '(?:Marker=|Alias="RegionalTargetSouls"|Alias="PritokySouls")'
+    }).Count -eq 0
 ) 'anonymous witness update exposes no witness identity or marker'
 
 Add-Result (Test-Path -LiteralPath $luaPath) 'satisfaction Lua bridge exists'
@@ -1895,29 +1977,23 @@ Add-Result (
     )
 ) 'legacy evidence command delegates only to persistent investigation'
 Add-Result (
-    $investigationLuaText.Contains(
+    -not $investigationLuaText.Contains(
         'DarkPassengerInvestigation.SLICE_SETTLEMENT_OVERRIDES'
     ) -and
-    $investigationLuaText.Contains(
-        'function DarkPassengerInvestigation.GetSettlementOverride'
-    ) -and
-    ([regex]::Matches(
-        $investigationLuaText,
-        '"pritoky"'
-    ).Count -eq 1) -and
     $runtimeLuaText -match (
         '(?s)function NeedsQuestSelectionMigration\(candidate\).*?' +
         'candidate\.gameRegion == "kutnohorsko".*?' +
         'candidate\.settlement == "pritoky"'
     )
-) 'Pritoky selection override and legacy migration remain separately scoped'
+) 'legacy Pritoky migration remains scoped without overriding new selection'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)function DarkPassengerTarget\.SelectNearest\(gameRegion\).*?' +
-        'DarkPassengerInvestigation\.GetSettlementOverride\(gameRegion\).*?' +
-        'DarkPassengerTarget\.Select\(gameRegion, settlementOverride\)'
+        'OrderedSettlements\(gameRegion, playerPosition\).*?' +
+        'for _, ranked in ipairs\(ordered\).*?' +
+        'DarkPassengerTarget\.Select\('
     )
-) 'automatic Kuttenberg selection uses the investigation settlement override'
+) 'automatic selection ranks compatible settlements in every region'
 Add-Result ($runtimeLuaText.Contains('result == "RESOLVED_CORRECT"')) 'correct case resolution is explicitly gated'
 Add-Result ($runtimeLuaText.Contains('previousState ~= "RESOLVED_CORRECT"')) 'already resolved cases cannot grant satisfaction twice'
 Add-Result (
@@ -2402,8 +2478,20 @@ Add-Result (
 ) 'confirmed witness requests the anonymous update signal'
 Add-Result (
     $runtimeLuaText -match (
-        '(?s)OnReloadEvent.*?DarkPassengerAftermath\.ScheduleRestore' +
-        '.*?OnInitEvent.*?DarkPassengerAftermath\.ScheduleRestore'
+        '(?s)function DarkPassengerTest\.OnPlayerReload\(.*?' +
+        'DarkPassengerAftermath\.ScheduleRestore\("player_reload"\)'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTest\.OnPlayerInit\(.*?' +
+        'DarkPassengerAftermath\.ScheduleRestore\("player_init"\)'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)Register\("OnReloadEvent".*?' +
+        'DarkPassengerTest\.OnPlayerReload'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)Register\("OnInitEvent".*?' +
+        'DarkPassengerTest\.OnPlayerInit'
     )
 ) 'player load lifecycle schedules aftermath restore after load settles'
 Add-Result (
@@ -2887,11 +2975,13 @@ Add-Result (
     $runtimeLuaText.Contains('DarkPassengerTarget.OnTargetDeath(')
 ) 'Lua starts aftermath from the regional target-death context'
 Add-Result (
-    $runtimeLuaText.IndexOf('recovered tagged quest target region=') -lt
-        $runtimeLuaText.IndexOf('preserved persisted quest target region=') -and
+    $runtimeLuaText.IndexOf('local persistedCandidate =') -lt
+        $runtimeLuaText.IndexOf('local runtimeCandidate =') -and
+    $runtimeLuaText.IndexOf('local runtimeCandidate =') -lt
+        $runtimeLuaText.IndexOf('recovered tagged quest target region=') -and
     $runtimeLuaText.Contains('candidate = FindCandidateBySlot(expectedSlot)') -and
     -not $runtimeLuaText.Contains('ignored stale target death callback')
-) 'save-local target tag outranks stale global slot state'
+) 'persisted target identity outranks stale runtime and tag state'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)local requestBecameActive =.*?' +
@@ -3036,12 +3126,12 @@ Add-Result (
     )
 ) 'Lua polling preserves or reconstructs a target without scheduler callbacks'
 Add-Result (
-    $questText.Contains(
-        '<Edge From="targetSlot001Death.OnDeath" To="SetDone" />'
-    ) -and
-    $questText.Contains(
-        '<Edge From="targetSlot001Death.OnDeath" To="SetActive" />'
-    ) -and
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'targetSlot001Death.OnDeath' -To 'SetDone') -and
+    (Test-EveryCaseTransition `
+        -XmlText $questText -CaseCodes $kuttenbergCaseCodes `
+        -From 'targetSlot001Death.OnDeath' -To 'SetActive') -and
     -not $questText.Contains(
         '<Edge From="targetSlot001Death.OnDeath" To="SetNone" />'
     )
@@ -3141,6 +3231,10 @@ $regionalQuestTexts = @{
     kutnohorsko = $questText
     trosecko = $troskyQuestText
 }
+$regionalCaseCodes = @{
+    kutnohorsko = @(Get-CaseActivationCodes -XmlText $questText)
+    trosecko = @(Get-CaseActivationCodes -XmlText $troskyQuestText)
+}
 $dynamicSearchGraphComplete = $supportedInvestigationAreas.Count -eq 36
 $candidateSettlementMappingsComplete = $true
 $searchRevealCompletionExact = $true
@@ -3148,11 +3242,12 @@ $searchLocalizationKeys = [System.Collections.Generic.List[string]]::new()
 foreach ($searchArea in $supportedInvestigationAreas) {
     $regionalQuestText = [string]$regionalQuestTexts[$searchArea.gameRegion]
     $stateName = [string]$searchArea.alias
-    $localizationSuffix = (
-        ([string]$searchArea.gameRegion + '_' + [string]$searchArea.id) -replace
-            '[^A-Za-z0-9]+', '_'
-    ).ToLowerInvariant()
-    $localizationKey = "dark_within_search_$localizationSuffix"
+    $localizationKey = if ($searchArea.gameRegion -eq 'kutnohorsko') {
+        'dp_case_1001_objective_search_active'
+    }
+    else {
+        'dp_case_2001_objective_search_active'
+    }
     $searchLocalizationKeys.Add($localizationKey)
 
     if (
@@ -3173,15 +3268,19 @@ foreach ($searchArea in $supportedInvestigationAreas) {
 
     foreach ($slot in @($searchArea.candidateSlots)) {
         $slotNode = 'targetSlot{0:D3}' -f [int]$slot
-        if (-not $regionalQuestText.Contains(
-            "<Edge From=`"$($slotNode)Tagged.True`" To=`"Set$stateName`" />"
-        )) {
+        $caseCodes = @($regionalCaseCodes[$searchArea.gameRegion])
+        if (-not (Test-EveryCaseTransition `
+            -XmlText $regionalQuestText `
+            -CaseCodes $caseCodes `
+            -From "$($slotNode)Tagged.True" `
+            -To "Set$stateName")) {
             $candidateSettlementMappingsComplete = $false
         }
-        if (([regex]::Matches(
-            $regionalQuestText,
-            "From=`"$($slotNode)Revealed\.True`" To=`"SetDone`""
-        )).Count -ne 1) {
+        if (-not (Test-EveryCaseTransition `
+            -XmlText $regionalQuestText `
+            -CaseCodes $caseCodes `
+            -From "$($slotNode)Revealed.True" `
+            -To 'SetDone')) {
             $searchRevealCompletionExact = $false
         }
     }
@@ -3214,35 +3313,41 @@ Add-Result (
     -not $questTemplateText.Contains('{{DP_SEARCH_AREA_ASSET}}') -and
     -not $questTemplateText.Contains('{{DP_SEARCH_MARKER_ATTRIBUTE}}') -and
     -not $troskyQuestText.Contains('DP_PritokySearchArea') -and
-    ([regex]::Matches(
-        $questText,
-        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker="DP_PritokySearchArea">'
-    )).Count -eq 1 -and
-    ([regex]::Matches(
-        $questText,
-        '<EnumLog Type="Started" Name="DP_SearchArea_Kutnohorsko_Pritoky" IsTracked="true" Marker="DP_SearchArea_Kutnohorsko_Pritoky">'
-    )).Count -eq 1 -and
-    ([regex]::Matches(
-        $troskyQuestText,
-        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker='
-    )).Count -eq 0
-) 'regional quests contain only the legacy Kuttenberg Active save bridge'
+    @([regex]::Matches(
+        $questText + "`n" + $troskyQuestText,
+        '<EnumLog Type="Started" Name="Active" IsTracked="true" Marker="([^"]+)">'
+    ) | Where-Object {
+        $_.Groups[1].Value -ne 'DP_PritokySearchArea' -and
+        $_.Groups[1].Value -ne 'DP_SearchArea_Trosecko_Zelejov' -and
+        $_.Groups[1].Value -notmatch '^DP_Guidance_[0-9a-f]{16}$'
+    }).Count -eq 0
+) 'regional Active logs are limited to the legacy bridge and generated guidance'
 Add-Result (
     @($searchLocalizationKeys | Where-Object {
-        -not $englishText.Contains("<Cell>$_</Cell>") -or
-        -not $russianText.Contains("<Cell>$_</Cell>")
+        -not $generatedEnglishText.Contains("<Cell>$_</Cell>") -or
+        -not $generatedRussianText.Contains("<Cell>$_</Cell>")
     }).Count -eq 0
 ) 'every generated settlement search log has English and Russian localization'
+$firstKuttenbergCandidate = @($candidateCatalog.candidates | Where-Object {
+    $_.enabled -eq $true -and $_.gameRegion -eq 'kutnohorsko'
+} | Sort-Object { [int]$_.slot })[0]
+$firstTroskyCandidate = @($candidateCatalog.candidates | Where-Object {
+    $_.enabled -eq $true -and $_.gameRegion -eq 'trosecko'
+} | Sort-Object { [int]$_.slot })[0]
+$firstKuttenbergSlot = '{0:D3}' -f [int]$firstKuttenbergCandidate.slot
+$firstTroskySlot = '{0:D3}' -f [int]$firstTroskyCandidate.slot
 Add-Result (
-    $questText -match (
-        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TargetProgress">.*?' +
-        '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
-    ) -and
-    $troskyQuestText -match (
-        '(?s)<State Name="targetObjectiveProgress" TypeT="DP_TroseckoTargetProgress">.*?' +
-        '<Edge From="targetSlot\d+Revealed\.True" To="SetTarget\d+" />'
-    )
-) 'both regions reveal the victim only after investigation confidence is met'
+    (Test-EveryCaseTransition `
+        -XmlText $questText `
+        -CaseCodes @($regionalCaseCodes.kutnohorsko) `
+        -From "targetSlot${firstKuttenbergSlot}Revealed.True" `
+        -To "SetTarget$firstKuttenbergSlot") -and
+    (Test-EveryCaseTransition `
+        -XmlText $troskyQuestText `
+        -CaseCodes @($regionalCaseCodes.trosecko) `
+        -From "targetSlot${firstTroskySlot}Revealed.True" `
+        -To "SetTarget$firstTroskySlot")
+) 'both regions reveal the victim only through active-case gates'
 Add-Result (
     $runtimeLuaText.Contains(
         'function DarkPassengerTarget.SelectNearest(gameRegion)'
@@ -3426,14 +3531,22 @@ Add-Result (
         'DarkPassengerAreaBridge.StartPolling("script_load")'
     ) -and
     $runtimeLuaText -match (
-        '(?s)OnReloadEvent.*?' +
+        '(?s)function DarkPassengerTest\.OnPlayerReload\(.*?' +
         'DarkPassengerAreaBridge\.StartPolling\("player_reload"\).*?' +
         'DarkPassengerQuestBridge\.StartPolling\("player_reload"\)'
     ) -and
     $runtimeLuaText -match (
-        '(?s)OnInitEvent.*?' +
+        '(?s)function DarkPassengerTest\.OnPlayerInit\(.*?' +
         'DarkPassengerAreaBridge\.StartPolling\("player_init"\).*?' +
         'DarkPassengerQuestBridge\.StartPolling\("player_init"\)'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)Register\("OnReloadEvent".*?' +
+        'DarkPassengerTest\.OnPlayerReload'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)Register\("OnInitEvent".*?' +
+        'DarkPassengerTest\.OnPlayerInit'
     )
 ) 'save and player lifecycle restore area links before any new case selection'
 
@@ -3607,12 +3720,17 @@ Add-Result (
     }).Count -eq 0
 ) 'investigation copy has matching RU EN keys without raw key output'
 Add-Result (
-    $englishText.Contains('<Cell>dark_within_target_done</Cell>') -and
-    $russianText.Contains('<Cell>dark_within_target_done</Cell>') -and
-    $questTemplateText -match (
+    $generatedEnglishText.Contains(
+        '<Cell>dp_case_1001_objective_target_done</Cell>'
+    ) -and
+    $generatedRussianText.Contains(
+        '<Cell>dp_case_1001_objective_target_done</Cell>'
+    ) -and
+    $questText -match (
         '(?s)<EnumLog Type="Completed" Name="Done">.*?' +
-        'StringName="dark_within_target_done".*?</EnumLog>'
-    )
+        'StringName="dp_case_1001_objective_target_done".*?</EnumLog>'
+    ) -and
+    $questTemplateText.Contains('StringName="{{DP_TARGET_DONE_KEY}}"')
 ) 'completed target objective remains in the journal as case history'
 foreach ($localizationText in @($englishText, $russianText)) {
     foreach ($cleanupKey in @(
@@ -3661,16 +3779,26 @@ foreach ($key in @(
     ) "burial localization contains $key in English and Russian"
 }
 Add-Result (
-    $questTemplateText.Contains('<Edge From="cleanResultTrigger.OnAdded" To="SetClean" />') -and
-    $questTemplateText.Contains('<Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />') -and
-    $questTemplateText.Contains('<Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />') -and
-    $questTemplateText.Contains('<Edge From="externalResultTrigger.OnAdded" To="SetExternal" />')
+    @(@(
+        [pscustomobject]@{ From = 'cleanResultTrigger.OnAdded'; To = 'SetClean' },
+        [pscustomobject]@{ From = 'controlledResultTrigger.OnAdded'; To = 'SetControlled' },
+        [pscustomobject]@{ From = 'noisyResultTrigger.OnAdded'; To = 'SetNoisy' },
+        [pscustomobject]@{ From = 'externalResultTrigger.OnAdded'; To = 'SetExternal' }
+    ) | Where-Object {
+        -not (Test-EveryCaseTransition `
+            -XmlText $questText `
+            -CaseCodes $kuttenbergCaseCodes `
+            -From $_.From `
+            -To $_.To)
+    }).Count -eq 0
 ) 'result tags select their matching cleanup epilogues'
 Add-Result (
-    $questTemplateText.Contains('StringName="dark_within_cleanup_clean"') -and
-    $questTemplateText.Contains('StringName="dark_within_cleanup_controlled"') -and
-    $questTemplateText.Contains('StringName="dark_within_cleanup_noisy"') -and
-    $questTemplateText.Contains('StringName="dark_within_cleanup_external"')
+    $questTemplateText.Contains('StringName="{{DP_CLEANUP_CLEAN_KEY}}"') -and
+    $questTemplateText.Contains(
+        'StringName="{{DP_CLEANUP_CONTROLLED_KEY}}"'
+    ) -and
+    $questTemplateText.Contains('StringName="{{DP_CLEANUP_NOISY_KEY}}"') -and
+    $questTemplateText.Contains('StringName="{{DP_CLEANUP_EXTERNAL_KEY}}"')
 ) 'generated quest references all cleanup epilogue localization keys'
 Add-Result (
     $englishText.Contains('I have learned to keep this darkness on a leash.')
@@ -3687,11 +3815,11 @@ Add-Result (
     $questText.Contains('I have learned to keep this darkness on a leash.')
 ) 'quest fallback description matches approved lore'
 Add-Result (
-    $questText.Contains('Find someone who deserves the sentence') -and
+    $questText.Contains('Prove that Vojtech was murdered') -and
     $questText.Contains(
-        'Every whisper and trace now points to one person.'
+        'Vojtech&apos;s death was no accident.'
     )
-) 'quest fallback investigation copy matches approved lore'
+) 'quest fallback investigation copy comes from the active StoryPack'
 
 $textFiles = @(
     Get-ChildItem -LiteralPath $stageRoot -Recurse -File -ErrorAction SilentlyContinue |

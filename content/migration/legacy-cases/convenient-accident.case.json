@@ -19,6 +19,9 @@
     "coverStory": "drunken_accident"
   },
   "revealThreshold": 70,
+  "identityRequirement": {
+    "allOf": ["suspect_identified"]
+  },
   "native": {
     "questName": "dark_within_k",
     "dialogFolder": "dark_within_k",
@@ -29,6 +32,69 @@
     "contexts": {
       "rumorHeard": "dp_rumor_heard_kutnohorsko",
       "witnessHeard": "dp_witness_heard_kutnohorsko"
+    },
+    "journal": {
+      "objectives": {
+        "search": {
+          "nameKey": "dp_case_1001_objective_search_name",
+          "fallbackName": "Learn the truth of Vojtech's death",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_search_active",
+              "fallback": "Someone in the marked area remembers more about Vojtech's death than they are willing to say."
+            }
+          }
+        },
+        "investigation": {
+          "nameKey": "dp_case_1001_objective_investigation_name",
+          "fallbackName": "Prove that Vojtech was murdered",
+          "states": {}
+        },
+        "target": {
+          "nameKey": "dp_case_1001_objective_target_name",
+          "fallbackName": "Hunt down Vojtech's killer",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_target_active",
+              "fallback": "Vojtech's death was no accident. Find the guilty man and carry out the sentence."
+            },
+            "done": {
+              "key": "dp_case_1001_objective_target_done",
+              "fallback": "Vojtech's killer is dead. Now no trace can be left behind."
+            }
+          }
+        },
+        "cleanup": {
+          "nameKey": "dp_case_1001_objective_cleanup_name",
+          "fallbackName": "Leave no trace",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_cleanup_active",
+              "fallback": "The killing is done. Make certain no one can connect it to Henry."
+            },
+            "witnessed": {
+              "key": "dp_case_1001_objective_cleanup_witnessed",
+              "fallback": "Someone saw too much. Witnesses may lead the guards to the truth."
+            },
+            "clean": {
+              "key": "dp_case_1001_objective_cleanup_clean",
+              "fallback": "No alarm was raised. The case can be closed."
+            },
+            "controlled": {
+              "key": "dp_case_1001_objective_cleanup_controlled",
+              "fallback": "Every dangerous witness is gone. The case can be closed."
+            },
+            "noisy": {
+              "key": "dp_case_1001_objective_cleanup_noisy",
+              "fallback": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence."
+            },
+            "external": {
+              "key": "dp_case_1001_objective_cleanup_external",
+              "fallback": "The guilty man died without Henry's hand. No trail remains."
+            }
+          }
+        }
+      }
     },
     "dialogues": [
       {
@@ -167,10 +233,36 @@
   },
   "localization": {
     "ru": {
+      "dp_case_1001_objective_search_name": "Узнать правду о смерти Войтеха",
+      "dp_case_1001_objective_search_active": "В отмеченной области кто-то помнит больше, чем готов сказать о смерти Войтеха.",
+      "dp_case_1001_objective_investigation_name": "Доказать, что Войтеха убили",
+      "dp_case_1001_objective_target_name": "Настигнуть убийцу Войтеха",
+      "dp_case_1001_objective_target_active": "Смерть Войтеха не была случайностью. Найти виновного и привести приговор в исполнение.",
+      "dp_case_1001_objective_target_done": "Убийца Войтеха мёртв. Теперь нельзя оставить следов.",
+      "dp_case_1001_objective_cleanup_name": "Не оставить следов",
+      "dp_case_1001_objective_cleanup_active": "Убийство совершено. Убедиться, что никто не сможет связать его с Генри.",
+      "dp_case_1001_objective_cleanup_witnessed": "Кто-то видел слишком много. Свидетели могут привести стражу по следу.",
+      "dp_case_1001_objective_cleanup_clean": "Никто не поднял тревогу. Дело можно закрыть.",
+      "dp_case_1001_objective_cleanup_controlled": "Все опасные свидетели устранены. Дело можно закрыть.",
+      "dp_case_1001_objective_cleanup_noisy": "Тревога поднята, но погоня потеряла след. Дело закрыто не без последствий.",
+      "dp_case_1001_objective_cleanup_external": "Смерть настигла виновного без участия Генри. Следов не осталось.",
       "dp_ca_direction_belongings": "Корчмарь сказал, что сундук с вещами Войтеха остался на сеновале за корчмой. Возможно, там найдётся то, чего не пожелал искать рихтарж.",
       "dp_ca_direction_witness": "Войтех написал, что одна из служанок видела его разговор с убийцей. Возможно, она сможет опознать этого человека."
     },
     "en": {
+      "dp_case_1001_objective_search_name": "Learn the truth of Vojtech's death",
+      "dp_case_1001_objective_search_active": "Someone in the marked area remembers more about Vojtech's death than they are willing to say.",
+      "dp_case_1001_objective_investigation_name": "Prove that Vojtech was murdered",
+      "dp_case_1001_objective_target_name": "Hunt down Vojtech's killer",
+      "dp_case_1001_objective_target_active": "Vojtech's death was no accident. Find the guilty man and carry out the sentence.",
+      "dp_case_1001_objective_target_done": "Vojtech's killer is dead. Now no trace can be left behind.",
+      "dp_case_1001_objective_cleanup_name": "Leave no trace",
+      "dp_case_1001_objective_cleanup_active": "The killing is done. Make certain no one can connect it to Henry.",
+      "dp_case_1001_objective_cleanup_witnessed": "Someone saw too much. Witnesses may lead the guards to the truth.",
+      "dp_case_1001_objective_cleanup_clean": "No alarm was raised. The case can be closed.",
+      "dp_case_1001_objective_cleanup_controlled": "Every dangerous witness is gone. The case can be closed.",
+      "dp_case_1001_objective_cleanup_noisy": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence.",
+      "dp_case_1001_objective_cleanup_external": "The guilty man died without Henry's hand. No trail remains.",
       "dp_ca_direction_belongings": "The innkeeper said Vojtech's chest remains in the hayloft behind the inn. It may hold what the bailiff chose not to find.",
       "dp_ca_direction_witness": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man."
     }

@@ -405,6 +405,13 @@ function DarkPassengerEvidence.OnInvestigationOpened(generation)
             generation,
             candidate
         )
+        if selected == nil then
+            Log(
+                "investigation open aborted: case content unavailable generation=" ..
+                tostring(generation)
+            )
+            return false
+        end
     end
     local state = ReadState()
     local nextState, result = DarkPassengerEvidence.Transition(

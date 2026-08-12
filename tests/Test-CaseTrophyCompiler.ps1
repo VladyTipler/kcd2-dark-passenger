@@ -112,7 +112,9 @@ Add-Result (
 ) 'runtime catalog contains one native trophy record per concrete variant'
 $catalogGuids = @([regex]::Matches(
     $variantCatalog,
-    'item_guid\s*=\s*"(?<value>[0-9a-f-]{36})"'
+    '(?ms)^\s*trophy\s*=\s*\{\r?\n' +
+        '\s*preset\s*=.*?\r?\n' +
+        '\s*item_guid\s*=\s*"(?<value>[0-9a-f-]{36})"'
 ) | ForEach-Object { $_.Groups['value'].Value })
 Add-Result (
     $catalogGuids.Count -eq $variants.Count -and

@@ -37,7 +37,12 @@ function Add-ThrowsLike {
         Add-Result $false $Label
     }
     catch {
-        Add-Result ($_.Exception.Message -like $Pattern) $Label
+        $matches = $_.Exception.Message -like $Pattern
+        if (-not $matches) {
+            Write-Host "EXPECTED: $Pattern"
+            Write-Host "ACTUAL: $($_.Exception.Message)"
+        }
+        Add-Result $matches $Label
     }
 }
 
@@ -101,6 +106,28 @@ function Read-TestDeck {
         -ArchetypeRoot $Paths.archetypeRoot `
         -StoryRoot $Paths.storyRoot `
         -EvidenceModuleRoot $Paths.evidenceRoot
+}
+
+function New-ProductionDeckCopy {
+    param([Parameter(Mandatory)][string]$Name)
+
+    $repoRoot = Split-Path -Parent $caseKitRoot
+    $root = Join-Path ([System.IO.Path]::GetTempPath()) `
+        "dark-passenger-production-deck-$Name-$([guid]::NewGuid())"
+    foreach ($folder in @('archetypes', 'stories', 'evidence-modules')) {
+        $destination = Join-Path $root $folder
+        [System.IO.Directory]::CreateDirectory($destination) | Out-Null
+        Copy-Item -Path (Join-Path $repoRoot "content\$folder\*") `
+            -Destination $destination -Recurse
+    }
+    return [pscustomobject]@{
+        root = $root
+        archetypeRoot = Join-Path $root 'archetypes'
+        storyRoot = Join-Path $root 'stories'
+        evidenceRoot = Join-Path $root 'evidence-modules'
+        missingTravelerThreadsPath = Join-Path $root `
+            'stories\missing-traveler\threads.json'
+    }
 }
 
 function New-TestDeckV2Copy {
@@ -173,7 +200,7 @@ try {
         Add-Result (
             @($storyV2.archetypeCompositions[0].archetypeIds).Count -eq 2
         ) 'StoryPack composes several InvestigationArchetypes'
-        Add-Result (@($storyV2.threads).Count -eq 2) `
+        Add-Result (@($storyV2.threads).Count -eq 3) `
             'v2 StoryPack loads threads.json'
         Add-Result (@($storyV2.dialogues).Count -eq 3) `
             'v2 StoryPack loads dialogue scene definitions'
@@ -191,6 +218,34 @@ try {
         Add-Result (
             $documentStep.action.placement.mode -eq 'world-container'
         ) 'v2 StoryPack preserves explicit evidence placement semantics'
+        $sourceStep = @($storyV2.threads.steps | ForEach-Object {
+            @($_)
+        } | Where-Object { $_.id -eq 'ask-innkeeper' })[0]
+        $witnessStep = @($storyV2.threads.steps | ForEach-Object {
+            @($_)
+        } | Where-Object { $_.id -eq 'question-witness' })[0]
+        Add-Result (
+            @($sourceStep.guidance).Count -eq 2 -and
+            $sourceStep.guidance[0].target.kind -eq 'area' -and
+            $sourceStep.guidance[0].visibility.mode -eq 'step-active' -and
+            $sourceStep.guidance[0].lifetime -eq 'step' -and
+            $sourceStep.guidance[0].fallback -eq 'journal-direction'
+        ) 'v2 StoryPack normalizes semantic GuidanceTarget defaults'
+        Add-Result (
+            $storyV2.journal.objectives.investigation.nameAsset -eq
+                'objective.investigation.name' -and
+            $storyV2.journal.objectives.cleanup.states.witnessed -eq
+                'objective.cleanup.witnessed' -and
+            $sourceStep.guidance[0].objective.nameAsset -eq
+                'objective.guidance.search.name' -and
+            $sourceStep.guidance[0].objective.states.active -eq
+                'objective.guidance.search.active'
+        ) 'v2 StoryPack preserves reusable objective presentation assets'
+        Add-Result (
+            $witnessStep.guidance[1].target.slot -eq 'target' -and
+            $witnessStep.guidance[1].visibility.mode -eq 'target-revealed' -and
+            $witnessStep.guidance[1].lifetime -eq 'case'
+        ) 'v2 StoryPack preserves gated target guidance'
         Add-Result (
             @($storyV2.dialogues.scenePreset) -contains `
                 'lying-interrogation'
@@ -199,7 +254,7 @@ try {
             $_.storyId -eq 'composed-case-probe'
         })[0]
         Add-Result (
-            [int]$validationV2.maximumReachableConfidence -eq 75
+            [int]$validationV2.maximumReachableConfidence -eq 95
         ) 'composed archetypes contribute reachable confidence'
         Add-Result (
             $validationV2.requiredHardFactsSatisfied -eq $true
@@ -221,6 +276,9 @@ try {
             'v2 StoryPack loads document definitions',
             'v2 StoryPack preserves explicit physical-item semantics',
             'v2 StoryPack preserves explicit evidence placement semantics',
+            'v2 StoryPack normalizes semantic GuidanceTarget defaults',
+            'v2 StoryPack preserves reusable objective presentation assets',
+            'v2 StoryPack preserves gated target guidance',
             'v2 StoryPack preserves semantic scene presets',
             'composed archetypes contribute reachable confidence',
             'reveal route reaches the required hard identity fact',
@@ -234,7 +292,296 @@ finally {
     Remove-Item -LiteralPath $validV2Paths.root -Recurse -Force
 }
 
+$nullObjectivePaths = New-TestDeckV2Copy -Name 'null-objective-override'
+try {
+    $case = Read-TestJson -LiteralPath $nullObjectivePaths.casePath
+    $case.journal.objectives.investigation = $null
+    Write-TestJson -LiteralPath $nullObjectivePaths.casePath -Value $case
+    $nullObjectiveDeck = Read-TestDeck -Paths $nullObjectivePaths
+    $nullObjectiveStory = @($nullObjectiveDeck.stories | Where-Object {
+        $_.id -eq 'composed-case-probe'
+    })[0]
+    Add-Result (
+        $null -eq $nullObjectiveStory.journal.objectives.investigation
+    ) 'v2 StoryPack accepts a null lifecycle objective as no override'
+}
+finally {
+    Remove-Item -LiteralPath $nullObjectivePaths.root -Recurse -Force
+}
+
+$legacyRevealPaths = New-TestDeckV2Copy -Name 'legacy-reveal-normalization'
+try {
+    $legacyRevealDeck = Read-TestDeck -Paths $legacyRevealPaths
+    $legacyRevealStory = @($legacyRevealDeck.stories | Where-Object {
+        $_.id -eq 'composed-case-probe'
+    })[0]
+    Add-Result (
+        @($legacyRevealStory.reveal.identityRequirement.allOf).Count -eq 1 -and
+        $legacyRevealStory.reveal.identityRequirement.allOf[0] -eq
+            'target_identified' -and
+        $null -eq $legacyRevealStory.reveal.PSObject.Properties['requiredFacts']
+    ) 'legacy requiredFacts normalizes to identityRequirement.allOf'
+}
+catch {
+    Add-Result $false (
+        'legacy requiredFacts normalizes to identityRequirement.allOf ' +
+        "($($_.Exception.Message))"
+    )
+}
+finally {
+    Remove-Item -LiteralPath $legacyRevealPaths.root -Recurse -Force
+}
+
+$anyIdentityPaths = New-TestDeckV2Copy -Name 'any-identity'
+try {
+    $case = Read-TestJson -LiteralPath $anyIdentityPaths.casePath
+    $case.facts += @(
+        [ordered]@{
+            id = 'letter_identifies_target'
+            category = 'identity'
+            hardIdentity = $true
+        },
+        [ordered]@{
+            id = 'forest_witness_identifies_target'
+            category = 'identity'
+            hardIdentity = $true
+        }
+    )
+    $case.reveal.Remove('requiredFacts')
+    $case.reveal.identityRequirement = [ordered]@{
+        anyOf = @(
+            'target_identified',
+            'letter_identifies_target',
+            'forest_witness_identifies_target'
+        )
+    }
+    Write-TestJson -LiteralPath $anyIdentityPaths.casePath -Value $case
+
+    $threads = Read-TestJson -LiteralPath $anyIdentityPaths.threadsPath
+    $threads.threads[1].steps[0].result.revealsFacts += @(
+        'letter_identifies_target',
+        'forest_witness_identifies_target'
+    )
+    Write-TestJson -LiteralPath $anyIdentityPaths.threadsPath -Value $threads
+
+    $anyIdentityDeck = Read-TestDeck -Paths $anyIdentityPaths
+    $anyIdentityStory = @($anyIdentityDeck.stories | Where-Object {
+        $_.id -eq 'composed-case-probe'
+    })[0]
+    $anyIdentityValidation = @($anyIdentityDeck.validation.stories |
+        Where-Object { $_.storyId -eq 'composed-case-probe' })[0]
+    Add-Result (
+        @($anyIdentityStory.reveal.identityRequirement.anyOf).Count -eq 3 -and
+        $anyIdentityValidation.identityRequirementMode -eq 'anyOf' -and
+        @($anyIdentityValidation.reachableIdentityFacts).Count -eq 3
+    ) 'identityRequirement.anyOf preserves all reachable hard identity routes'
+}
+catch {
+    Add-Result $false (
+        'identityRequirement.anyOf preserves all reachable hard identity ' +
+        "routes ($($_.Exception.Message))"
+    )
+}
+finally {
+    Remove-Item -LiteralPath $anyIdentityPaths.root -Recurse -Force
+}
+
+$invalidIdentityCases = @(
+    [pscustomobject]@{
+        name = 'identity-both-formats'
+        pattern = "*defines both 'requiredFacts' and 'identityRequirement'*case.json*"
+        label = 'v2 loader rejects ambiguous reveal identity formats'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.reveal.identityRequirement = [ordered]@{
+                anyOf = @('target_identified')
+            }
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'identity-empty-any-of'
+        pattern = "*identityRequirement.anyOf must contain at least one fact*case.json*"
+        label = 'v2 loader rejects an empty identity alternative set'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.reveal.Remove('requiredFacts')
+            $case.reveal.identityRequirement = [ordered]@{ anyOf = @() }
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'identity-non-hard-alternative'
+        pattern = "*identity fact 'letter_links_target' is not a hard identity fact*case.json*"
+        label = 'v2 loader rejects a non-hard identity alternative'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.reveal.Remove('requiredFacts')
+            $case.reveal.identityRequirement = [ordered]@{
+                anyOf = @('target_identified', 'letter_links_target')
+            }
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'identity-unreachable-alternative'
+        pattern = "*cannot reach identity alternative 'unreachable_identity'*case.json*"
+        label = 'v2 loader rejects an unreachable identity alternative'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.facts += @([ordered]@{
+                id = 'unreachable_identity'
+                category = 'identity'
+                hardIdentity = $true
+            })
+            $case.reveal.Remove('requiredFacts')
+            $case.reveal.identityRequirement = [ordered]@{
+                anyOf = @('target_identified', 'unreachable_identity')
+            }
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    }
+)
+
+foreach ($invalidIdentityCase in $invalidIdentityCases) {
+    $paths = New-TestDeckV2Copy -Name $invalidIdentityCase.name
+    try {
+        & $invalidIdentityCase.mutate $paths
+        Add-ThrowsLike -Pattern $invalidIdentityCase.pattern `
+            -Label $invalidIdentityCase.label -Action {
+                Read-TestDeck -Paths $paths
+            }
+    }
+    finally {
+        Remove-Item -LiteralPath $paths.root -Recurse -Force
+    }
+}
+
 $invalidV2Cases = @(
+    [pscustomobject]@{
+        name = 'guidance-unknown-slot'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/find-source' references unknown slot 'missingActor'*threads.json*"
+        label = 'v2 loader rejects GuidanceTarget with unknown slot'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[0].guidance[1].target.slot = `
+                'missingActor'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-kind-mismatch'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/find-source' kind 'area' is incompatible with slot 'rumorSource' entity type 'actor'*threads.json*"
+        label = 'v2 loader rejects incompatible GuidanceTarget kind'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[0].guidance[1].target.kind = 'area'
+            $threads.threads[0].steps[0].guidance[1].precision = 'area'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-precision-mismatch'
+        pattern = "*GuidanceTarget 'paper-trail/read-letter/find-container' precision 'area' is incompatible with kind 'entity'*threads.json*"
+        label = 'v2 loader rejects incompatible GuidanceTarget precision'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[1].guidance[0].precision = 'area'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-target-leak'
+        pattern = "*GuidanceTarget 'witness-web/question-witness/revealed-target' exposes an exact victim before target-revealed visibility*threads.json*"
+        label = 'v2 loader rejects exact target marker that leaks identity'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[1].steps[0].guidance[1].visibility.mode = `
+                'step-active'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-facts-empty'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/find-source' facts-known visibility requires at least one fact*threads.json*"
+        label = 'v2 loader rejects empty facts-known GuidanceTarget'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[0].guidance[1].visibility = `
+                [ordered]@{ mode = 'facts-known'; requiresFacts = @() }
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-objective-missing-asset'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/settlement-search' objective state 'active' references missing asset 'objective.guidance.search.missing'*threads.json*"
+        label = 'v2 loader rejects missing guidance objective assets'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[0].guidance[0].objective.states.active =
+                'objective.guidance.search.missing'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-objective-duplicates-investigation-asset'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/settlement-search' objective duplicates lifecycle investigation objective asset 'objective.investigation.name'*threads.json*"
+        label = 'v2 loader rejects guidance objective reusing broad investigation asset'
+        mutate = {
+            param($paths)
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $threads.threads[0].steps[0].guidance[0].objective.nameAsset =
+                'objective.investigation.name'
+            Write-TestJson -LiteralPath $paths.threadsPath -Value $threads
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-objective-duplicates-investigation-text'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/settlement-search' objective duplicates lifecycle investigation objective localized text*threads.json*"
+        label = 'v2 loader rejects guidance objective matching broad investigation text'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $russian = Read-TestJson -LiteralPath $paths.ruPath
+            $english = Read-TestJson -LiteralPath $paths.enPath
+            $investigationAsset =
+                $case.journal.objectives.investigation.nameAsset
+            $guidanceAsset =
+                $threads.threads[0].steps[0].guidance[0].objective.nameAsset
+            $russian[$guidanceAsset] = $russian[$investigationAsset]
+            $english[$guidanceAsset] = $english[$investigationAsset]
+            Write-TestJson -LiteralPath $paths.ruPath -Value $russian
+            Write-TestJson -LiteralPath $paths.enPath -Value $english
+        }
+    },
+    [pscustomobject]@{
+        name = 'guidance-objective-duplicates-investigation-english-text'
+        pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/settlement-search' objective duplicates lifecycle investigation objective localized text (English)*threads.json*"
+        label = 'v2 loader rejects English-only guidance objective text collision'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $threads = Read-TestJson -LiteralPath $paths.threadsPath
+            $english = Read-TestJson -LiteralPath $paths.enPath
+            $investigationAsset =
+                $case.journal.objectives.investigation.nameAsset
+            $guidanceAsset =
+                $threads.threads[0].steps[0].guidance[0].objective.nameAsset
+            $english[$guidanceAsset] = $english[$investigationAsset]
+            Write-TestJson -LiteralPath $paths.enPath -Value $english
+        }
+    },
     [pscustomobject]@{
         name = 'missing-placement'
         pattern = "*Step 'paper-trail/read-letter' physical item requires explicit placement*threads.json*"
@@ -589,6 +936,27 @@ try {
     Add-Result (
         [int]$productionDeck.validation.maximumReachableConfidence -ge 70
     ) 'production StoryPack has a reachable reveal route'
+    $missingTraveler = @($productionDeck.stories | Where-Object {
+        $_.id -eq 'missing-traveler'
+    })[0]
+    $overheardSteps = @($missingTraveler.threads.steps | ForEach-Object {
+        @($_)
+    } | Where-Object {
+        $_.action.evidenceModule -eq 'overheard-dialogue'
+    })
+    Add-Result (
+        $overheardSteps.Count -eq 1 -and
+        $overheardSteps[0].action.activation.mode -eq 'interaction' -and
+        @($overheardSteps[0].guidance).Count -eq 1 -and
+        $overheardSteps[0].guidance[0].target.kind -eq 'area' -and
+        $overheardSteps[0].guidance[0].target.slot -eq 'settlement' -and
+        $overheardSteps[0].guidance[0].target.areaSelection -eq
+            'smallest-common' -and
+        (@($overheardSteps[0].guidance[0].target.anchorSlots) -join ',') -eq
+            'gossipSourceA,gossipSourceB' -and
+        $overheardSteps[0].guidance[0].visibility.mode -eq 'step-active' -and
+        $overheardSteps[0].guidance[0].lifetime -eq 'step'
+    ) 'production overheard step targets the selected speakers local area'
 }
 catch {
     Add-Result $false (
@@ -596,6 +964,63 @@ catch {
     )
     Add-Result $false 'production deck contains the first coherent StoryPack'
     Add-Result $false 'production StoryPack has a reachable reveal route'
+    Add-Result $false `
+        'production overheard step uses interaction inside a quest area'
+}
+
+foreach ($activationCase in @(
+    [pscustomobject]@{
+        name = 'missing-overheard-activation'
+        pattern = '*requires explicit activation mode*'
+        label = 'v2 loader rejects overheard step without activation mode'
+        mutate = {
+            param($threads)
+            $thread = @($threads.threads | Where-Object {
+                @($_.steps.action.evidenceModule) -contains `
+                    'overheard-dialogue'
+            })[0]
+            $stepIndex = 0
+            while ($thread.steps[$stepIndex].action.evidenceModule -ne
+                'overheard-dialogue') {
+                $stepIndex++
+            }
+            $thread.steps[$stepIndex].action = [ordered]@{
+                evidenceModule = 'overheard-dialogue'
+                bindings = $thread.steps[$stepIndex].action.bindings
+            }
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-overheard-activation'
+        pattern = "*unsupported overheard activation mode 'manual'*"
+        label = 'v2 loader rejects unknown overheard activation mode'
+        mutate = {
+            param($threads)
+            $step = @($threads.threads.steps | ForEach-Object { @($_) } |
+                Where-Object {
+                    $_.action.evidenceModule -eq 'overheard-dialogue'
+                })[0]
+            $step.action.activation = @{
+                mode = 'manual'
+            }
+        }
+    }
+)) {
+    $paths = New-ProductionDeckCopy -Name $activationCase.name
+    try {
+        $threads = Read-TestJson `
+            -LiteralPath $paths.missingTravelerThreadsPath
+        & $activationCase.mutate $threads
+        Write-TestJson -LiteralPath $paths.missingTravelerThreadsPath `
+            -Value $threads
+        Add-ThrowsLike -Pattern $activationCase.pattern `
+            -Label $activationCase.label -Action {
+                Read-TestDeck -Paths $paths
+            }
+    }
+    finally {
+        Remove-Item -LiteralPath $paths.root -Recurse -Force
+    }
 }
 
 if ($script:failures.Count -gt 0) {

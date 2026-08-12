@@ -3,6 +3,8 @@ DarkPassengerEvidenceSeeder = DarkPassengerEvidenceSeeder or {}
 DarkPassengerEvidenceSeeder.POLL_INTERVAL_MS = 500
 DarkPassengerEvidenceSeeder.timerSerial =
     tonumber(DarkPassengerEvidenceSeeder.timerSerial) or 0
+DarkPassengerEvidenceSeeder.lastDeferredByEvidence =
+    DarkPassengerEvidenceSeeder.lastDeferredByEvidence or {}
 
 local function Log(message)
     if System ~= nil and System.LogAlways ~= nil then
@@ -41,14 +43,47 @@ local function Schedule(generation, timerSerial)
     return true
 end
 
+local function DeferredKey(generation, evidenceCode)
+    return tostring(generation) .. ":" .. tostring(evidenceCode)
+end
+
+local function NormalizeDeferredReason(reason)
+    if reason == "native_requested" or reason == "native_pending" then
+        return "native_pending"
+    end
+    return tostring(reason or "unknown")
+end
+
+local function LogDeferredOnce(generation, evidenceCode, reason)
+    local key = DeferredKey(generation, evidenceCode)
+    local normalized = NormalizeDeferredReason(reason)
+    if DarkPassengerEvidenceSeeder.lastDeferredByEvidence[key] == normalized then
+        return false
+    end
+    DarkPassengerEvidenceSeeder.lastDeferredByEvidence[key] = normalized
+    Log(
+        "placement deferred evidence=" .. tostring(evidenceCode) ..
+        " reason=" .. normalized
+    )
+    return true
+end
+
+local function ClearDeferred(generation, evidenceCode)
+    DarkPassengerEvidenceSeeder.lastDeferredByEvidence[
+        DeferredKey(generation, evidenceCode)
+    ] = nil
+end
+
 local function PlaceEvidence(generation, evidence)
     if evidence.kind == "document" then
         if DarkPassengerBelongings == nil or
            DarkPassengerBelongings.EnsurePlaced == nil then
             return false, "document_adapter_unavailable"
         end
-        if not DarkPassengerBelongings.EnsurePlaced(generation) then
-            return false, "document_deferred"
+        local placed, placementReason =
+            DarkPassengerBelongings.EnsurePlaced(generation)
+        if not placed then
+            return false, placementReason or "document_pending"
         end
         if DarkPassengerBelongings.Start ~= nil then
             DarkPassengerBelongings.Start(generation)
@@ -89,6 +124,7 @@ local function SeedSnapshot(generation, snapshot, timerSerial)
                 evidence
             )
             if placed then
+                ClearDeferred(generation, evidence.code)
                 local recorded, registryReason = MarkPlaced(
                     generation,
                     evidence
@@ -103,11 +139,7 @@ local function SeedSnapshot(generation, snapshot, timerSerial)
                 end
             elseif evidence.kind == "document" then
                 retryNeeded = true
-                Log(
-                    "placement deferred evidence=" ..
-                    tostring(evidence.code) ..
-                    " reason=" .. tostring(placementReason)
-                )
+                LogDeferredOnce(generation, evidence.code, placementReason)
             else
                 Log(
                     "placement unsupported evidence=" ..
@@ -138,6 +170,7 @@ function DarkPassengerEvidenceSeeder.Seed(generation, snapshot)
     end
     DarkPassengerEvidenceSeeder.timerSerial =
         DarkPassengerEvidenceSeeder.timerSerial + 1
+    DarkPassengerEvidenceSeeder.lastDeferredByEvidence = {}
     return SeedSnapshot(
         generation,
         snapshot,

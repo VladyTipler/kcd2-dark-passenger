@@ -386,6 +386,10 @@ local function MergeRoleBinding(base, semantic)
         result.entityGuid = semantic.entity_guid
         result.soulGuid = semantic.soul_guid
         result.candidateSlot = tonumber(semantic.candidate_slot) or 0
+        if semantic.dialogue_role ~= nil and
+           semantic.dialogue_role ~= "" then
+            result.dialogueRole = semantic.dialogue_role
+        end
     end
     return result
 end
@@ -422,6 +426,11 @@ local function BuildVariantCaseTemplate(base, variant)
     result.variant_code = variant.variant_code
     result.binding_code = variant.binding_code
     result.scene_definitions = variant.scenes or {}
+    if variant.overheard_scenes ~= nil then
+        result.overheard_scenes = variant.overheard_scenes
+        result.overheard = variant.overheard_scenes[1]
+    end
+    result.guidance = variant.guidance or {}
     return result
 end
 
@@ -567,6 +576,54 @@ function DarkPassengerCaseContent.SelectVariant(
     }, "selected"
 end
 
+function DarkPassengerCaseContent.FindCompatibleVariant(
+    state,
+    context,
+    catalog
+)
+    local caseCode = tonumber(state ~= nil and state.caseCode) or 0
+    local openerCode = tonumber(state ~= nil and state.openerCode) or 0
+    local candidateBySlot = context ~= nil and context.candidateBySlot or nil
+    if caseCode <= 0 or openerCode <= 0 or candidateBySlot == nil then
+        return nil, "migration_context_unavailable"
+    end
+    local compatible = {}
+    for _, variant in ipairs(catalog or VariantCatalog()) do
+        local targetSlot = tonumber(variant.target_slot) or 0
+        if variant.native_ready == true and
+           tonumber(variant.case_code) == caseCode and
+           variant.region == context.region and
+           variant.settlement == context.settlement and
+           candidateBySlot[targetSlot] ~= nil then
+            table.insert(compatible, variant)
+        end
+    end
+    table.sort(compatible, function(left, right)
+        return tostring(left.variant_id) < tostring(right.variant_id)
+    end)
+    local variant = compatible[1]
+    if variant == nil then return nil, "compatible_variant_unavailable" end
+    local caseTemplate = CaseByCode(caseCode, nil)
+    local opener = caseTemplate ~= nil and
+        EvidenceByCode(caseTemplate.rumors, openerCode) or nil
+    if caseTemplate == nil or opener == nil then
+        return nil, "compatible_case_unavailable"
+    end
+    return {
+        variantId = variant.variant_id,
+        variantCode = tonumber(variant.variant_code),
+        bindingCode = tonumber(variant.binding_code),
+        caseCode = caseCode,
+        openerCode = openerCode,
+        targetSlot = tonumber(variant.target_slot),
+        candidateEntry = candidateBySlot[tonumber(variant.target_slot)],
+        variant = variant,
+        caseTemplate = BuildVariantCaseTemplate(caseTemplate, variant),
+        rumor = opener,
+        sceneDefinitions = variant.scenes or {},
+    }, "compatible_variant"
+end
+
 function DarkPassengerCaseContent.Resolve(state, catalog)
     local caseCode = tonumber(state ~= nil and state.caseCode) or 0
     local openerCode = tonumber(state ~= nil and state.openerCode) or 0
@@ -645,6 +702,28 @@ function DarkPassengerCaseContent.PrepareVariant(
                 candidateBySlot[tonumber(restored.targetSlot)] or nil
             return restored, "restored"
         end
+        local migrated, migrationReason =
+            DarkPassengerCaseContent.FindCompatibleVariant(current, context, nil)
+        if migrated ~= nil then
+            local migratedState = CopyState(current)
+            migratedState.variantCode = migrated.variantCode
+            if not PersistState(migratedState) then
+                return nil, "migration_persistence_failed"
+            end
+            migrated.generation = generation
+            Log(
+                "variant migrated generation=" .. tostring(generation) ..
+                " old=" .. tostring(current.variantCode) ..
+                " new=" .. tostring(migrated.variantCode) ..
+                " target=" .. tostring(migrated.targetSlot)
+            )
+            return migrated, "migrated_variant"
+        end
+        Log(
+            "variant migration unavailable generation=" ..
+            tostring(generation) .. " reason=" ..
+            tostring(migrationReason)
+        )
         return nil, "invalid_saved_selection"
     end
     if generation < current.generation then return nil, "stale_generation" end
@@ -702,6 +781,26 @@ local function CandidateContext(candidate)
     }
 end
 
+local function ApplyCaseActivation(selected)
+    local buffGuid = selected ~= nil and selected.variant ~= nil and
+        selected.variant.case_activation_buff_guid or nil
+    local actor = g_localActor or player
+    if buffGuid == nil or buffGuid == "" or actor == nil or
+       actor.soul == nil or actor.soul.AddBuff == nil then
+        return false
+    end
+    if actor.soul.HasBuffDebug ~= nil then
+        local ok, present = pcall(function()
+            return actor.soul:HasBuffDebug(buffGuid)
+        end)
+        if ok and (present == true or present == 1) then return true end
+    end
+    local ok, buffHandleOrError = pcall(function()
+        return actor.soul:AddBuff(buffGuid)
+    end)
+    return ok and buffHandleOrError ~= nil
+end
+
 function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
     local selected = DarkPassengerCaseContent.Resolve(ReadState(), nil)
     local reason = "restored"
@@ -718,6 +817,13 @@ function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
             " reason=" .. tostring(reason)
         )
         return nil
+    end
+    if not ApplyCaseActivation(selected) then
+        Log(
+            "case activation unavailable generation=" .. tostring(generation) ..
+            " case=" .. tostring(selected.caseCode)
+        )
+        return nil, "case_activation_failed"
     end
     local snapshot = nil
     if DarkPassengerCaseSnapshot ~= nil and
@@ -766,6 +872,15 @@ function DarkPassengerCaseContent.RunSelfTest()
         if not condition then table.insert(failures, label) end
     end
     local catalog = Catalog()
+    local roleProbe = MergeRoleBinding(
+        { entityName = "kpri_innkeeper", dialogueRole = "DP_OLD_ROLE" },
+        { entity_name = "ttkc_inkeeper", dialogue_role = "DP_NEW_ROLE" }
+    )
+    Expect(
+        roleProbe.entityName == "ttkc_inkeeper" and
+        roleProbe.dialogueRole == "DP_NEW_ROLE",
+        "settlement dialogue role overlay"
+    )
     local context = { region = "kutnohorsko", settlement = "pritoky" }
     local state, first = DarkPassengerCaseContent.Transition(
         DefaultState(),
@@ -839,6 +954,31 @@ function DarkPassengerCaseContent.RunSelfTest()
     Expect(
         firstVariant ~= nil and firstVariant.candidateEntry ~= nil,
         "variant selection"
+    )
+    local migratedVariant = nil
+    if firstVariant ~= nil then
+        migratedVariant = DarkPassengerCaseContent.FindCompatibleVariant(
+            {
+                caseCode = firstVariant.caseCode,
+                openerCode = firstVariant.openerCode,
+                variantCode = 999999999,
+            },
+            {
+                region = firstVariant.variant.region,
+                settlement = firstVariant.variant.settlement,
+                candidateBySlot = {
+                    [firstVariant.targetSlot] = firstVariant.candidateEntry,
+                },
+            },
+            { firstVariant.variant }
+        )
+    end
+    Expect(
+        migratedVariant ~= nil and firstVariant ~= nil and
+        migratedVariant.caseCode == firstVariant.caseCode and
+        migratedVariant.targetSlot == firstVariant.targetSlot and
+        migratedVariant.variantCode == firstVariant.variantCode,
+        "variant migration"
     )
     local secondVariant = nil
     if firstVariant ~= nil then

@@ -67,6 +67,14 @@ local function StatusKey(code)
     return KEYS.status .. tostring(code)
 end
 
+local function CopyStrings(values)
+    local copied = {}
+    for _, value in ipairs(values or {}) do
+        table.insert(copied, tostring(value))
+    end
+    return copied
+end
+
 local function CopyEvidence(entry)
     return {
         code = tonumber(entry ~= nil and entry.code) or 0,
@@ -74,6 +82,7 @@ local function CopyEvidence(entry)
         status = entry ~= nil and entry.status or "pending",
         claim_id = entry ~= nil and entry.claim_id or nil,
         claim_cap = tonumber(entry ~= nil and entry.claim_cap) or nil,
+        reveals = CopyStrings(entry ~= nil and entry.reveals or nil),
     }
 end
 
@@ -126,6 +135,53 @@ local function CalculateConfidence(state)
         total = total + math.min(claim.total, claim.cap)
     end
     return math.min(100, total)
+end
+
+function DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+    state,
+    identityRequirement
+)
+    if identityRequirement == nil then return true end
+    local known = {}
+    for _, entry in ipairs(state ~= nil and state.evidence or {}) do
+        if entry.status == "discovered" then
+            for _, fact in ipairs(entry.reveals or {}) do
+                known[tostring(fact)] = true
+            end
+        end
+    end
+    local allOf = identityRequirement.allOf
+    if allOf ~= nil then
+        if #allOf == 0 then return false end
+        for _, fact in ipairs(allOf) do
+            if known[tostring(fact)] ~= true then return false end
+        end
+        return true
+    end
+    local anyOf = identityRequirement.anyOf
+    if anyOf ~= nil then
+        if #anyOf == 0 then return false end
+        for _, fact in ipairs(anyOf) do
+            if known[tostring(fact)] == true then return true end
+        end
+        return false
+    end
+    return false
+end
+
+local function ResolveIdentitySatisfied(state, generation)
+    if DarkPassengerCaseContent == nil or
+       DarkPassengerCaseContent.GetSelected == nil then
+        return false
+    end
+    local selected = DarkPassengerCaseContent.GetSelected(generation)
+    local caseTemplate = selected ~= nil and selected.caseTemplate or nil
+    local identityRequirement = caseTemplate ~= nil and
+        caseTemplate.identity_requirement or nil
+    return DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+        state,
+        identityRequirement
+    )
 end
 
 local function ReadPersistedStatus(generation, evidenceCode)
@@ -317,10 +373,15 @@ function DarkPassengerEvidenceRegistry.Discover(
     end
     if DarkPassengerInvestigation ~= nil and
        DarkPassengerInvestigation.ReconcileEvidence ~= nil then
+        result.identitySatisfied = ResolveIdentitySatisfied(
+            nextState,
+            generation
+        )
         result.reconciliation =
             DarkPassengerInvestigation.ReconcileEvidence(
                 nextState.confidence,
-                generation
+                generation,
+                result.identitySatisfied
             )
     end
     Log(
@@ -344,10 +405,15 @@ function DarkPassengerEvidenceRegistry.Restore(generation)
     if not result.accepted then return result end
     if DarkPassengerInvestigation ~= nil and
        DarkPassengerInvestigation.ReconcileEvidence ~= nil then
+        result.identitySatisfied = ResolveIdentitySatisfied(
+            nextState,
+            generation
+        )
         result.reconciliation =
             DarkPassengerInvestigation.ReconcileEvidence(
                 nextState.confidence,
-                generation
+                generation,
+                result.identitySatisfied
             )
     end
     return result
@@ -443,6 +509,37 @@ function DarkPassengerEvidenceRegistry.RunSelfTest()
     capped.evidence[2].claim_cap = 25
     capped = RunOrder({ 2101, 2102, 2103 }, capped)
     Expect(capped.confidence == 45, "claim cap")
+
+    local identityState = NewState()
+    identityState.evidence[1].status = "discovered"
+    identityState.evidence[1].reveals = { "rumor", "lover_named" }
+    identityState.evidence[2].status = "discovered"
+    identityState.evidence[2].reveals = { "forest_returner_named" }
+    Expect(
+        not DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+            identityState,
+            { allOf = { "lover_named", "letter_found" } }
+        ),
+        "identity allOf waits for every fact"
+    )
+    Expect(
+        DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+            identityState,
+            { anyOf = { "lover_named", "letter_found" } }
+        ) and
+        DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+            identityState,
+            { anyOf = { "letter_found", "forest_returner_named" } }
+        ),
+        "identity anyOf accepts either fact"
+    )
+    Expect(
+        not DarkPassengerEvidenceRegistry.IsIdentitySatisfied(
+            identityState,
+            { unknown = { "lover_named" } }
+        ),
+        "identity rejects unknown mode"
+    )
 
     local passed = #failures == 0
     Log(

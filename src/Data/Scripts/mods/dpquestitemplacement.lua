@@ -1,5 +1,9 @@
 DarkPassengerQuestItemPlacement = DarkPassengerQuestItemPlacement or {}
 
+DarkPassengerQuestItemPlacement.REISSUE_INTERVAL_SECONDS = 5
+DarkPassengerQuestItemPlacement.pendingRequests =
+    DarkPassengerQuestItemPlacement.pendingRequests or {}
+
 local function Log(message)
     if System ~= nil and System.LogAlways ~= nil then
         System.LogAlways(
@@ -37,7 +41,57 @@ end
 local function CatalogEntry(itemGuid)
     local catalog = DarkPassengerQuestItemPlacementCatalog
     if type(catalog) ~= "table" then return nil end
-    return catalog[tostring(itemGuid)]
+    return catalog[string.lower(tostring(itemGuid or ""))]
+end
+
+local function CurrentTime()
+    if System ~= nil and System.GetCurrTime ~= nil then
+        local ok, value = pcall(function()
+            return System.GetCurrTime()
+        end)
+        if ok then return tonumber(value) end
+    end
+    if os ~= nil and os.clock ~= nil then
+        local ok, value = pcall(os.clock)
+        if ok then return tonumber(value) end
+    end
+    return nil
+end
+
+local function PendingKey(itemGuid, requestKey, request)
+    local destination = tostring(requestKey or "")
+    if destination == "" and request ~= nil then
+        destination = tostring(request.buff_guid or "")
+    end
+    return string.lower(tostring(itemGuid or "")) .. ":" ..
+        string.lower(destination)
+end
+
+local function ClearPending(itemGuid, requestKey, request)
+    DarkPassengerQuestItemPlacement.pendingRequests[
+        PendingKey(itemGuid, requestKey, request)
+    ] = nil
+end
+
+local function ClearPendingItem(itemGuid)
+    local prefix = string.lower(tostring(itemGuid or "")) .. ":"
+    for key, _ in pairs(DarkPassengerQuestItemPlacement.pendingRequests) do
+        if string.sub(key, 1, string.len(prefix)) == prefix then
+            DarkPassengerQuestItemPlacement.pendingRequests[key] = nil
+        end
+    end
+end
+
+local function ResolveRequest(entry, requestKey)
+    if entry == nil then return nil end
+    if type(entry.requests) ~= "table" then return entry end
+    local key = string.lower(tostring(requestKey or ""))
+    if key ~= "" and entry.requests[key] ~= nil then
+        return entry.requests[key]
+    end
+    local defaultKey = string.lower(tostring(entry.default_request_key or ""))
+    if defaultKey ~= "" then return entry.requests[defaultKey] end
+    return nil
 end
 
 local function ClearRequest(actor, entry)
@@ -63,7 +117,7 @@ local function HasRequest(actor, entry)
 end
 
 local function AddRequest(actor, entry)
-    if HasRequest(actor, entry) then return true end
+    if HasRequest(actor, entry) then return true, false end
     local ok, result = pcall(function()
         return actor.soul:AddBuff(entry.buff_guid)
     end)
@@ -72,9 +126,9 @@ local function AddRequest(actor, entry)
             "native request failed item=" .. tostring(entry.item_guid) ..
             " error=" .. tostring(result)
         )
-        return false
+        return false, false
     end
-    return true
+    return true, true
 end
 
 function DarkPassengerQuestItemPlacement.Count(inventory, itemGuid)
@@ -84,7 +138,8 @@ end
 function DarkPassengerQuestItemPlacement.Request(
     itemGuid,
     destination,
-    playerBaseline
+    playerBaseline,
+    requestKey
 )
     itemGuid = tostring(itemGuid or "")
     playerBaseline = tonumber(playerBaseline) or 0
@@ -92,6 +147,14 @@ function DarkPassengerQuestItemPlacement.Request(
     if entry == nil then
         Log("request rejected: no native signal item=" .. itemGuid)
         return false, "signal_unavailable"
+    end
+    local request = ResolveRequest(entry, requestKey)
+    if request == nil then
+        Log(
+            "request rejected: no destination signal item=" .. itemGuid ..
+            " key=" .. tostring(requestKey)
+        )
+        return false, "destination_signal_unavailable"
     end
     if destination == nil or destination.inventory == nil or
        destination.inventory.GetId == nil then
@@ -104,17 +167,32 @@ function DarkPassengerQuestItemPlacement.Request(
     end
 
     if InventoryCount(destination.inventory, itemGuid) > 0 then
+        ClearPending(itemGuid, requestKey, request)
         if entry.backend ~= "quest_effect_stash" then
-            ClearRequest(actor, entry)
+            ClearRequest(actor, request)
         end
         return true, "already_placed"
     end
 
     if entry.backend == "quest_effect_stash" then
-        if not AddRequest(actor, entry) then
+        local pendingKey = PendingKey(itemGuid, requestKey, request)
+        local now = CurrentTime()
+        local lastIssuedAt = tonumber(
+            DarkPassengerQuestItemPlacement.pendingRequests[pendingKey]
+        )
+        if lastIssuedAt ~= nil and (
+            now == nil or now - lastIssuedAt <
+                DarkPassengerQuestItemPlacement.REISSUE_INTERVAL_SECONDS
+        ) then
+            return false, "native_pending"
+        end
+        local accepted, issued = AddRequest(actor, request)
+        if not accepted then
             return false, "request_failed"
         end
-        return false, "native_requested"
+        DarkPassengerQuestItemPlacement.pendingRequests[pendingKey] = now or 0
+        if issued then return false, "native_requested" end
+        return false, "native_pending"
     end
 
     local function MoveCreatedItem()
@@ -131,13 +209,13 @@ function DarkPassengerQuestItemPlacement.Request(
             )
         end)
         if not ok or (tonumber(moved) or 0) < 1 then return false end
-        ClearRequest(actor, entry)
+        ClearRequest(actor, request)
         return InventoryCount(destination.inventory, itemGuid) > 0
     end
 
     if MoveCreatedItem() then return true, "moved" end
 
-    if not AddRequest(actor, entry) then
+    if not AddRequest(actor, request) then
         return false, "request_failed"
     end
     if MoveCreatedItem() then return true, "moved" end
@@ -147,7 +225,16 @@ end
 function DarkPassengerQuestItemPlacement.Cancel(itemGuid)
     local actor = PlayerEntity()
     local entry = CatalogEntry(tostring(itemGuid or ""))
-    return ClearRequest(actor, entry)
+    if entry == nil then return false end
+    ClearPendingItem(itemGuid)
+    if type(entry.requests) ~= "table" then
+        return ClearRequest(actor, entry)
+    end
+    local cleared = false
+    for _, request in pairs(entry.requests) do
+        if ClearRequest(actor, request) then cleared = true end
+    end
+    return cleared
 end
 
 Log("module loaded")

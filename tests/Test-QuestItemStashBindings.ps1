@@ -6,14 +6,37 @@ $generatorPath = Join-Path $repoRoot `
 $fixtureRoot = Join-Path $repoRoot 'build\test-quest-item-stash-bindings'
 $levelRoot = Join-Path $fixtureRoot 'levels'
 $luaPath = Join-Path $fixtureRoot 'dp_investigation_area_catalog.lua'
+$bindingPath = Join-Path $fixtureRoot 'case-settlement-bindings.json'
 
 if (Test-Path -LiteralPath $fixtureRoot) {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force
 }
+[System.IO.Directory]::CreateDirectory($fixtureRoot) | Out-Null
+[System.IO.File]::WriteAllText(
+    $bindingPath,
+    (@{
+        schemaVersion = 1
+        settlements = @(@{
+            caseCode = 2001
+            storyId = 'missing-traveler'
+            region = 'trosecko'
+            settlement = 'troskovice'
+            nativeVariantIds = @('missing-traveler-troskovice-1')
+            roles = @{
+                document = @{
+                    containerGuid = '042bf770-1c46-03bf'
+                    documentGuid = 'd5833fd4-f7bf-4957-86f5-d661db38bcf3'
+                }
+            }
+        })
+    } | ConvertTo-Json -Depth 20) + "`n",
+    [System.Text.UTF8Encoding]::new($false)
+)
 
 & $generatorPath `
     -OutputRoot $levelRoot `
     -LuaOutputPath $luaPath `
+    -SettlementBindingsPath $bindingPath `
     -SettlementProfileRoot (Join-Path $repoRoot 'config\settlements')
 
 $expectations = @(
@@ -26,6 +49,11 @@ $expectations = @(
         region = 'trosecko'
         target = 'aaf89994-e94b-0309'
         alias = 'DP_EvidenceStash_trosecko_zelejov'
+    }
+    [pscustomobject]@{
+        region = 'trosecko'
+        target = '042bf770-1c46-03bf'
+        alias = 'DP_EvidenceStash_trosecko_troskovice'
     }
 )
 

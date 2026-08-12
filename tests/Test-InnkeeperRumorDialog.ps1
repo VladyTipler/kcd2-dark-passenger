@@ -10,7 +10,7 @@ $dialogPath = Join-Path $repoRoot `
 $generatedQuestPath = Join-Path $repoRoot `
     'build\mod\Data\Quests\Final\Barbora\kutnohorsko\dark_within_k.xml'
 $missingTravelerDialogPath = Join-Path $repoRoot `
-    'build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t\innkeeper_missing_traveler_dialog_t.xml'
+    'build\mod\Data\Quests\darkpassengertest\trosecko\dark_within_t\dpcase2001_trosecko_troskovice_innkeeper_missing_traveler_dialog_t.xml'
 $missingTravelerQuestPath = Join-Path $repoRoot `
     'build\mod\Data\Quests\Final\Barbora\trosecko\dark_within_t.xml'
 $questTemplatePath = Join-Path $repoRoot `
@@ -88,9 +88,9 @@ Add-Result (
     $stormRoles.Contains('<addRole name="DP_INNKEEPER_RUMOR" />')
 ) 'Storm assigns only the Pritoky innkeeper to the custom dialogue role'
 Add-Result (
-    $roles.Contains('role_name="DP_INNKEEPER_RUMOR"') -and
+    $roles.Contains('role_name="DP_ACTOR_A33CABA8146814E9E07126F9"') -and
     $roles.Contains('metarole_name="NPC"')
-) 'custom innkeeper role is registered as an NPC role'
+) 'generated Troskovice innkeeper role is registered as an NPC role'
 
 foreach ($fragment in
     '<FaderDialog Name="innkeeper_rumor_dialog_k">',
@@ -138,10 +138,10 @@ Add-Result (
 
 foreach ($fragment in
     '<Constant Name="A" Value="32" />',
-    '<BuffTagTrigger Name="rumorAvailableTrigger">',
-    '<innkeeper_rumor_dialog_k Name="innkeeperRumorDialog">',
-    '<Edge From="rumorDialogueAvailable.State" To="available" />',
-    '<SetEntityContext Name="rumorDialogueRequest">',
+    '<BuffTagTrigger Name="case1001_rumorAvailableTrigger">',
+    '<dpcase1001_kutnohorsko_pritoky_innkeeper_rumor_dialog_k Name="case1001_pritokyInnkeeperRumorDialog">',
+    '<Edge From="case1001_pritokyRumorAvailable.State" To="available" />',
+    '<SetEntityContext Name="case1001_rumorDialogueRequest">',
     '<Constant Name="Context" Value="dp_rumor_heard_kutnohorsko" />'
 ) {
     Add-Result (

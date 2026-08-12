@@ -80,9 +80,24 @@ fact and thread references, one-shot confidence, a reachable reveal threshold,
 out-of-order presentation variants, typed `{{slot.field}}` templates and exact
 Russian/English asset-key parity. Anonymous-capable slots cannot use `.name`.
 
+`overheard-dialogue` steps require an explicit activation contract:
+
+```json
+"activation": {"mode": "interaction"}
+```
+
+`interaction` exposes **Listen in** on either living bound speaker; `proximity`
+keeps the directed ambient-scene behavior. One StoryPack may compile several
+independent overheard scenes. Every scene owns its dialogue graph, bound pair,
+signal tag/buff, ScriptContext, one-shot evidence state and cleanup entry. The
+runtime rejects stale generations, discovered evidence, target collisions,
+missing or dead speakers, combat, active dialogue and excessive distance.
+
 Schema v2 lets one StoryPack compose several InvestigationArchetypes while
-preserving one canonical truth. Its connected fact graph must reach both the
-configured confidence threshold and an explicit hard identity fact. Dialogue
+preserving one canonical truth. Its connected fact graph must reach the
+configured confidence threshold and satisfy an explicit `identityRequirement`:
+`allOf` requires every listed hard fact, while `anyOf` accepts any one listed
+hard fact. Legacy `requiredFacts` compile to `allOf`. Dialogue
 definitions use semantic scene presets (`standing-conversation`,
 `seated-tavern`, `lying-interrogation`); raw camera GUIDs, animation names and
 world coordinates are rejected. RU/EN localization must have exact key parity.
@@ -162,6 +177,22 @@ preserving `retention=permanent` trophies and replay history. Presentation is
 reissued only after the native quest activation timer, which makes fresh start
 and save restoration converge on the same journal state.
 
+Guidance follows the same ownership model:
+
+```text
+step GuidanceTarget -> concrete actor/entity/place/area binding
+  -> hidden signal buff -> regional Skald objective + Marker
+  -> Lua visibility policy
+```
+
+Actor markers compile to `SoulAsset` aliases backed by a concrete `soulGuid`.
+Entity and point-place markers compile to linked `InteractionTriggerAsset`
+aliases. Area guidance reuses an existing `DP_SearchArea_*` alias without
+redeclaring its `TriggerAreaAsset`. Unsupported optional targets use the
+explicit journal fallback; mandatory targets reject the variant. Lua toggles
+only finite, precompiled signal buffs using `step-active`, `facts-known` or
+`target-revealed` visibility, and the cleanup manifest owns every signal GUID.
+
 ## Build the world index
 
 First export raw game data with explicit source paths or the existing
@@ -197,6 +228,8 @@ pwsh -NoProfile -File '.\tests\Test-CaseKitParity.ps1'
 pwsh -NoProfile -File '.\tests\Test-CaseVariantSelection.ps1'
 pwsh -NoProfile -File '.\tests\Test-CaseSceneMaterialization.ps1'
 pwsh -NoProfile -File '.\tests\Test-CaseTrophyCompiler.ps1'
+pwsh -NoProfile -File '.\tests\Test-CaseGuidanceCompiler.ps1'
+pwsh -NoProfile -File '.\tests\Test-NonlinearEvidenceRuntime.ps1'
 pwsh -NoProfile -File '.\tests\Test-QuestItemPlacementBackend.ps1'
 pwsh -NoProfile -File '.\tests\Test-TargetTrophyRuntime.ps1'
 ```

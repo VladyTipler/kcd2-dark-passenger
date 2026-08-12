@@ -35,6 +35,12 @@ $bindingPath = Join-Path $repoRoot `
     'content\migration\legacy-case-settlement-bindings.json'
 $catalogPath = Join-Path $stageRoot `
     'Data\Scripts\mods\generated\dp_case_catalog.lua'
+$variantCatalogPath = Join-Path $stageRoot `
+    'Data\Scripts\mods\generated\dp_case_variant_catalog.lua'
+$waitingLinksPath = Join-Path $stageRoot `
+    'Data\Levels\trosecko\waitinglinks.xml'
+$objectsPath = Join-Path $stageRoot `
+    'Data\Levels\trosecko\objects_mission0.xml'
 $runtimePath = Join-Path $stageRoot `
     'Data\Scripts\mods\dpoverheardevidence.lua'
 $initPath = Join-Path $stageRoot `
@@ -72,6 +78,9 @@ foreach ($path in @(
     $buffPath,
     $rolePath,
     $catalogPath,
+    $variantCatalogPath,
+    $waitingLinksPath,
+    $objectsPath,
     $runtimePath,
     $initPath
 )) {
@@ -90,6 +99,9 @@ $roles = Read-OptionalText $rolePath
 $sourceRoles = Read-OptionalText $sourceRolePath
 $bindings = Get-Content -LiteralPath $bindingPath -Raw | ConvertFrom-Json
 $catalog = Read-OptionalText $catalogPath
+$variantCatalog = Read-OptionalText $variantCatalogPath
+$waitingLinks = Read-OptionalText $waitingLinksPath
+$objects = Read-OptionalText $objectsPath
 $runtime = Read-OptionalText $runtimePath
 $init = Read-OptionalText $initPath
 
@@ -116,28 +128,26 @@ Add-Result (
     $quest.Contains(
         '<Definition File="dark_within_t/overheard_missing_traveler_dialog_t.xml" />'
     ) -and
-    $quest.Contains('<overheard_missing_traveler_dialog_t Name="overheardEvidenceDialog"')
+    $quest.Contains('<overheard_missing_traveler_dialog_t Name="overheardScene_courtyard_gossip_overhear_argumentEvidenceDialog"')
 ) 'universal quest consumes the generated overheard dialogue'
 Add-Result (
-    $quest.Contains('<switchdialog Name="overheardSwitchPrimary" Namespace="utils.speech">') -and
-    $quest.Contains('<switchdialog Name="overheardSwitchFallback" Namespace="utils.speech">') -and
-    ([regex]::Matches($quest, '<Constant Name="dialogtype" Value="Ingame" />')).Count -ge 2 -and
-    ([regex]::Matches($quest, '<Constant Name="playerdistance" Value="15" />')).Count -ge 2 -and
-    ([regex]::Matches($quest, '<Constant Name="alias" Value="darkPassenger_missingTravelerOverheard" />')).Count -ge 2
-) 'native switchdialog schedulers use the compiled pair and hearing radius'
+    $quest.Contains('<switchdialog Name="overheardScene_courtyard_gossip_overhear_argument_SwitchPrimary" Namespace="utils.speech">') -and
+    -not $quest.Contains('overheardScene_courtyard_gossip_overhear_argument_SwitchFallback') -and
+    $quest.Contains('<Constant Name="dialogtype" Value="Ingame" />') -and
+    $quest.Contains('<Constant Name="playerdistance" Value="15" />') -and
+    $quest.Contains('<Constant Name="alias" Value="darkPassenger_missingTravelerOverheard" />')
+) 'interaction signal drives one native switchdialog for the compiled pair'
 Add-Result (
-    $quest.Contains('<Asset Name="A" Alias="DpOverheardZelejovPrimaryA" />') -and
-    $quest.Contains('<Asset Name="B" Alias="DpOverheardZelejovPrimaryB" />') -and
-    $quest.Contains('<Asset Name="A" Alias="DpOverheardZelejovFallbackA" />') -and
-    $quest.Contains('<Asset Name="B" Alias="DpOverheardZelejovFallbackB" />') -and
-    $quest.Contains('<SoulAsset Name="DpOverheardZelejovPrimaryA" SharedSoulGuids="5927ef47-3d33-4483-8316-ab3247f7aa4e" />') -and
-    $quest.Contains('<SoulAsset Name="DpOverheardZelejovPrimaryB" SharedSoulGuids="4758bdb9-f854-38ef-1ea4-e8799614ceb7" />')
-) 'quest embeds exact primary and finite fallback speaker assets'
+    $quest.Contains('<Asset Name="A" Alias="DpOverheard_courtyard_gossip_overhear_argument_A" />') -and
+    $quest.Contains('<Asset Name="B" Alias="DpOverheard_courtyard_gossip_overhear_argument_B" />') -and
+    $quest.Contains('<SoulAsset Name="DpOverheard_courtyard_gossip_overhear_argument_A" SharedSoulGuids="5927ef47-3d33-4483-8316-ab3247f7aa4e" />') -and
+    $quest.Contains('<SoulAsset Name="DpOverheard_courtyard_gossip_overhear_argument_B" SharedSoulGuids="d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa" />')
+) 'quest embeds the exact finite interaction speaker pair'
 Add-Result (
-    $quest.Contains('<SetEntityContext Name="overheardClueRequest">') -and
+    $quest.Contains('<SetEntityContext Name="overheardScene_courtyard_gossip_overhear_argumentClueRequest">') -and
     $quest.Contains('<Constant Name="Context" Value="dp_overheard_clue_spoken_trosecko" />') -and
-    $quest.Contains('<Edge From="overheardEvidenceDialog.clue_spoken" To="SetTrue" />') -and
-    $quest.Contains('<Timer Name="overheardCluePulse">') -and
+    $quest.Contains('<Edge From="overheardScene_courtyard_gossip_overhear_argumentEvidenceDialog.clue_spoken" To="SetTrue" />') -and
+    $quest.Contains('<Timer Name="overheardScene_courtyard_gossip_overhear_argumentCluePulse">') -and
     $quest.Contains('<Constant Name="Duration" Value="3s" />') -and
     $quest.Contains('<Constant Name="TimeType" Value="GameTime" />') -and
     -not $quest.Contains('<Constant Name="TimeType" Value="RealTime" />')
@@ -183,12 +193,11 @@ Add-Result (
     $duplicateRegionalCustomTypes.Count -eq 0
 ) 'generated Barbora regions have no colliding custom TypeName values'
 Add-Result (
-    $quest.Contains('Name="overheardPrimaryAvailableTrigger"') -and
-    $quest.Contains('Name="overheardFallbackAvailableTrigger"') -and
+    $quest.Contains('Name="overheardScene_courtyard_gossip_overhear_argument_PrimaryAvailableTrigger"') -and
+    -not $quest.Contains('Name="overheardScene_courtyard_gossip_overhear_argument_FallbackAvailableTrigger"') -and
     $quest.Contains('<Constant Name="A" Value="71" />') -and
-    $quest.Contains('From="overheardPrimaryAvailableTrigger.OnRemoved" To="SetFalse"') -and
-    $quest.Contains('From="overheardFallbackAvailableTrigger.OnRemoved" To="SetFalse"')
-) 'one hidden availability signal disables both schedulers after discovery'
+    $quest.Contains('From="overheardScene_courtyard_gossip_overhear_argument_PrimaryAvailableTrigger.OnRemoved" To="SetFalse"')
+) 'one hidden interaction signal disables the scene after discovery'
 
 foreach ($binding in @(
     @{ Name = 'tzel_man_12'; Role = 'DP_OVERHEARD_SPEAKER_A' },
@@ -225,11 +234,20 @@ Add-Result (
 ) 'compiler generates both registered overheard RPG roles from bindings'
 Add-Result (
     $buffTags.Contains(
-        'buff_ai_tag_id="71" buff_ai_tag_name="dp_overheard_available"'
+        'buff_ai_tag_id="71" buff_ai_tag_name="dp_overheard_courtyard_gossip_overhear_argument_available"'
     ) -and
-    $buffs.Contains('buff_name="dp_overheard_available"') -and
+    $buffs.Contains('buff_name="dp_overheard_courtyard_gossip_overhear_argument_available"') -and
     $buffs.Contains('is_persistent="true"')
-) 'build registers the hidden persistent scheduler signal'
+) 'build registers the hidden persistent interaction signal'
+Add-Result (
+    $variantCatalog.Contains('id = "courtyard-gossip/overhear-argument/listen-area"') -and
+    $variantCatalog.Contains('alias = "DP_SearchArea_Trosecko_Zelejov"') -and
+    $variantCatalog.Contains('lifetime = "step"') -and
+    $quest.Contains('<TriggerAreaAsset Name="DP_SearchArea_Trosecko_Zelejov" />') -and
+    $quest.Contains('Marker="DP_SearchArea_Trosecko_Zelejov"') -and
+    $waitingLinks.Contains("asset[&apos;DP_SearchArea_Trosecko_Zelejov&apos;]") -and
+    $objects.Contains("asset['DP_SearchArea_Trosecko_Zelejov']")
+) 'production interaction step crosses into the Zhelejov quest area'
 Add-Result (
     $catalog.Contains('id = "zelejov_inn_yard_whisper"') -and
     $catalog.Contains('code = 2104') -and

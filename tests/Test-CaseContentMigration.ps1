@@ -89,6 +89,11 @@ Add-Result (
     $caseRuntime.Contains('reason = "invalid_saved_selection"') -and
     $caseRuntime.Contains('reason = "restored"')
 ) 'same generation restores stable identity without reroll'
+Add-Result (
+    $snapshot.Contains('allowBindingMigration') -and
+    $snapshot.Contains('reason = "variant_migrated"') -and
+    $snapshot.Contains('DarkPassengerCaseVariantCatalogByCode')
+) 'snapshot replaces only obsolete generated bindings for the same target'
 
 Add-Result (
     [int]$caseSpec.evidence[0].code -eq 1101 -and

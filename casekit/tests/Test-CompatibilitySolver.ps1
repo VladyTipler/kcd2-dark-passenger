@@ -102,6 +102,10 @@ else {
             @($report.accepted.variantId | Sort-Object -Unique).Count -eq 2
         ) 'accepted variants receive stable unique IDs'
         Add-Result (
+            -not (Get-Command Resolve-CaseKitCompatibility).
+                Parameters.ContainsKey('StoryRegionMap')
+        ) 'native adapter cannot impose a hidden StoryPack region policy'
+        Add-Result (
             @($report.accepted | Where-Object {
                 ($_.renderedAssets.ru.Values -join '') -match '\{\{' -or
                 ($_.renderedAssets.en.Values -join '') -match '\{\{'
@@ -133,6 +137,65 @@ else {
                     $_.bindings.witness.entityGuid
             }).Count -eq 0
         ) 'conflict prevention holds across the wider binding matrix'
+
+        $optionalAnchorDeck = Copy-TestValue $deck
+        $optionalAnchorDeck.archetypes[0].slots.gossipSourceB.required = $false
+        $localAreaGuidance = @(
+            $optionalAnchorDeck.stories[0].threads.steps |
+                ForEach-Object { @($_) } |
+                ForEach-Object { @($_.guidance) } |
+                Where-Object { $_.id -eq 'settlement-search' }
+        )[0]
+        $localAreaGuidance.target | Add-Member `
+            -NotePropertyName areaSelection `
+            -NotePropertyValue 'smallest-common' -Force
+        $localAreaGuidance.target | Add-Member `
+            -NotePropertyName anchorSlots `
+            -NotePropertyValue @('gossipSourceA', 'gossipSourceB') -Force
+        $optionalAnchorWorld = Copy-TestValue $world
+        $optionalAnchorWorld.entities = @(
+            $optionalAnchorWorld.entities | Where-Object {
+                $_.entityName -ne 'gossip_source_b'
+            }
+        )
+        $optionalAnchorReport = Resolve-CaseKitCompatibility `
+            -Deck $optionalAnchorDeck -WorldIndex $optionalAnchorWorld `
+            -MaxVariantsPerCombination 32
+        $fallbackGuidance = @(
+            $optionalAnchorReport.accepted[0].guidanceBindings |
+                Where-Object {
+                    $_.qualifiedId -eq
+                        'paper-trail/ask-innkeeper/settlement-search'
+                }
+        )[0]
+        Add-Result (
+            @($optionalAnchorReport.accepted).Count -gt 0 -and
+            $null -ne $fallbackGuidance -and
+            $null -eq $fallbackGuidance.binding -and
+            @($fallbackGuidance.anchorBindings).Count -eq 1
+        ) 'journal fallback keeps a variant when an optional area anchor is absent'
+
+        $rejectAnchorDeck = Copy-TestValue $optionalAnchorDeck
+        $rejectGuidance = @(
+            $rejectAnchorDeck.stories[0].threads.steps |
+                ForEach-Object { @($_) } |
+                ForEach-Object { @($_.guidance) } |
+                Where-Object { $_.id -eq 'settlement-search' }
+        )[0]
+        $rejectGuidance.fallback = 'reject-variant'
+        try {
+            Resolve-CaseKitCompatibility -Deck $rejectAnchorDeck `
+                -WorldIndex $optionalAnchorWorld `
+                -MaxVariantsPerCombination 32 | Out-Null
+            Add-Result $false `
+                'reject fallback drops a variant when an optional area anchor is absent'
+        }
+        catch {
+            Add-Result (
+                $_.Exception.Message -like
+                    "*active StoryPack 'composed-case-probe' has no playable variant*"
+            ) 'reject fallback drops a variant when an optional area anchor is absent'
+        }
 
         $personalDeck = Copy-TestValue $deck
         $personalStep = @($personalDeck.stories[0].threads.steps |

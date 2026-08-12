@@ -48,6 +48,83 @@ function ConvertTo-XmlText {
     return [System.Security.SecurityElement]::Escape($Value)
 }
 
+function Resolve-DpQuestObjectivePresentation {
+    param(
+        $JournalObjectives,
+        [Parameter(Mandatory)][string]$ObjectiveId,
+        [Parameter(Mandatory)]$Fallback
+    )
+
+    if ($null -eq $JournalObjectives) { return $Fallback }
+    $property = $JournalObjectives.PSObject.Properties[$ObjectiveId]
+    if ($null -eq $property) { return $Fallback }
+
+    $configured = $property.Value
+    if ($null -eq $configured) { return $Fallback }
+    $configuredStates = if (
+        $null -ne $configured.PSObject.Properties['states']
+    ) { $configured.states } else { $null }
+    $states = [ordered]@{}
+    foreach ($fallbackState in $Fallback.states.PSObject.Properties) {
+        $configuredState = if ($null -eq $configuredStates) { $null } else {
+            $configuredStates.PSObject.Properties[$fallbackState.Name]
+        }
+        $configuredValue = if ($null -eq $configuredState) {
+            $null
+        }
+        else {
+            $configuredState.Value
+        }
+        $configuredKey = if ($null -eq $configuredValue) { '' } else {
+            [string]$configuredValue.key
+        }
+        $configuredText = if ($null -eq $configuredValue) { '' } else {
+            [string]$configuredValue.fallback
+        }
+        $states[$fallbackState.Name] = [pscustomobject][ordered]@{
+            key = if ([string]::IsNullOrWhiteSpace($configuredKey)) {
+                [string]$fallbackState.Value.key
+            }
+            else {
+                $configuredKey
+            }
+            fallback = if ([string]::IsNullOrWhiteSpace($configuredText)) {
+                [string]$fallbackState.Value.fallback
+            }
+            else {
+                $configuredText
+            }
+        }
+    }
+    if ($null -ne $configuredStates) {
+        foreach ($configuredState in $configuredStates.PSObject.Properties) {
+            if (-not $states.Contains($configuredState.Name)) {
+                $states[$configuredState.Name] = $configuredState.Value
+            }
+        }
+    }
+
+    $configuredNameKey = [string]$configured.nameKey
+    $configuredFallbackName = [string]$configured.fallbackName
+    return [pscustomobject][ordered]@{
+        nameKey = if ([string]::IsNullOrWhiteSpace($configuredNameKey)) {
+            [string]$Fallback.nameKey
+        }
+        else {
+            $configuredNameKey
+        }
+        fallbackName = if (
+            [string]::IsNullOrWhiteSpace($configuredFallbackName)
+        ) {
+            [string]$Fallback.fallbackName
+        }
+        else {
+            $configuredFallbackName
+        }
+        states = [pscustomobject]$states
+    }
+}
+
 function Get-SearchLocalizationKey {
     param([string]$RegionId, [string]$SettlementId)
 
@@ -153,9 +230,31 @@ function New-RegionalQuest {
     $confessionProbeNodes = ''
     $questItemPlacementNodes = ''
     $questItemPlacementAssets = ''
+    $guidanceNodes = ''
+    $guidanceTypes = ''
+    $guidanceAssets = ''
+    $guidanceObjectives = ''
     $confessionProbeAssets = ''
+    $storyModules = @()
+    $primaryStoryModule = $null
+    $primaryCaseActiveState = ''
+    $caseActivationRevalidationEdges = @()
 
     if ($null -ne $NativeWiring) {
+        $storyModules = @($NativeWiring.storyModules)
+        if ($storyModules.Count -gt 0) {
+            $primaryStoryModule = $storyModules[0]
+            $primaryCaseActiveState = 'case{0}Active.State' -f
+                [int]$primaryStoryModule.caseCode
+            $caseActivationRevalidationEdges = @(
+                $storyModules |
+                    Sort-Object { [int]$_.caseCode } |
+                    ForEach-Object {
+                        '          <Edge From="case{0}ActiveTrigger.OnAdded" To="SetRunning" />' -f
+                            [int]$_.caseCode
+                    }
+            )
+        }
         $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
         $rumorDialogNodes = [string]$NativeWiring.rumorNodes
         $witnessNodes = [string]$NativeWiring.witnessNodes
@@ -165,6 +264,10 @@ function New-RegionalQuest {
         $evidenceStateEdges = [string]$NativeWiring.evidenceStateEdges
         $questItemPlacementNodes = [string]$NativeWiring.questItemPlacementNodes
         $questItemPlacementAssets = [string]$NativeWiring.questItemPlacementAssets
+        $guidanceNodes = [string]$NativeWiring.guidanceNodes
+        $guidanceTypes = [string]$NativeWiring.guidanceTypes
+        $guidanceAssets = [string]$NativeWiring.guidanceAssets
+        $guidanceObjectives = [string]$NativeWiring.guidanceObjectives
         $evidenceType = [string]$NativeWiring.evidenceType
         $evidenceLogs = [string]$NativeWiring.evidenceLogs
         $initialEvidenceStates = @(
@@ -180,6 +283,85 @@ function New-RegionalQuest {
         $witnessType = [string]$NativeWiring.witnessType
         $witnessObjective = [string]$NativeWiring.witnessObjective
     }
+
+    $fallbackObjectives = [pscustomobject][ordered]@{
+        search = [pscustomobject][ordered]@{
+            nameKey = 'dark_within_obj_name'
+            fallbackName = 'Find someone who deserves the sentence'
+            states = [pscustomobject][ordered]@{
+                active = [pscustomobject][ordered]@{
+                    key = 'dark_within_search'
+                    fallback = 'Search the marked area for someone whose guilt deserves a sentence.'
+                }
+            }
+        }
+        investigation = [pscustomobject][ordered]@{
+            nameKey = 'dark_within_evidence_name'
+            fallbackName = 'Gather proof of guilt'
+            states = [pscustomobject][ordered]@{}
+        }
+        target = [pscustomobject][ordered]@{
+            nameKey = 'dark_within_target_name'
+            fallbackName = 'Hunt down the chosen victim'
+            states = [pscustomobject][ordered]@{
+                active = [pscustomobject][ordered]@{
+                    key = 'dark_within_target'
+                    fallback = 'Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.'
+                }
+                done = [pscustomobject][ordered]@{
+                    key = 'dark_within_target_done'
+                    fallback = 'The sentence has been carried out. Now I must leave no trace.'
+                }
+            }
+        }
+        cleanup = [pscustomobject][ordered]@{
+            nameKey = 'dark_within_cleanup_name'
+            fallbackName = 'Leave no trace'
+            states = [pscustomobject][ordered]@{
+                active = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup'
+                    fallback = 'The work is done. Now I must make sure no one connects it to me.'
+                }
+                witnessed = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup_witnessed'
+                    fallback = 'Someone saw too much.'
+                }
+                clean = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup_clean'
+                    fallback = 'Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.'
+                }
+                controlled = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup_controlled'
+                    fallback = 'There were loose ends, but I cut them. It is enough to quiet the Passenger.'
+                }
+                noisy = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup_noisy'
+                    fallback = 'It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising.'
+                }
+                external = [pscustomobject][ordered]@{
+                    key = 'dark_within_cleanup_external'
+                    fallback = 'Death found the chosen one without me. The case is closed, but the Passenger got nothing from it.'
+                }
+            }
+        }
+    }
+    $journalObjectives = if (
+        $null -ne $NativeWiring -and
+        $null -ne $NativeWiring.PSObject.Properties['journalObjectives']
+    ) { $NativeWiring.journalObjectives } else { $null }
+    $hasConfiguredJournal = $null -ne $journalObjectives
+    $searchPresentation = Resolve-DpQuestObjectivePresentation `
+        -JournalObjectives $journalObjectives -ObjectiveId 'search' `
+        -Fallback $fallbackObjectives.search
+    $investigationPresentation = Resolve-DpQuestObjectivePresentation `
+        -JournalObjectives $journalObjectives -ObjectiveId 'investigation' `
+        -Fallback $fallbackObjectives.investigation
+    $targetPresentation = Resolve-DpQuestObjectivePresentation `
+        -JournalObjectives $journalObjectives -ObjectiveId 'target' `
+        -Fallback $fallbackObjectives.target
+    $cleanupPresentation = Resolve-DpQuestObjectivePresentation `
+        -JournalObjectives $journalObjectives -ObjectiveId 'cleanup' `
+        -Fallback $fallbackObjectives.cleanup
 
     if ($RegionId -eq 'trosecko') {
         if (-not (Test-Path -LiteralPath $PoseProbeDialogSourcePath)) {
@@ -311,12 +493,19 @@ function New-RegionalQuest {
             throw "Legacy Pritoky marker alias '$legacyMarkerAlias' is invalid."
         }
         $legacyDisplayName = [string]$legacySearchArea.displayName.english
-        $legacyLocalizationKey = Get-SearchLocalizationKey `
-            -RegionId $RegionId `
-            -SettlementId ([string]$legacySearchArea.id)
-        $legacyFallbackText = ConvertTo-XmlText (
+        $legacyLocalizationKey = if ($hasConfiguredJournal) {
+            [string]$searchPresentation.states.active.key
+        }
+        else {
+            Get-SearchLocalizationKey -RegionId $RegionId `
+                -SettlementId ([string]$legacySearchArea.id)
+        }
+        $legacyFallbackText = ConvertTo-XmlText $(if ($hasConfiguredJournal) {
+            [string]$searchPresentation.states.active.fallback
+        }
+        else {
             "The trail leads to $legacyDisplayName. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain."
-        )
+        })
         $searchTypeEnumerations.Add(
             '          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />'
         )
@@ -349,12 +538,19 @@ function New-RegionalQuest {
         ) {
             throw "Search area '$RegionId/$($searchArea.id)' requires bilingual display names."
         }
-        $localizationKey = Get-SearchLocalizationKey `
-            -RegionId $RegionId `
-            -SettlementId ([string]$searchArea.id)
-        $fallbackText = ConvertTo-XmlText (
+        $localizationKey = if ($hasConfiguredJournal) {
+            [string]$searchPresentation.states.active.key
+        }
+        else {
+            Get-SearchLocalizationKey -RegionId $RegionId `
+                -SettlementId ([string]$searchArea.id)
+        }
+        $fallbackText = ConvertTo-XmlText $(if ($hasConfiguredJournal) {
+            [string]$searchPresentation.states.active.fallback
+        }
+        else {
             "The trail leads to $englishDisplayName. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain."
-        )
+        })
 
         $searchTypeEnumerations.Add(
             "          <StateTypeEnumeration Name=`"$stateName`" ObjectiveValueType=`"Started`" />"
@@ -421,6 +617,9 @@ function New-RegionalQuest {
         $detectionNodes.Add('          <Constant Name="TimeType" Value="GameTime" />')
         $detectionNodes.Add('          <Edge From="targetTagTrigger.OnAdded" To="SetRunning" />')
         $detectionNodes.Add('          <Edge From="questProgress.OnActive" To="SetRunning" />')
+        foreach ($caseActivationEdge in $caseActivationRevalidationEdges) {
+            $detectionNodes.Add($caseActivationEdge)
+        }
         $detectionNodes.Add('        </Timer>')
         $detectionNodes.Add("        <If Name=`"$($slotNode)Tagged`">")
         $detectionNodes.Add("          <Edge From=`"$($slotNode)TagCheck.HaveBuffTag`" To=`"Condition`" />")
@@ -447,10 +646,271 @@ function New-RegionalQuest {
 
         $assets.Add("        <SoulAsset Name=`"$($candidate.alias)`" SharedSoulGuids=`"$($candidate.guid)`" />")
         $logs.Add("            <EnumLog Type=`"Started`" Name=`"$slotName`" IsTracked=`"true`" Marker=`"$($candidate.alias)`">")
-        $logs.Add('              <Log StringName="dark_within_target" Text="Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.">')
-        $logs.Add('                <Localization Text="Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence." Language="WHS" />')
+        $targetActiveKey = ConvertTo-XmlText `
+            ([string]$targetPresentation.states.active.key)
+        $targetActiveText = ConvertTo-XmlText `
+            ([string]$targetPresentation.states.active.fallback)
+        $logs.Add("              <Log StringName=`"$targetActiveKey`" Text=`"$targetActiveText`">")
+        $logs.Add("                <Localization Text=`"$targetActiveText`" Language=`"WHS`" />")
         $logs.Add('              </Log>')
         $logs.Add('            </EnumLog>')
+    }
+
+    $casePresentationGateNodes =
+        [System.Collections.Generic.List[string]]::new()
+    $additionalStoryNodes = [System.Collections.Generic.List[string]]::new()
+    $additionalStoryTypes = [System.Collections.Generic.List[string]]::new()
+    $additionalStoryObjectives = [System.Collections.Generic.List[string]]::new()
+    $gateState = @{ Index = 0 }
+    $gateEdges = {
+        param(
+            [object[]]$Edges,
+            [string]$CaseActiveState,
+            [string]$Stem
+        )
+        if ([string]::IsNullOrWhiteSpace($CaseActiveState)) {
+            return @($Edges)
+        }
+        $result = [System.Collections.Generic.List[string]]::new()
+        foreach ($edge in @($Edges)) {
+            $match = [regex]::Match(
+                [string]$edge,
+                '<Edge From="([^"]+)" To="([^"]+)"\s*/>'
+            )
+            if (-not $match.Success) {
+                throw "Cannot case-gate malformed edge '$edge'."
+            }
+            $gateState.Index++
+            $gateName = '{0}Gate{1:D4}' -f $Stem, $gateState.Index
+            $casePresentationGateNodes.Add(
+                "        <If Name=`"$gateName`">"
+            )
+            $casePresentationGateNodes.Add(
+                "          <Edge From=`"$CaseActiveState`" To=`"Condition`" />"
+            )
+            $casePresentationGateNodes.Add(
+                "          <Edge From=`"$($match.Groups[1].Value)`" To=`"Exec`" />"
+            )
+            $casePresentationGateNodes.Add('        </If>')
+            $result.Add(
+                "          <Edge From=`"$gateName.True`" To=`"$($match.Groups[2].Value)`" />"
+            )
+        }
+        return $result.ToArray()
+    }
+
+    $baseSearchStateEdges = @($searchStateEdges)
+    $baseSearchRevealEdges = @($searchRevealEdges)
+    $baseTargetStateEdges = @($targetStateEdges)
+    $baseCleanupEdges = @($cleanupEdges)
+    $primaryEvidenceDoneEdge = @(
+        '          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />'
+    )
+    $primaryCleanupResultEdges = @(
+        '          <Edge From="witnessDetectedTrigger.OnAdded" To="SetWitnessed" />',
+        '          <Edge From="cleanResultTrigger.OnAdded" To="SetClean" />',
+        '          <Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />',
+        '          <Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />',
+        '          <Edge From="externalResultTrigger.OnAdded" To="SetExternal" />'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($primaryCaseActiveState)) {
+        $searchStateEdges = @(& $gateEdges $baseSearchStateEdges `
+            $primaryCaseActiveState 'primarySearch')
+        $searchRevealEdges = @(& $gateEdges $baseSearchRevealEdges `
+            $primaryCaseActiveState 'primarySearchReveal')
+        $targetStateEdges = @(& $gateEdges $baseTargetStateEdges `
+            $primaryCaseActiveState 'primaryTarget')
+        $cleanupEdges = @(& $gateEdges $baseCleanupEdges `
+            $primaryCaseActiveState 'primaryCleanup')
+        $primaryEvidenceDoneEdge = @(& $gateEdges `
+            $primaryEvidenceDoneEdge $primaryCaseActiveState `
+            'primaryEvidenceDone')
+        $primaryCleanupResultEdges = @(& $gateEdges `
+            $primaryCleanupResultEdges $primaryCaseActiveState `
+            'primaryCleanupResult')
+    }
+
+    $regionSuffix = if ($RegionId -eq 'trosecko') { 't' } else { 'k' }
+    for ($storyIndex = 1; $storyIndex -lt $storyModules.Count; $storyIndex++) {
+        $story = $storyModules[$storyIndex]
+        $caseCode = [int]$story.caseCode
+        $casePrefix = "case$caseCode"
+        $caseActiveState = "${casePrefix}Active.State"
+        $searchType = "DP_Case${caseCode}SearchProgress_$regionSuffix"
+        $evidenceProgressType =
+            "DP_Case${caseCode}EvidenceProgress_$regionSuffix"
+        $targetType = "DP_Case${caseCode}TargetProgress_$regionSuffix"
+        $cleanupType = "DP_Case${caseCode}CleanupProgress_$regionSuffix"
+        $searchObjective = "DarkWithinCase${caseCode}Search_$regionSuffix"
+        $evidenceObjective =
+            "DarkWithinCase${caseCode}Evidence_$regionSuffix"
+        $targetObjective = "DarkWithinCase${caseCode}Target_$regionSuffix"
+        $cleanupObjective = "DarkWithinCase${caseCode}Cleanup_$regionSuffix"
+        $objectives = $story.journalObjectives
+        $storySearch = Resolve-DpQuestObjectivePresentation `
+            -JournalObjectives $objectives -ObjectiveId 'search' `
+            -Fallback $fallbackObjectives.search
+        $storyInvestigation = Resolve-DpQuestObjectivePresentation `
+            -JournalObjectives $objectives -ObjectiveId 'investigation' `
+            -Fallback $fallbackObjectives.investigation
+        $storyTarget = Resolve-DpQuestObjectivePresentation `
+            -JournalObjectives $objectives -ObjectiveId 'target' `
+            -Fallback $fallbackObjectives.target
+        $storyCleanup = Resolve-DpQuestObjectivePresentation `
+            -JournalObjectives $objectives -ObjectiveId 'cleanup' `
+            -Fallback $fallbackObjectives.cleanup
+        $initialState = @($story.journalStates | Where-Object {
+            [int]$_.code -eq 0
+        })
+        if ($initialState.Count -ne 1) {
+            throw "Case '$caseCode' requires one initial evidence state."
+        }
+        $resetPort = 'Set' + [string]$initialState[0].state_name
+        $storySearchEdges = @(& $gateEdges $baseSearchStateEdges `
+            $caseActiveState "${casePrefix}Search")
+        $storyRevealEdges = @(& $gateEdges $baseSearchRevealEdges `
+            $caseActiveState "${casePrefix}SearchReveal")
+        $storyTargetEdges = @(& $gateEdges $baseTargetStateEdges `
+            $caseActiveState "${casePrefix}Target")
+        $storyCleanupEdges = @(& $gateEdges $baseCleanupEdges `
+            $caseActiveState "${casePrefix}Cleanup")
+        $storyEvidenceDone = @(& $gateEdges @(
+            '          <Edge From="revealTagTrigger.OnAdded" To="SetDone" />'
+        ) $caseActiveState "${casePrefix}EvidenceDone")
+        $storyCleanupResults = @(& $gateEdges @(
+            '          <Edge From="witnessDetectedTrigger.OnAdded" To="SetWitnessed" />',
+            '          <Edge From="cleanResultTrigger.OnAdded" To="SetClean" />',
+            '          <Edge From="controlledResultTrigger.OnAdded" To="SetControlled" />',
+            '          <Edge From="noisyResultTrigger.OnAdded" To="SetNoisy" />',
+            '          <Edge From="externalResultTrigger.OnAdded" To="SetExternal" />'
+        ) $caseActiveState "${casePrefix}CleanupResult")
+
+        $additionalStoryNodes.Add(@"
+        <State Name="${casePrefix}SearchProgress" TypeT="$searchType">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+$($storySearchEdges -join "`n")
+$($storyRevealEdges -join "`n")
+        </State>
+        <$searchObjective Name="${casePrefix}SearchVisual">
+          <Edge From="${casePrefix}SearchProgress.State" To="Progress" />
+        </$searchObjective>
+        <State Name="${casePrefix}EvidenceProgress" TypeT="$evidenceProgressType">
+          <Edge From="satisfactionTrigger.OnRemoved" To="$resetPort" />
+$([string]$story.evidenceStateEdges)
+$($storyEvidenceDone -join "`n")
+        </State>
+        <$evidenceObjective Name="${casePrefix}EvidenceVisual">
+          <Edge From="${casePrefix}EvidenceProgress.State" To="Progress" />
+        </$evidenceObjective>
+        <State Name="${casePrefix}TargetProgress" TypeT="$targetType">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+$($storyTargetEdges -join "`n")
+        </State>
+        <$targetObjective Name="${casePrefix}TargetVisual">
+          <Edge From="${casePrefix}TargetProgress.State" To="Progress" />
+        </$targetObjective>
+        <State Name="${casePrefix}CleanupProgress" TypeT="$cleanupType">
+          <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="questProgress.OnActive" To="SetNone" />
+$($storyCleanupEdges -join "`n")
+$($storyCleanupResults -join "`n")
+        </State>
+        <$cleanupObjective Name="${casePrefix}CleanupVisual">
+          <Edge From="${casePrefix}CleanupProgress.State" To="Progress" />
+        </$cleanupObjective>
+"@.TrimEnd())
+
+        $additionalStoryTypes.Add(@"
+        <Type TypeName="$searchType">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+$($searchTypeEnumerations -join "`n")
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+        <Type TypeName="$evidenceProgressType">
+$([string]$story.evidenceType)
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+        <Type TypeName="$targetType">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+$($targetTypeEnumerations -join "`n")
+          <StateTypeEnumeration Name="Done" ObjectiveValueType="Completed" />
+        </Type>
+        <Type TypeName="$cleanupType">
+          <StateTypeEnumeration Name="None" ObjectiveValueType="None" />
+          <StateTypeEnumeration Name="Active" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Witnessed" ObjectiveValueType="Started" />
+          <StateTypeEnumeration Name="Clean" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="Controlled" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="Noisy" ObjectiveValueType="Completed" />
+          <StateTypeEnumeration Name="External" ObjectiveValueType="Completed" />
+        </Type>
+"@.TrimEnd())
+
+        $storySearchLogs = ($searchLogs -join "`n").Replace(
+            [string]$searchPresentation.states.active.key,
+            [string]$storySearch.states.active.key
+        ).Replace(
+            (ConvertTo-XmlText ([string]$searchPresentation.states.active.fallback)),
+            (ConvertTo-XmlText ([string]$storySearch.states.active.fallback))
+        )
+        $storyTargetLogs = ($logs -join "`n").Replace(
+            [string]$targetPresentation.states.active.key,
+            [string]$storyTarget.states.active.key
+        ).Replace(
+            (ConvertTo-XmlText ([string]$targetPresentation.states.active.fallback)),
+            (ConvertTo-XmlText ([string]$storyTarget.states.active.fallback))
+        )
+        $additionalStoryObjectives.Add(@"
+        <Objective TypeT="$searchType" Name="$searchObjective">
+          <LocalizedName StringName="$($storySearch.nameKey)" Text="$(ConvertTo-XmlText ([string]$storySearch.fallbackName))">
+            <Localization Text="$(ConvertTo-XmlText ([string]$storySearch.fallbackName))" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+$storySearchLogs
+            <EnumLog Type="Completed" Name="Done" />
+          </Logs>
+        </Objective>
+        <Objective TypeT="$targetType" Name="$targetObjective">
+          <LocalizedName StringName="$($storyTarget.nameKey)" Text="$(ConvertTo-XmlText ([string]$storyTarget.fallbackName))">
+            <Localization Text="$(ConvertTo-XmlText ([string]$storyTarget.fallbackName))" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+$storyTargetLogs
+            <EnumLog Type="Completed" Name="Done">
+              <Log StringName="$($storyTarget.states.done.key)" Text="$(ConvertTo-XmlText ([string]$storyTarget.states.done.fallback))">
+                <Localization Text="$(ConvertTo-XmlText ([string]$storyTarget.states.done.fallback))" Language="WHS" />
+              </Log>
+            </EnumLog>
+          </Logs>
+        </Objective>
+        <Objective TypeT="$evidenceProgressType" Name="$evidenceObjective">
+          <LocalizedName StringName="$($storyInvestigation.nameKey)" Text="$(ConvertTo-XmlText ([string]$storyInvestigation.fallbackName))">
+            <Localization Text="$(ConvertTo-XmlText ([string]$storyInvestigation.fallbackName))" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+$([string]$story.evidenceLogs)
+            <EnumLog Type="Completed" Name="Done" />
+          </Logs>
+        </Objective>
+        <Objective TypeT="$cleanupType" Name="$cleanupObjective">
+          <LocalizedName StringName="$($storyCleanup.nameKey)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.fallbackName))">
+            <Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.fallbackName))" Language="WHS" />
+          </LocalizedName>
+          <Logs>
+            <EnumLog Type="None" Name="None" />
+            <EnumLog Type="Started" Name="Active" IsTracked="true"><Log StringName="$($storyCleanup.states.active.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.active.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.active.fallback))" Language="WHS" /></Log></EnumLog>
+            <EnumLog Type="Started" Name="Witnessed" IsTracked="true"><Log StringName="$($storyCleanup.states.witnessed.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.witnessed.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.witnessed.fallback))" Language="WHS" /></Log></EnumLog>
+            <EnumLog Type="Completed" Name="Clean"><Log StringName="$($storyCleanup.states.clean.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.clean.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.clean.fallback))" Language="WHS" /></Log></EnumLog>
+            <EnumLog Type="Completed" Name="Controlled"><Log StringName="$($storyCleanup.states.controlled.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.controlled.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.controlled.fallback))" Language="WHS" /></Log></EnumLog>
+            <EnumLog Type="Completed" Name="Noisy"><Log StringName="$($storyCleanup.states.noisy.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.noisy.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.noisy.fallback))" Language="WHS" /></Log></EnumLog>
+            <EnumLog Type="Completed" Name="External"><Log StringName="$($storyCleanup.states.external.key)" Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.external.fallback))"><Localization Text="$(ConvertTo-XmlText ([string]$storyCleanup.states.external.fallback))" Language="WHS" /></Log></EnumLog>
+          </Logs>
+        </Objective>
+"@.TrimEnd())
     }
 
     $replacements = [ordered]@{
@@ -472,17 +932,60 @@ function New-RegionalQuest {
         '{{DP_EVIDENCE_STATE_NODES}}' = $evidenceStateNodes.TrimEnd()
         '{{DP_CONFESSION_PROBE_NODES}}' = $confessionProbeNodes.TrimEnd()
         '{{DP_QUEST_ITEM_PLACEMENT_NODES}}' = $questItemPlacementNodes.TrimEnd()
+        '{{DP_GUIDANCE_NODES}}' = $guidanceNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_EDGES}}' = $evidenceStateEdges.TrimEnd()
         '{{DP_EVIDENCE_TYPE_ENUMS}}' = $evidenceType.TrimEnd()
         '{{DP_EVIDENCE_LOGS}}' = $evidenceLogs.TrimEnd()
         '{{DP_EVIDENCE_WITNESS_EDGE}}' = $evidenceWitnessEdge
         '{{DP_WITNESS_OBJECTIVE_NODES}}' = $witnessObjectiveNodes.TrimEnd()
         '{{DP_WITNESS_TYPE}}' = $witnessType.TrimEnd()
+        '{{DP_GUIDANCE_TYPES}}' = $guidanceTypes.TrimEnd()
         '{{DP_WITNESS_OBJECTIVE}}' = $witnessObjective.TrimEnd()
+        '{{DP_GUIDANCE_OBJECTIVES}}' = $guidanceObjectives.TrimEnd()
         '{{DP_SEARCH_OBJECTIVE_NAME}}' = $SearchObjectiveName
         '{{DP_EVIDENCE_OBJECTIVE_NAME}}' = $EvidenceObjectiveName
         '{{DP_TARGET_OBJECTIVE_NAME}}' = $TargetObjectiveName
         '{{DP_CLEANUP_OBJECTIVE_NAME}}' = $CleanupObjectiveName
+        '{{DP_SEARCH_NAME_KEY}}' = [string]$searchPresentation.nameKey
+        '{{DP_SEARCH_NAME_TEXT}}' = ConvertTo-XmlText `
+            ([string]$searchPresentation.fallbackName)
+        '{{DP_INVESTIGATION_NAME_KEY}}' = `
+            [string]$investigationPresentation.nameKey
+        '{{DP_INVESTIGATION_NAME_TEXT}}' = ConvertTo-XmlText `
+            ([string]$investigationPresentation.fallbackName)
+        '{{DP_TARGET_NAME_KEY}}' = [string]$targetPresentation.nameKey
+        '{{DP_TARGET_NAME_TEXT}}' = ConvertTo-XmlText `
+            ([string]$targetPresentation.fallbackName)
+        '{{DP_TARGET_DONE_KEY}}' = [string]$targetPresentation.states.done.key
+        '{{DP_TARGET_DONE_TEXT}}' = ConvertTo-XmlText `
+            ([string]$targetPresentation.states.done.fallback)
+        '{{DP_CLEANUP_NAME_KEY}}' = [string]$cleanupPresentation.nameKey
+        '{{DP_CLEANUP_NAME_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.fallbackName)
+        '{{DP_CLEANUP_ACTIVE_KEY}}' = `
+            [string]$cleanupPresentation.states.active.key
+        '{{DP_CLEANUP_ACTIVE_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.active.fallback)
+        '{{DP_CLEANUP_WITNESSED_KEY}}' = `
+            [string]$cleanupPresentation.states.witnessed.key
+        '{{DP_CLEANUP_WITNESSED_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.witnessed.fallback)
+        '{{DP_CLEANUP_CLEAN_KEY}}' = `
+            [string]$cleanupPresentation.states.clean.key
+        '{{DP_CLEANUP_CLEAN_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.clean.fallback)
+        '{{DP_CLEANUP_CONTROLLED_KEY}}' = `
+            [string]$cleanupPresentation.states.controlled.key
+        '{{DP_CLEANUP_CONTROLLED_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.controlled.fallback)
+        '{{DP_CLEANUP_NOISY_KEY}}' = `
+            [string]$cleanupPresentation.states.noisy.key
+        '{{DP_CLEANUP_NOISY_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.noisy.fallback)
+        '{{DP_CLEANUP_EXTERNAL_KEY}}' = `
+            [string]$cleanupPresentation.states.external.key
+        '{{DP_CLEANUP_EXTERNAL_TEXT}}' = ConvertTo-XmlText `
+            ([string]$cleanupPresentation.states.external.fallback)
         '{{DP_QUEST_DESCRIPTION_KEY}}' = $QuestDescriptionKey
         '{{DP_TARGET_POOL_GUIDS}}' = (@($Candidates.guid) -join ' ')
         '{{DP_SEARCH_TYPE_ENUMS}}' = $searchTypeEnumerations -join "`n"
@@ -490,6 +993,7 @@ function New-RegionalQuest {
         '{{DP_SEARCH_AREA_ASSETS}}' = $searchAreaAssets -join "`n"
         '{{DP_QUEST_ITEM_PLACEMENT_ASSETS}}' =
             $questItemPlacementAssets.TrimEnd()
+        '{{DP_GUIDANCE_ASSETS}}' = $guidanceAssets.TrimEnd()
         '{{DP_SEARCH_LOGS}}' = $searchLogs -join "`n"
         '{{DP_SELECTED_TYPE_ENUMS}}' = $selectedTypeEnumerations -join "`n"
         '{{DP_TARGET_TYPE_ENUMS}}' = $targetTypeEnumerations -join "`n"
@@ -502,6 +1006,17 @@ function New-RegionalQuest {
         '{{DP_TARGET_DEATH_CONTEXT_EDGES}}' = $targetDeathContextEdges -join "`n"
         '{{DP_TARGET_DETECTION_NODES}}' = $detectionNodes -join "`n"
         '{{DP_TARGET_DEATH_NODES}}' = $deathNodes -join "`n"
+        '{{DP_CASE_PRESENTATION_GATE_NODES}}' =
+            $casePresentationGateNodes -join "`n"
+        '{{DP_EVIDENCE_DONE_EDGE}}' = $primaryEvidenceDoneEdge -join "`n"
+        '{{DP_CLEANUP_RESULT_EDGES}}' =
+            $primaryCleanupResultEdges -join "`n"
+        '{{DP_ADDITIONAL_STORY_NODES}}' =
+            $additionalStoryNodes -join "`n"
+        '{{DP_ADDITIONAL_STORY_TYPES}}' =
+            $additionalStoryTypes -join "`n"
+        '{{DP_ADDITIONAL_STORY_OBJECTIVES}}' =
+            $additionalStoryObjectives -join "`n"
         '{{DP_TARGET_ASSETS}}' = $assets -join "`n"
         '{{DP_OVERHEARD_ASSETS}}' = $overheardAssets.TrimEnd()
         '{{DP_CONFESSION_PROBE_ASSETS}}' = $confessionProbeAssets.TrimEnd()

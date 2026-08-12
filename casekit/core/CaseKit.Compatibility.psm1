@@ -368,6 +368,115 @@ function Resolve-CaseKitEvidencePlacements {
     }
 }
 
+function Resolve-CaseKitGuidanceBindings {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$Bindings
+    )
+
+    $resolved = [System.Collections.Generic.List[object]]::new()
+    foreach ($thread in @($Story.threads)) {
+        foreach ($step in @($thread.steps)) {
+            $guidanceTargets = Get-CaseKitCompatibilityProperty `
+                -Value $step -Name 'guidance' -DefaultValue @()
+            foreach ($guidanceTarget in @($guidanceTargets)) {
+                $slotName = [string]$guidanceTarget.target.slot
+                $binding = if ($Bindings.Contains($slotName)) {
+                    $Bindings[$slotName]
+                }
+                else { $null }
+                if ($null -eq $binding -and
+                    [string]$guidanceTarget.fallback -eq 'reject-variant') {
+                    return [pscustomobject]@{
+                        valid = $false
+                        bindings = @()
+                    }
+                }
+                $resolvedBinding = if ($null -eq $binding) { $null } else {
+                    [pscustomobject][ordered]@{
+                        kind = [string]$binding.kind
+                        entityName = [string]$binding.entityName
+                        entityGuid = [string]$binding.entityGuid
+                        soulGuid = [string](Get-CaseKitCompatibilityProperty `
+                            -Value $binding -Name 'soulGuid' `
+                            -DefaultValue '')
+                        region = [string]$binding.region
+                        settlement = [string]$binding.settlement
+                        position = Get-CaseKitCompatibilityProperty `
+                            -Value $binding -Name 'position'
+                    }
+                }
+                $areaSelection = [string](
+                    Get-CaseKitCompatibilityProperty `
+                        -Value $guidanceTarget.target `
+                        -Name 'areaSelection' -DefaultValue ''
+                )
+                $anchorBindings = [System.Collections.Generic.List[object]]::new()
+                foreach ($anchorSlotName in @(
+                    Get-CaseKitCompatibilityProperty `
+                        -Value $guidanceTarget.target `
+                        -Name 'anchorSlots' -DefaultValue @()
+                )) {
+                    $anchorSlot = [string]$anchorSlotName
+                    $anchor = if ($Bindings.Contains($anchorSlot)) {
+                        $Bindings[$anchorSlot]
+                    }
+                    else { $null }
+                    if ($null -eq $anchor) {
+                        if ([string]$guidanceTarget.fallback -eq
+                            'reject-variant') {
+                            return [pscustomobject]@{
+                                valid = $false
+                                bindings = @()
+                            }
+                        }
+                        $resolvedBinding = $null
+                        break
+                    }
+                    $anchorBindings.Add([pscustomobject][ordered]@{
+                        slot = $anchorSlot
+                        kind = [string]$anchor.kind
+                        entityName = [string]$anchor.entityName
+                        entityGuid = [string]$anchor.entityGuid
+                        soulGuid = [string](
+                            Get-CaseKitCompatibilityProperty `
+                                -Value $anchor -Name 'soulGuid' `
+                                -DefaultValue ''
+                        )
+                        region = [string]$anchor.region
+                        settlement = [string]$anchor.settlement
+                        position = Get-CaseKitCompatibilityProperty `
+                            -Value $anchor -Name 'position'
+                    })
+                }
+                $resolved.Add([pscustomobject][ordered]@{
+                    qualifiedId = ('{0}/{1}/{2}' -f `
+                        [string]$thread.id, [string]$step.id, `
+                        [string]$guidanceTarget.id)
+                    threadId = [string]$thread.id
+                    stepId = [string]$step.id
+                    id = [string]$guidanceTarget.id
+                    targetKind = [string]$guidanceTarget.target.kind
+                    targetSlot = $slotName
+                    precision = [string]$guidanceTarget.precision
+                    objective = Get-CaseKitCompatibilityProperty `
+                        -Value $guidanceTarget -Name 'objective'
+                    visibility = $guidanceTarget.visibility
+                    lifetime = [string]$guidanceTarget.lifetime
+                    fallback = [string]$guidanceTarget.fallback
+                    areaSelection = $areaSelection
+                    anchorBindings = $anchorBindings.ToArray()
+                    binding = $resolvedBinding
+                })
+            }
+        }
+    }
+    return [pscustomobject]@{
+        valid = $true
+        bindings = $resolved.ToArray()
+    }
+}
+
 function Get-CaseKitMissingSlotReason {
     param(
         [Parameter(Mandatory)]$Slot,
@@ -507,6 +616,8 @@ function New-CaseKitCompatibilityVariant {
         [Parameter(Mandatory)]$Bindings,
         [Parameter(Mandatory)][AllowEmptyCollection()]
         [object[]]$EvidencePlacements,
+        [Parameter(Mandatory)][AllowEmptyCollection()]
+        [object[]]$GuidanceBindings,
         [Parameter(Mandatory)][int]$Rank
     )
 
@@ -532,6 +643,7 @@ function New-CaseKitCompatibilityVariant {
         bindingSeed = $seed
         bindings = [pscustomobject]$Bindings
         evidencePlacements = @($EvidencePlacements)
+        guidanceBindings = @($GuidanceBindings)
         renderedAssets = Expand-CaseKitVariantAssets `
             -Story $Story -Bindings $Bindings
     }
@@ -572,10 +684,17 @@ function Add-CaseKitBindingVariants {
                 return
             }
             $placements = @($placementResolution.placements)
+            $guidanceResolution = Resolve-CaseKitGuidanceBindings `
+                -Story $Story -Bindings $bindings
+            if (-not [bool]$guidanceResolution.valid) {
+                return
+            }
+            $guidanceBindings = @($guidanceResolution.bindings)
             $Output.Add((New-CaseKitCompatibilityVariant `
                 -Story $Story -Composition $Composition `
                 -Settlement $Settlement -Bindings $bindings `
                 -EvidencePlacements $placements `
+                -GuidanceBindings $guidanceBindings `
                 -Rank ($Output.Count + 1)))
             return
         }

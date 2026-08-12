@@ -90,11 +90,17 @@ foreach ($token in @(
     'anti_repeat_key =',
     'target_slot =',
     'bindings =',
+    'dialogue_role =',
     'scenes ='
 )) {
     Add-Result ($variantCatalog.Contains($token)) `
         "variant catalog contains $token"
 }
+Add-Result (
+    $caseRuntime.Contains(
+        'result.dialogueRole = semantic.dialogue_role'
+    )
+) 'runtime overlays the selected settlement dialogue role'
 
 foreach ($token in @(
     'SCHEMA_VERSION = 3',
@@ -102,6 +108,7 @@ foreach ($token in @(
     'dp_case_content_previous_variant_code',
     'function DarkPassengerCaseContent.IsSettlementSupported',
     'function DarkPassengerCaseContent.SelectVariant',
+    'function DarkPassengerCaseContent.FindCompatibleVariant',
     'function DarkPassengerCaseContent.PrepareVariant',
     'native_ready',
     'anti_repeat_key',
@@ -121,6 +128,14 @@ Add-Result (
     $caseRuntime.Contains('"variant selection"') -and
     $caseRuntime.Contains('"variant anti-repeat"')
 ) 'runtime self-test exercises finite selection and target anti-repeat'
+Add-Result (
+    $caseRuntime.Contains(
+        'DarkPassengerCaseContent.FindCompatibleVariant(current, context, nil)'
+    ) -and
+    $caseRuntime.Contains('PersistState(migratedState)') -and
+    $caseRuntime.Contains('"migrated_variant"') -and
+    $caseRuntime.Contains('"variant migration"')
+) 'missing generated variants migrate within the same case and target'
 
 $selectMatch = [regex]::Match(
     $targetRuntime,

@@ -151,6 +151,13 @@ may be discovered before its intended hint. Every result reveals declared
 facts, grants its one-shot confidence through an evidence module, optionally
 unlocks another thread and produces visible journal feedback.
 
+Target reveal is gated by both confidence and an identity expression. The first
+rich-story requirement is `identityRequirement.anyOf`: any one declared hard
+identity fact may identify the same concrete target. Legacy `requiredFacts`
+remains an all-of shorthand during migration. The compiler proves every
+alternative is reachable and the runtime reveals the target only when the
+confidence threshold and the identity expression are both satisfied.
+
 One StoryPack owns one canonical truth. Settlement, concrete world actors,
 clue order and delivery may vary, but the compiler does not assemble the
 crime, motive or causal history from unrelated random fragments. This is the
@@ -195,11 +202,65 @@ document in a container, witness testimony, looted item or overheard dialogue.
 It declares required capabilities, placement, facts revealed, prerequisites,
 one-shot confidence and journal feedback.
 
+Overheard dialogue is a finite scene collection, not a singular global hook.
+Each step explicitly chooses `activation.mode=interaction|proximity` and owns
+its two speaker bindings, dialogue graph, signal and completion context.
+`interaction` is player-initiated from either speaker; `proximity` is reserved
+for authored directed scenes. Both converge on the same one-shot evidence and
+journal transaction.
+
 The boundary is intentional: CaseArchetype defines which thread grammar and
 module kinds are legal, StoryPack arranges concrete story threads and authored
 assets, and EvidenceModule implements the in-game action that discovers one
 piece of evidence. StoryPack never owns KCD2 GUIDs or native XML wiring, while
 EvidenceModule never owns the case lore.
+
+### GuidanceTarget
+
+Navigation is one reusable case subsystem, not separate features for a suspect,
+clue or house. Any InvestigationThread step may declare a semantic
+`GuidanceTarget` pointing to:
+
+- an `actor` slot: target, suspect, witness or any other participant;
+- an `entity` slot: clue item, container, door or other bound world object;
+- a `place` slot: home, workplace, meeting point, grave or crime-scene anchor;
+- an `area` slot: settlement, compound, search zone or a composite of compiled
+  native areas.
+
+The directive owns activation, completion, visibility and allowed precision,
+but not native GUIDs. It may request an area while identity is uncertain, a
+point when the place is known, and an actor marker only after a hard identity
+fact is revealed. This prevents navigation from leaking the solution.
+
+CaseCompiler resolves the target and selects a supported presentation adapter:
+native actor or entity marker, native point, native or composite search area,
+or an explicit journal-direction fallback. A house is therefore not a special
+case: it resolves to a reviewed home anchor, personal container, door, or a
+suitable existing area. Trade containers are never accepted as personal-home
+anchors.
+
+All native presentations reuse the already proven Skald objective-marker
+pipeline: an active journal log points its `Marker` to a predeclared asset
+alias. The adapter changes only the asset kind and concrete binding, for example
+`SoulAsset` for an actor or supported persistent object,
+`InteractionTriggerAsset` for a fixed interaction point, and
+`TriggerAreaAsset` for an area. CaseKit generalizes this mechanism instead of
+maintaining target-specific marker generators.
+
+Arbitrary custom area geometry is not assumed to exist. If no compiled native
+area covers a requested place, the variant must use an authored point or text
+fallback, or be rejected when an area is mandatory. Runtime only toggles the
+precompiled guidance bindings and persists their state; it does not create
+quest graphs or native areas dynamically.
+
+Implementation checkpoint: the authoring validator, compatibility binding,
+KCD2 materializer and native signal compiler now cover actor, entity, place
+and area targets. The backend emits deterministic RPG signal tables and
+regional Skald objectives; actors use `SoulAsset`, fixed entities use
+`InteractionTriggerAsset`, and areas reuse existing aliases. Level waiting
+links, Lua visibility rules and cleanup ownership are integration-tested. The
+remaining acceptance is a live StoryPack that exercises actor, entity and area
+guidance in the retail journal, compass and map.
 
 ### Optional terminal scene modules
 
@@ -295,7 +356,8 @@ For every `archetype x story x settlement` combination, the solver:
 4. verifies that every clue can be placed and every interaction can run;
 5. proves at least one route reaches confidence 70;
 6. validates all typed variables and bilingual localization;
-7. verifies every required hard identity fact has at least one reachable route;
+7. verifies every branch of the hard identity expression has at least one
+   reachable route;
 8. emits a compatible variant or a precise rejection reason.
 
 The first version is strict: if a required role is absent, that combination is
@@ -329,7 +391,7 @@ Each accepted binding becomes an immutable `CaseVariant` containing:
 caseId + variantId + archetypeId + storyId
 region + settlement + concrete target/source/place bindings
 evidence graph + confidence values + presentation revisions
-native aliases + stable numeric codes + localization keys
+guidance bindings + native aliases + stable numeric codes + localization keys
 ```
 
 CaseCompiler adapts that variant into the already proven outputs:
@@ -370,7 +432,7 @@ When hunger opens a case, Lua:
 6. prepares its scenes by binding concrete actors, places and containers;
 7. idempotently places predefined evidence;
 8. activates already compiled dialogue conditions, quest objectives, areas,
-   markers and semantic camera rigs.
+   markers, guidance targets and semantic camera rigs.
 
 This preparation is the runtime `SceneDirector` boundary. `SceneDefinition`
 contains authored dialogue, evidence, transitions and presentation intent;

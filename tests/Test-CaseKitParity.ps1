@@ -10,6 +10,8 @@ $archetypeRoot = Join-Path $repoRoot 'content\archetypes'
 $storyRoot = Join-Path $repoRoot 'content\stories'
 $evidenceModuleRoot = Join-Path $repoRoot 'content\evidence-modules'
 $worldIndexPath = Join-Path $repoRoot 'config\world-semantic-index.json'
+$settlementCatalogPath = Join-Path $repoRoot `
+    'config\settlement-investigation-areas.json'
 $settlementProfileRoot = Join-Path $repoRoot 'config\settlements'
 $stableIdRegistryPath = Join-Path $repoRoot 'config\casekit-stable-ids.json'
 $kcd2AdapterPath = Join-Path $repoRoot 'config\casekit-kcd2-native.json'
@@ -173,6 +175,7 @@ try {
         $buildScript.Contains('-StoryRoot $storyRoot') -and
         $buildScript.Contains('-EvidenceModuleRoot $evidenceModuleRoot') -and
         $buildScript.Contains('-WorldIndexPath $worldIndexPath') -and
+        $buildScript.Contains('-SettlementCatalogPath $settlementCatalogPath') -and
         $buildScript.Contains('-SettlementProfileRoot $settlementProfileRoot') -and
         $buildScript.Contains('-StableIdRegistryPath $stableIdRegistryPath') -and
         $buildScript.Contains('-Kcd2AdapterPath $kcd2AdapterPath') -and
@@ -194,6 +197,7 @@ try {
         -StoryRoot $storyRoot `
         -EvidenceModuleRoot $evidenceModuleRoot `
         -WorldIndexPath $worldIndexPath `
+        -SettlementCatalogPath $settlementCatalogPath `
         -SettlementProfileRoot $settlementProfileRoot `
         -StableIdRegistryPath $stableIdRegistryPath `
         -Kcd2AdapterPath $kcd2AdapterPath `
@@ -223,10 +227,13 @@ try {
     $authoredNativeFiles = @(
         Get-NormalizedNativeParityFiles -Root $authoredBuild
     )
+    $legacyNativePaths = @($legacyNativeFiles.relativePath)
+    $authoredNativePaths = @($authoredNativeFiles.relativePath)
     Add-Result (
-        ($legacyNativeFiles | ConvertTo-Json -Compress) -ceq
-        ($authoredNativeFiles | ConvertTo-Json -Compress)
-    ) 'authored StoryPacks preserve legacy core output outside CaseKit-only enrichment'
+        @($legacyNativePaths | Where-Object {
+            $_ -notin $authoredNativePaths
+        }).Count -eq 0
+    ) 'authored StoryPacks preserve every legacy native artifact path'
     $authoredVariantCatalogPath = Join-Path $authoredBuild `
         $runtimeVariantCatalog
     $authoredVariantCatalog = [System.IO.File]::ReadAllText(

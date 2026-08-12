@@ -20,6 +20,9 @@
     "coverStory": "forged_departure"
   },
   "revealThreshold": 70,
+  "identityRequirement": {
+    "allOf": ["horse_returner_identified"]
+  },
   "native": {
     "questName": "dark_within_t",
     "dialogFolder": "dark_within_t",
@@ -31,25 +34,172 @@
       "rumorHeard": "dp_rumor_heard_trosecko",
       "witnessHeard": "dp_witness_heard_trosecko"
     },
-    "overheard": {
-      "evidenceId": "zelejov_inn_yard_whisper",
-      "graphName": "overheard_missing_traveler_dialog_t",
-      "fileName": "overheard_missing_traveler_dialog_t.xml",
-      "rootKey": "dp_mt_overheard_root",
-      "decisionAlias": "darkPassenger_missingTravelerOverheard",
-      "sequenceName": "missing_traveler_overheard",
-      "cluePort": "clue_spoken",
-      "clueLabel": "Missing traveler clue spoken",
-      "hearingDistance": 15,
-      "repeatAfterSeconds": 20,
-      "availableTag": 71,
-      "context": "dp_overheard_clue_spoken_trosecko",
-      "responses": [
-        { "role": "speakerA", "key": "dp_mt_overheard_matej_argument" },
-        { "role": "speakerB", "key": "dp_mt_overheard_widow_money" },
-        { "role": "speakerA", "key": "dp_mt_overheard_gone_by_dawn" }
-      ]
+    "journal": {
+      "objectives": {
+        "search": {
+          "nameKey": "dp_case_2001_objective_search_name",
+          "fallbackName": "Find the missing traveler's trail",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_search_active",
+              "fallback": "The trail leads into the marked area. Somewhere here lies the truth of Matej's disappearance."
+            }
+          }
+        },
+        "investigation": {
+          "nameKey": "dp_case_2001_objective_investigation_name",
+          "fallbackName": "Uncover Matej's fate",
+          "states": {}
+        },
+        "target": {
+          "nameKey": "dp_case_2001_objective_target_name",
+          "fallbackName": "Hunt down Matej's killer",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_target_active",
+              "fallback": "The evidence is conclusive. Find the guilty man and carry out the sentence."
+            },
+            "done": {
+              "key": "dp_case_2001_objective_target_done",
+              "fallback": "Matej's killer is dead. Now no trace can be left behind."
+            }
+          }
+        },
+        "cleanup": {
+          "nameKey": "dp_case_2001_objective_cleanup_name",
+          "fallbackName": "Leave no trace",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_cleanup_active",
+              "fallback": "The killing is done. Make certain no one can connect it to Henry."
+            },
+            "witnessed": {
+              "key": "dp_case_2001_objective_cleanup_witnessed",
+              "fallback": "Someone saw too much. Witnesses may lead the guards to the truth."
+            },
+            "clean": {
+              "key": "dp_case_2001_objective_cleanup_clean",
+              "fallback": "No alarm was raised. The case can be closed."
+            },
+            "controlled": {
+              "key": "dp_case_2001_objective_cleanup_controlled",
+              "fallback": "Every dangerous witness is gone. The case can be closed."
+            },
+            "noisy": {
+              "key": "dp_case_2001_objective_cleanup_noisy",
+              "fallback": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence."
+            },
+            "external": {
+              "key": "dp_case_2001_objective_cleanup_external",
+              "fallback": "The guilty man died without Henry's hand. No trail remains."
+            }
+          }
+        }
+      }
     },
+    "guidance": [
+      {
+        "qualifiedId": "courtyard-gossip/overhear-argument/listen-area",
+        "mode": "native-marker",
+        "alias": "DpGuidance_courtyard_gossip_overhear_argument_listen_area",
+        "assetKind": "TriggerAreaAsset",
+        "catalogKey": "trosecko/zelejov",
+        "binding": {
+          "kind": "settlement",
+          "entityName": "zelejov",
+          "entityGuid": "",
+          "soulGuid": "",
+          "region": "trosecko",
+          "settlement": "zelejov",
+          "position": null
+        },
+        "areaSelection": "smallest-common",
+        "anchorBindings": [
+          {
+            "slot": "gossipSourceA",
+            "kind": "actor",
+            "entityName": "tzel_man_12",
+            "entityGuid": "92a51bce-1613-4778",
+            "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+            "region": "trosecko",
+            "settlement": "zelejov",
+            "position": {
+              "x": 1661.686,
+              "y": 2163.033,
+              "z": 34.88597
+            }
+          },
+          {
+            "slot": "gossipSourceB",
+            "kind": "actor",
+            "entityName": "tzel_man_13",
+            "entityGuid": "fd4139c7-22d0-47cb",
+            "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+            "region": "trosecko",
+            "settlement": "zelejov",
+            "position": {
+              "x": 1662.284,
+              "y": 2163.542,
+              "z": 34.98262
+            }
+          }
+        ],
+        "visibility": {"mode": "step-active", "requiresFacts": []},
+        "lifetime": "step",
+        "objective": {
+          "nameKey": "dp_case_2001_objective_guidance_listen_name",
+          "fallbackName": "Listen to the conversations in the inn yard",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_guidance_listen_active",
+              "fallback": "The inn yard is crowded. Someone may let slip what happened to Matej."
+            }
+          }
+        }
+      }
+    ],
+    "overheardScenes": [
+      {
+        "id": "courtyard_gossip_overhear_argument",
+        "qualifiedId": "courtyard-gossip/overhear-argument",
+        "activation": {"mode": "interaction"},
+        "speakers": {
+          "speakerA": {
+            "role": "speakerA",
+            "entityName": "tzel_man_12",
+            "entityGuid": "92a51bce-1613-4778",
+            "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+            "questAlias": "DpOverheard_courtyard_gossip_overhear_argument_A",
+            "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+          },
+          "speakerB": {
+            "role": "speakerB",
+            "entityName": "tzel_man_13",
+            "entityGuid": "fd4139c7-22d0-47cb",
+            "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+            "questAlias": "DpOverheard_courtyard_gossip_overhear_argument_B",
+            "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+          }
+        },
+        "evidenceId": "zelejov_inn_yard_whisper",
+        "graphName": "overheard_missing_traveler_dialog_t",
+        "fileName": "overheard_missing_traveler_dialog_t.xml",
+        "rootKey": "dp_mt_overheard_root",
+        "decisionAlias": "darkPassenger_missingTravelerOverheard",
+        "sequenceName": "missing_traveler_overheard",
+        "cluePort": "clue_spoken",
+        "clueLabel": "Missing traveler clue spoken",
+        "hearingDistance": 15,
+        "repeatAfterSeconds": 20,
+        "availableTag": 71,
+        "context": "dp_overheard_clue_spoken_trosecko",
+        "responses": [
+          { "role": "speakerA", "key": "dp_mt_overheard_matej_argument" },
+          { "role": "speakerB", "key": "dp_mt_overheard_widow_money" },
+          { "role": "speakerA", "key": "dp_mt_overheard_gone_by_dawn" }
+        ]
+      }
+    ],
     "dialogues": [
       {
         "kind": "rumor",
@@ -245,6 +395,21 @@
   },
   "localization": {
     "ru": {
+      "dp_case_2001_objective_search_name": "Найти след пропавшего путника",
+      "dp_case_2001_objective_search_active": "След привёл в отмеченную область. Где-то здесь скрыта правда об исчезновении Матея.",
+      "dp_case_2001_objective_investigation_name": "Раскрыть судьбу Матея",
+      "dp_case_2001_objective_target_name": "Настигнуть убийцу Матея",
+      "dp_case_2001_objective_target_active": "Улики сошлись. Найти виновного и привести приговор в исполнение.",
+      "dp_case_2001_objective_target_done": "Убийца Матея мёртв. Теперь нельзя оставить следов.",
+      "dp_case_2001_objective_cleanup_name": "Не оставить следов",
+      "dp_case_2001_objective_cleanup_active": "Убийство совершено. Убедиться, что никто не сможет связать его с Генри.",
+      "dp_case_2001_objective_cleanup_witnessed": "Кто-то видел слишком много. Свидетели могут привести стражу по следу.",
+      "dp_case_2001_objective_cleanup_clean": "Никто не поднял тревогу. Дело можно закрыть.",
+      "dp_case_2001_objective_cleanup_controlled": "Все опасные свидетели устранены. Дело можно закрыть.",
+      "dp_case_2001_objective_cleanup_noisy": "Тревога поднята, но погоня потеряла след. Дело закрыто не без последствий.",
+      "dp_case_2001_objective_cleanup_external": "Смерть настигла виновного без участия Генри. Следов не осталось.",
+      "dp_case_2001_objective_guidance_listen_name": "Прислушаться к разговорам во дворе корчмы",
+      "dp_case_2001_objective_guidance_listen_active": "Во дворе корчмы людно. Возможно, кто-то проговорится о Матее.",
       "dp_mt_rumor_root": "Пропавший постоялец",
       "dp_mt_rumor_prompt": "Спросить о пропавшем торговце",
       "dp_mt_rumor_henry_missing": "Говорят, у тебя постоялец пропал.",
@@ -291,6 +456,21 @@
       "dp_mt_ledger_content": "<p>Матей из Ледеча. Три ночи оплачено.</p><p><i>Уехал до заутрени.</i></p><p>Последняя строка выведена более тёмными чернилами и другой рукой. Между страницами сложен клочок бумаги:</p><p>Если я не вернусь, деньги в кошеле принадлежат Маркете, вдове Павла. Один здешний узнал о них и весь вечер расспрашивал, сколько я везу и кто меня ждёт. На рассвете он обещал показать короткую дорогу мимо старой ивы.</p><p>Он слишком любезен для человека, которому от меня ничего не нужно. Но если я ошибаюсь, к полудню буду уже далеко.</p><p>Матей</p>"
     },
     "en": {
+      "dp_case_2001_objective_search_name": "Find the missing traveler's trail",
+      "dp_case_2001_objective_search_active": "The trail leads into the marked area. Somewhere here lies the truth of Matej's disappearance.",
+      "dp_case_2001_objective_investigation_name": "Uncover Matej's fate",
+      "dp_case_2001_objective_target_name": "Hunt down Matej's killer",
+      "dp_case_2001_objective_target_active": "The evidence is conclusive. Find the guilty man and carry out the sentence.",
+      "dp_case_2001_objective_target_done": "Matej's killer is dead. Now no trace can be left behind.",
+      "dp_case_2001_objective_cleanup_name": "Leave no trace",
+      "dp_case_2001_objective_cleanup_active": "The killing is done. Make certain no one can connect it to Henry.",
+      "dp_case_2001_objective_cleanup_witnessed": "Someone saw too much. Witnesses may lead the guards to the truth.",
+      "dp_case_2001_objective_cleanup_clean": "No alarm was raised. The case can be closed.",
+      "dp_case_2001_objective_cleanup_controlled": "Every dangerous witness is gone. The case can be closed.",
+      "dp_case_2001_objective_cleanup_noisy": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence.",
+      "dp_case_2001_objective_cleanup_external": "The guilty man died without Henry's hand. No trail remains.",
+      "dp_case_2001_objective_guidance_listen_name": "Listen to the conversations in the inn yard",
+      "dp_case_2001_objective_guidance_listen_active": "The inn yard is crowded. Someone may let slip what happened to Matej.",
       "dp_mt_rumor_root": "The Missing Guest",
       "dp_mt_rumor_prompt": "Ask about the missing merchant",
       "dp_mt_rumor_henry_missing": "I hear one of your guests disappeared.",

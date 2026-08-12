@@ -13,6 +13,8 @@ param(
     [Parameter(Mandatory, ParameterSetName = 'Authored')]
     [string]$WorldIndexPath,
     [Parameter(Mandatory, ParameterSetName = 'Authored')]
+    [string]$SettlementCatalogPath,
+    [Parameter(ParameterSetName = 'Authored')]
     [string]$SettlementProfileRoot,
     [Parameter(Mandatory, ParameterSetName = 'Authored')]
     [string]$StableIdRegistryPath,
@@ -67,35 +69,32 @@ if ($PSCmdlet.ParameterSetName -eq 'Authored') {
         -EvidenceModuleRoot $EvidenceModuleRoot
     $worldIndex = [System.IO.File]::ReadAllText($WorldIndexPath) |
         ConvertFrom-Json -Depth 100
-    $profilePaths = @(Get-ChildItem -LiteralPath $SettlementProfileRoot `
-        -Filter '*.profile.json' -File | Sort-Object FullName)
-    if ($profilePaths.Count -eq 0) {
-        throw "No settlement profiles found in '$SettlementProfileRoot'."
+    $settlementCatalog = Read-CaseKitSettlementCatalog `
+        -LiteralPath $SettlementCatalogPath
+    $worldIndex = Add-CaseKitInferredSettlementSemantics `
+        -WorldIndex $worldIndex -SettlementCatalog $settlementCatalog
+    $profilePaths = if (
+        -not [string]::IsNullOrWhiteSpace($SettlementProfileRoot) -and
+        (Test-Path -LiteralPath $SettlementProfileRoot -PathType Container)
+    ) {
+        @(Get-ChildItem -LiteralPath $SettlementProfileRoot `
+            -Filter '*.profile.json' -File | Sort-Object FullName)
     }
-    $supportedSettlements = [System.Collections.Generic.HashSet[string]]::new()
+    else { @() }
     $profiles = [System.Collections.Generic.List[object]]::new()
     foreach ($profilePath in $profilePaths) {
         $profile = Read-CaseKitSettlementProfile `
             -LiteralPath $profilePath.FullName
         $profiles.Add($profile)
-        $null = $supportedSettlements.Add(
-            "$([string]$profile.region)/$([string]$profile.settlement)"
-        )
         $worldIndex = Merge-CaseKitSettlementProfile `
             -WorldIndex $worldIndex -Profile $profile
     }
-    $worldIndex.settlements = @($worldIndex.settlements | Where-Object {
-        $supportedSettlements.Contains(
-            "$([string]$_.region)/$([string]$_.settlement)"
-        )
-    })
-    $worldIndex.entities = @($worldIndex.entities | Where-Object {
-        $supportedSettlements.Contains(
-            "$([string]$_.region)/$([string]$_.settlement)"
-        )
-    })
     $stableIds = [System.IO.File]::ReadAllText($StableIdRegistryPath) |
         ConvertFrom-Json -Depth 100
+    $adapter = if (-not [string]::IsNullOrWhiteSpace($Kcd2AdapterPath)) {
+        Read-CaseKitKcd2Adapter -LiteralPath $Kcd2AdapterPath
+    }
+    else { $null }
     $compatibility = Resolve-CaseKitCompatibility -Deck $deck `
         -WorldIndex $worldIndex `
         -MaxVariantsPerCombination $MaxVariantsPerCombination
@@ -107,7 +106,6 @@ if ($PSCmdlet.ParameterSetName -eq 'Authored') {
     Write-CaseKitJson -LiteralPath (Join-Path $resolvedOutputRoot `
         'compatibility-report.json') -Value $compatibility
     if (-not [string]::IsNullOrWhiteSpace($Kcd2AdapterPath)) {
-        $adapter = Read-CaseKitKcd2Adapter -LiteralPath $Kcd2AdapterPath
         $backend = ConvertTo-CaseKitKcd2BackendInput `
             -CompiledDefinitions $compiled -Adapter $adapter `
             -SettlementProfiles $profiles.ToArray()

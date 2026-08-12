@@ -217,23 +217,25 @@ local function EnsurePlaced(generation)
     local resolved = ResolveDocument(generation)
     if resolved == nil then
         Log("placement deferred: document case binding unavailable")
-        return false
+        return false, "binding_unavailable"
     end
     local documentGuid = resolved.binding.documentGuid
     local containerGuid = resolved.binding.containerGuid
     local state = ReadState()
-    if state.readGeneration == generation then return true end
+    if state.readGeneration == generation then return true, "already_read" end
 
     local chest = ResolveChest(generation)
     if chest == nil or chest.inventory == nil then
         Log("placement deferred: bedside chest unavailable")
-        return false
+        return false, "container_unavailable"
     end
 
     local exists = InventoryHas(chest.inventory, documentGuid)
-    if state.placedGeneration == generation and exists then return true end
+    if state.placedGeneration == generation and exists then
+        return true, "already_placed"
+    end
     if state.placedGeneration == generation and PlayerInventoryHas(documentGuid) then
-        return true
+        return true, "already_collected"
     end
 
     if state.cleanupGeneration ~= generation then
@@ -247,12 +249,12 @@ local function EnsurePlaced(generation)
             DarkPassengerQuestItemPlacement.Cancel(documentGuid)
         end
         state.cleanupGeneration = generation
-        if not PersistState(state) then return false end
+        if not PersistState(state) then return false, "state_persist_failed" end
         Log(
             "document cleanup staged generation=" ..
             tostring(generation)
         )
-        return false
+        return false, "cleanup_staged"
     end
 
     exists = InventoryHas(chest.inventory, documentGuid)
@@ -261,25 +263,27 @@ local function EnsurePlaced(generation)
             if DarkPassengerQuestItemPlacement == nil or
                DarkPassengerQuestItemPlacement.Request == nil then
                 Log("placement deferred: native quest-item bridge unavailable")
-                return false
+                return false, "bridge_unavailable"
             end
             local placed, reason = DarkPassengerQuestItemPlacement.Request(
                 documentGuid,
                 chest,
-                0
+                0,
+                containerGuid
             )
             if not placed then
-                Log("placement deferred reason=" .. tostring(reason))
-                return false
+                return false, reason or "native_deferred"
             end
         else
-            if chest.inventory.CreateItem == nil then return false end
+            if chest.inventory.CreateItem == nil then
+                return false, "create_unavailable"
+            end
             local ok, result = pcall(function()
                 return chest.inventory:CreateItem(documentGuid, 1, 1)
             end)
             if not ok then
                 Log("placement failed error=" .. tostring(result))
-                return false
+                return false, "create_failed"
             end
         end
         exists = InventoryHas(chest.inventory, documentGuid)
@@ -288,7 +292,7 @@ local function EnsurePlaced(generation)
                 "placement deferred: inventory count not confirmed item=" ..
                 tostring(documentGuid)
             )
-            return false
+            return false, "inventory_unconfirmed"
         end
     end
 
@@ -298,30 +302,33 @@ local function EnsurePlaced(generation)
             tostring(generation) ..
             " chest=" .. tostring(containerGuid)
         )
-        return true
+        return true, "placement_repaired"
     end
 
     local nextState, transition = DarkPassengerBelongings.Transition(
         state,
         { type = "place", generation = generation }
     )
-    if not transition.accepted then return transition.reason == "already_placed" end
-    if not PersistState(nextState) then return false end
+    if not transition.accepted then
+        return transition.reason == "already_placed", transition.reason
+    end
+    if not PersistState(nextState) then return false, "state_persist_failed" end
     Log(
         "document placed generation=" .. tostring(generation) ..
         " chest=" .. tostring(containerGuid) ..
         " existing=" .. tostring(exists)
     )
-    return true
+    return true, "placed"
 end
 
 function DarkPassengerBelongings.EnsurePlaced(generation)
     generation = tonumber(generation)
     if generation == nil or generation <= 0 or
        not CurrentGenerationMatches(generation) then
-        return false
+        return false, "generation_mismatch"
     end
-    return EnsurePlaced(generation)
+    local placed, reason = EnsurePlaced(generation)
+    return placed, reason
 end
 
 local function Schedule(generation, timerSerial)

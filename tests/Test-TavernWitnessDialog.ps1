@@ -220,8 +220,8 @@ foreach ($placeholder in
 foreach ($fragment in
     'tavern_witness_dialog_k.xml',
     '<Constant Name="A" Value="36" />',
-    '<BuffTagTrigger Name="witnessAvailableTrigger">',
-    '<tavern_witness_dialog_k Name="tavernWitnessDialog">',
+    '<BuffTagTrigger Name="case1001_witnessAvailableTrigger">',
+    '<tavern_witness_dialog_k Name="case1001_tavernWitnessDialog">',
     '<Constant Name="Context" Value="dp_witness_heard_kutnohorsko" />',
     '<State Name="evidenceProgress" TypeT="DP_KutnohorskoEvidenceProgress">',
     'Name="Directions1102_1103"',

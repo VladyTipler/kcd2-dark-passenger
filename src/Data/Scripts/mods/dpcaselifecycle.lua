@@ -7,14 +7,20 @@ DarkPassengerCaseLifecycle.clearedGeneration =
     DarkPassengerCaseLifecycle.clearedGeneration or 0
 DarkPassengerCaseLifecycle.preparedGeneration =
     DarkPassengerCaseLifecycle.preparedGeneration or 0
+DarkPassengerCaseLifecycle.preparedRevision =
+    DarkPassengerCaseLifecycle.preparedRevision or 0
 DarkPassengerCaseLifecycle.activatedGeneration =
     DarkPassengerCaseLifecycle.activatedGeneration or 0
+DarkPassengerCaseLifecycle.activatedRevision =
+    DarkPassengerCaseLifecycle.activatedRevision or 0
 DarkPassengerCaseLifecycle.timerSerial =
     DarkPassengerCaseLifecycle.timerSerial or 0
 
 local KEYS = {
     schema = "dp_case_lifecycle_schema_version",
     clearedGeneration = "dp_case_lifecycle_cleared_generation",
+    appliedGeneration = "dp_case_lifecycle_applied_generation",
+    appliedRevision = "dp_case_lifecycle_applied_revision",
 }
 
 local function Log(message)
@@ -36,6 +42,25 @@ local function WriteScalar(key, value)
     if Variables == nil or Variables.SetGlobal == nil then return false end
     local ok = pcall(function() Variables.SetGlobal(key, value) end)
     return ok
+end
+
+local function CurrentRevision()
+    return tonumber(DarkPassengerCaseVariantCatalogRevision) or 1
+end
+
+local function PersistAppliedRevision(generation, revision)
+    return WriteScalar(KEYS.schema, DarkPassengerCaseLifecycle.SCHEMA_VERSION) and
+        WriteScalar(KEYS.appliedGeneration, generation) and
+        WriteScalar(KEYS.appliedRevision, revision)
+end
+
+local function ReadAppliedRevision()
+    if tonumber(ReadScalar(KEYS.schema)) ~=
+       DarkPassengerCaseLifecycle.SCHEMA_VERSION then
+        return 0, 0
+    end
+    return tonumber(ReadScalar(KEYS.appliedGeneration)) or 0,
+        tonumber(ReadScalar(KEYS.appliedRevision)) or 0
 end
 
 local function PlayerEntity()
@@ -96,16 +121,19 @@ local function DisableAvailability(generation, manifest)
     end
 end
 
-local function RemoveSignalBuffs(manifest)
+local function RemoveSignalBuffs(manifest, preservedBuffGuid)
     local actor = PlayerEntity()
     local soul = actor ~= nil and actor.soul or nil
     if soul == nil or soul.RemoveAllBuffsByGuid == nil then return false end
     local succeeded = true
     for _, buffGuid in ipairs(manifest.signal_buff_guids or {}) do
-        local ok = pcall(function()
-            soul:RemoveAllBuffsByGuid(buffGuid)
-        end)
-        succeeded = succeeded and ok
+        if preservedBuffGuid == nil or
+           tostring(buffGuid) ~= tostring(preservedBuffGuid) then
+            local ok = pcall(function()
+                soul:RemoveAllBuffsByGuid(buffGuid)
+            end)
+            succeeded = succeeded and ok
+        end
     end
     return succeeded
 end
@@ -154,9 +182,9 @@ local function RemoveCaseItems(manifest)
     return succeeded
 end
 
-local function ClearPresentation(generation, manifest)
+local function ClearPresentation(generation, manifest, preservedBuffGuid)
     DisableAvailability(generation, manifest)
-    return RemoveSignalBuffs(manifest)
+    return RemoveSignalBuffs(manifest, preservedBuffGuid)
 end
 
 local function PersistClearedGeneration(generation)
@@ -230,18 +258,51 @@ local function ScheduleActivation(generation, serial, attempt)
     return ok, ok and "scheduled" or "schedule_failed"
 end
 
+function DarkPassengerCaseLifecycle.BeginRestoreCycle(reason)
+    DarkPassengerCaseLifecycle.timerSerial =
+        DarkPassengerCaseLifecycle.timerSerial + 1
+    DarkPassengerCaseLifecycle.preparedGeneration = 0
+    DarkPassengerCaseLifecycle.preparedRevision = 0
+    DarkPassengerCaseLifecycle.activatedGeneration = 0
+    DarkPassengerCaseLifecycle.activatedRevision = 0
+    local appliedGeneration, appliedRevision = ReadAppliedRevision()
+    Log(
+        "restore cycle reason=" .. tostring(reason or "unspecified") ..
+        " serial=" .. tostring(DarkPassengerCaseLifecycle.timerSerial) ..
+        " applied=" .. tostring(appliedGeneration) ..
+        "/" .. tostring(appliedRevision) ..
+        " currentRevision=" .. tostring(CurrentRevision())
+    )
+    return true
+end
+
 function DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
     generation = tonumber(generation)
     if generation == nil or generation <= 0 then
         return false, "invalid_generation"
     end
+    local revision = CurrentRevision()
+    if DarkPassengerCaseLifecycle.activatedGeneration == generation and
+       DarkPassengerCaseLifecycle.activatedRevision == revision then
+        return true, "already_activated"
+    end
+    if DarkPassengerCaseLifecycle.preparedGeneration == generation and
+       DarkPassengerCaseLifecycle.preparedRevision == revision then
+        local scheduled, reason = ScheduleActivation(generation, DarkPassengerCaseLifecycle.timerSerial, 1)
+        return scheduled, scheduled and "already_prepared" or reason
+    end
     local manifest, manifestReason =
         DarkPassengerCaseLifecycle.ResolveManifest(generation)
     if manifest == nil then return false, manifestReason end
-    if not ClearPresentation(generation, manifest) then
+    local selected = DarkPassengerCaseContent.GetSelected(generation)
+    local activationBuffGuid =
+        selected ~= nil and selected.variant ~= nil and
+        selected.variant.case_activation_buff_guid or nil
+    if not ClearPresentation(generation, manifest, activationBuffGuid) then
         return false, "presentation_cleanup_deferred"
     end
     DarkPassengerCaseLifecycle.preparedGeneration = generation
+    DarkPassengerCaseLifecycle.preparedRevision = revision
     DarkPassengerCaseLifecycle.timerSerial =
         DarkPassengerCaseLifecycle.timerSerial + 1
     local scheduled, reason = ScheduleActivation(
@@ -249,6 +310,10 @@ function DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
         DarkPassengerCaseLifecycle.timerSerial,
         1
     )
+    if not scheduled then
+        DarkPassengerCaseLifecycle.preparedGeneration = 0
+        DarkPassengerCaseLifecycle.preparedRevision = 0
+    end
     Log(
         "prepared generation=" .. tostring(generation) ..
         " scheduled=" .. tostring(scheduled)
@@ -262,9 +327,14 @@ function DarkPassengerCaseLifecycle.ActivatePreparedGeneration(payload)
     )
     local serial = tonumber(type(payload) == "table" and payload.serial) or 0
     local attempt = tonumber(type(payload) == "table" and payload.attempt) or 1
+    local revision = tonumber(
+        type(payload) == "table" and payload.revision
+    ) or DarkPassengerCaseLifecycle.preparedRevision
     if generation == nil or
        generation ~= DarkPassengerCaseLifecycle.preparedGeneration or
-       serial ~= DarkPassengerCaseLifecycle.timerSerial then
+       serial ~= DarkPassengerCaseLifecycle.timerSerial or
+       revision ~= DarkPassengerCaseLifecycle.preparedRevision or
+       revision ~= CurrentRevision() then
         return false
     end
     local investigation =
@@ -292,6 +362,15 @@ function DarkPassengerCaseLifecycle.ActivatePreparedGeneration(payload)
         return false
     end
     DarkPassengerCaseLifecycle.activatedGeneration = generation
+    DarkPassengerCaseLifecycle.activatedRevision = revision
+    DarkPassengerCaseLifecycle.preparedGeneration = 0
+    DarkPassengerCaseLifecycle.preparedRevision = 0
+    if not PersistAppliedRevision(generation, revision) then
+        Log(
+            "applied revision persistence failed generation=" ..
+            tostring(generation) .. " revision=" .. tostring(revision)
+        )
+    end
     Log(
         "activated generation=" .. tostring(generation) ..
         " attempt=" .. tostring(attempt)
@@ -312,12 +391,16 @@ function DarkPassengerCaseLifecycle.Reconcile(investigationState)
 end
 
 function DarkPassengerCaseLifecycle.Status()
+    local appliedGeneration, appliedRevision = ReadAppliedRevision()
     Log(
         "status clearedGeneration=" .. tostring(ReadClearedGeneration()) ..
         " preparedGeneration=" ..
             tostring(DarkPassengerCaseLifecycle.preparedGeneration) ..
         " activatedGeneration=" ..
-            tostring(DarkPassengerCaseLifecycle.activatedGeneration)
+            tostring(DarkPassengerCaseLifecycle.activatedGeneration) ..
+        " revision=" .. tostring(CurrentRevision()) ..
+        " applied=" .. tostring(appliedGeneration) ..
+            "/" .. tostring(appliedRevision)
     )
 end
 

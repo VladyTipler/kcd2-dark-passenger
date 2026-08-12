@@ -50,11 +50,17 @@ $questPath = Join-Path $stageRoot `
 $dialogRoot = Join-Path $stageRoot `
     'Data\Quests\darkpassengertest\trosecko\dark_within_t'
 $rumorPath = Join-Path $dialogRoot `
-    'innkeeper_missing_traveler_dialog_t.xml'
+    'dpcase2001_trosecko_zelejov_innkeeper_missing_traveler_dialog_t.xml'
 $witnessPath = Join-Path $dialogRoot `
-    'stablehand_missing_traveler_dialog_t.xml'
+    'dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t.xml'
 $overheardPath = Join-Path $dialogRoot `
-    'overheard_missing_traveler_dialog_t.xml'
+    'dpcase2001_trosecko_zelejov_inn_yard_primary_overheard_missing_traveler_dialog_t.xml'
+$rumorPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
+    -Filter 'dpcase2001_trosecko_*_innkeeper_missing_traveler_dialog_t.xml')
+$witnessPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
+    -Filter 'dpcase2001_trosecko_*_stablehand_missing_traveler_dialog_t.xml')
+$overheardPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
+    -Filter 'dpcase2001_trosecko_*_overheard_missing_traveler_dialog_t.xml')
 $stormPath = Join-Path $stageRoot `
     'Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $contextPath = Join-Path $stageRoot `
@@ -92,6 +98,11 @@ foreach ($path in @(
     Add-Result (Test-Path -LiteralPath $path -PathType Leaf) `
         "generated artifact exists: $path"
 }
+Add-Result (
+    $rumorPaths.Count -eq 2 -and
+    $witnessPaths.Count -eq 2 -and
+    $overheardPaths.Count -eq 3
+) 'regional bundle emits isolated Missing Traveler dialogues per settlement and speaker pair'
 
 $quest = Read-OptionalText $questPath
 $rumor = Read-OptionalText $rumorPath
@@ -109,17 +120,17 @@ $russian = Read-OptionalText $russianPath
 
 Add-Result (
     $quest.Contains(
-        '<Definition File="dark_within_t/innkeeper_missing_traveler_dialog_t.xml" />'
+        '<Definition File="dark_within_t/dpcase2001_trosecko_troskovice_innkeeper_missing_traveler_dialog_t.xml" />'
     ) -and
     $quest.Contains(
-        '<Definition File="dark_within_t/stablehand_missing_traveler_dialog_t.xml" />'
+        '<Definition File="dark_within_t/dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t.xml" />'
     ) -and
     $quest.Contains(
-        '<Definition File="dark_within_t/overheard_missing_traveler_dialog_t.xml" />'
+        '<Definition File="dark_within_t/dpcase2001_trosecko_zelejov_inn_yard_primary_overheard_missing_traveler_dialog_t.xml" />'
     ) -and
-    $quest.Contains('<innkeeper_missing_traveler_dialog_t Name="innkeeperRumorDialog">') -and
-    $quest.Contains('<stablehand_missing_traveler_dialog_t Name="tavernWitnessDialog">')
-) 'universal Trosky quest consumes both generated dialogues'
+    $quest.Contains('<dpcase2001_trosecko_troskovice_innkeeper_missing_traveler_dialog_t Name="case2001_troskoviceInnkeeperRumorDialog">') -and
+    $quest.Contains('<dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t Name="case2001_zelejovTavernWitnessDialog">')
+) 'universal Trosky quest consumes every settlement-scoped dialogue'
 Add-Result (
     $quest.Contains('dp_rumor_heard_trosecko') -and
     $quest.Contains('dp_witness_heard_trosecko') -and
@@ -136,7 +147,7 @@ Add-Result (
 ) 'quest graph consumes deterministic Lua presentation signals'
 
 Add-Result (
-    $rumor.Contains('Role="DP_INNKEEPER_RUMOR"') -and
+    $rumor -match 'Role="DP_ACTOR_[0-9A-F]{24}"' -and
     $rumor.Contains('StringName="dp_mt_rumor_prompt"') -and
     $rumor.Contains('StringName="dp_mt_rumor_innkeeper_matej"') -and
     $rumor.Contains('<Port Name="variant_unread_ledger" Direction="In" Type="bool">') -and
@@ -153,16 +164,16 @@ Add-Result (
 Add-Result (
     $quest.Contains('Value="69"') -and
     $quest.Contains('Value="70"') -and
-    $quest.Contains('Name="rumorVariant0Trigger"') -and
-    $quest.Contains('Name="rumorVariant1Trigger"') -and
+    $quest.Contains('Name="case2001_rumorVariant0Trigger"') -and
+    $quest.Contains('Name="case2001_rumorVariant1Trigger"') -and
     $quest.Contains('To="variant_unread_ledger"') -and
     $quest.Contains('To="variant_ledger_discovered"')
 ) 'universal quest projects compiled variant signals into FaderDialog ports'
 Add-Result (
-    $witness.Contains('Role="DP_TAVERN_WITNESS"') -and
+    $witness -match 'Role="DP_ACTOR_[0-9A-F]{24}"' -and
     $witness.Contains('StringName="dp_mt_witness_prompt"') -and
     $witness.Contains('StringName="dp_mt_witness_bretislav_point"')
-) 'generated witness dialogue uses semantic role and authored keys'
+) 'generated witness dialogue uses settlement actor role and authored keys'
 Add-Result (
     $overheard.Contains('<Dialogue Type="ingame"') -and
     $overheard.Contains('Initiator="NonPlayer"') -and
@@ -171,10 +182,9 @@ Add-Result (
 
 Add-Result (
     $storm.Contains('<hasName name="tzel_vavrinec" />') -and
-    $storm.Contains('<addRole name="DP_INNKEEPER_RUMOR" />') -and
     $storm.Contains('<hasName name="tzel_bretislav" />') -and
-    $storm.Contains('<addRole name="DP_TAVERN_WITNESS" />')
-) 'Storm binds the exact Zhelejov actors to generic dialogue roles'
+    ([regex]::Matches($storm, '<addRole name="DP_ACTOR_[0-9A-F]{24}" />')).Count -ge 4
+) 'Storm binds settlement actors to isolated dialogue roles'
 Add-Result (
     $contexts.Contains(
         '<ScriptContextDatabaseNode Name="dp_rumor_heard_trosecko" Class="Entity" />'
@@ -219,12 +229,11 @@ Add-Result (
     $english.Contains('Torn Guest-Ledger Page')
 ) 'Russian and English document copy is authored independently'
 Add-Result (
-    $russian.Contains('Расспросить Богуслава о коне Матея') -and
-    $russian.Contains('Расспросить батрака Богуслава') -and
-    -not $russian.Contains('Бретислав') -and
-    -not $russian.Contains('Расспросить конюха') -and
-    $english.Contains('Question the farmhand Bretislav')
-) 'generated localization preserves native witness identity by language'
+    $russian.Contains('Расспросить работника корчмы о коне Матея') -and
+    $english.Contains('Ask an inn worker about Matej&apos;s horse') -and
+    -not $russian.Contains('{{') -and
+    -not $english.Contains('{{')
+) 'portable native localization has no unresolved settlement identity'
 
 Add-Result (
     $catalog.Contains('id = "missing_traveler"') -and

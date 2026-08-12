@@ -119,6 +119,28 @@ local function HintsSatisfied(evidence, definitions, statuses)
     return true
 end
 
+local function KnownFacts(caseTemplate, evidenceState)
+    local facts = {}
+    local statuses = StatusByCode(evidenceState)
+    for _, evidence in ipairs(
+        caseTemplate ~= nil and caseTemplate.evidence or {}
+    ) do
+        if statuses[tonumber(evidence.code)] == "discovered" then
+            for _, factId in ipairs(evidence.reveals or {}) do
+                facts[tostring(factId)] = true
+            end
+        end
+    end
+    return facts
+end
+
+local function FactsSatisfied(requiredFacts, knownFacts)
+    for _, factId in ipairs(requiredFacts or {}) do
+        if knownFacts[tostring(factId)] ~= true then return false end
+    end
+    return true
+end
+
 -- Pure projection: discovered facts are authoritative, while the returned
 -- directions are only native presentation requests. A physical clue can be
 -- discovered without its direction when discoverable_without_hint is true.
@@ -148,6 +170,50 @@ function DarkPassengerLeadPlanner.Evaluate(caseTemplate, evidenceState)
         end
     end
     return plan
+end
+
+function DarkPassengerLeadPlanner.SelectGuidance(
+    caseTemplate,
+    evidenceState,
+    investigationState
+)
+    local selected = {}
+    local statuses = StatusByCode(evidenceState)
+    local definitions = DefinitionById(caseTemplate)
+    local knownFacts = KnownFacts(caseTemplate, evidenceState)
+    for _, guidance in ipairs(
+        caseTemplate ~= nil and caseTemplate.guidance or {}
+    ) do
+        local evidenceCode = tonumber(guidance.evidence_code)
+        local evidence = nil
+        for _, definition in pairs(definitions) do
+            if tonumber(definition.code) == evidenceCode then
+                evidence = definition
+                break
+            end
+        end
+        local evidenceDiscovered = evidenceCode ~= nil and
+            statuses[evidenceCode] == "discovered"
+        local visible = false
+        if guidance.visibility_mode == "step-active" then
+            visible = evidence ~= nil and not evidenceDiscovered and
+                HintsSatisfied(evidence, definitions, statuses)
+        elseif guidance.visibility_mode == "facts-known" then
+            visible = true
+        elseif guidance.visibility_mode == "target-revealed" then
+            visible = investigationState ~= nil and
+                investigationState.revealed == true
+        end
+        visible = visible and FactsSatisfied(
+            guidance.requires_fact_ids,
+            knownFacts
+        )
+        if guidance.lifetime == "step" and evidenceDiscovered then
+            visible = false
+        end
+        if visible then selected[#selected + 1] = guidance end
+    end
+    return selected
 end
 
 local function CodesMatch(status, codes, expectedDiscovered)
@@ -278,6 +344,42 @@ function DarkPassengerLeadPlanner.PublishDialogueVariants(
     return true, "variants_published"
 end
 
+function DarkPassengerLeadPlanner.PublishGuidance(
+    caseTemplate,
+    selectedGuidance
+)
+    local actor = PlayerEntity()
+    local soul = actor ~= nil and actor.soul or nil
+    if soul == nil or soul.AddBuff == nil or
+       soul.RemoveAllBuffsByGuid == nil then
+        return false, "player_unavailable"
+    end
+    local desired = {}
+    for _, guidance in ipairs(selectedGuidance or {}) do
+        desired[tostring(guidance.buff_guid)] = true
+    end
+    for _, guidance in ipairs(
+        caseTemplate ~= nil and caseTemplate.guidance or {}
+    ) do
+        if desired[tostring(guidance.buff_guid)] ~= true then
+            pcall(function()
+                soul:RemoveAllBuffsByGuid(guidance.buff_guid)
+            end)
+        end
+    end
+    for _, guidance in ipairs(selectedGuidance or {}) do
+        if not HasBuff(soul, guidance.buff_guid) then
+            local ok, handle = pcall(function()
+                return soul:AddBuff(guidance.buff_guid)
+            end)
+            if not ok or handle == nil then
+                return false, "guidance_signal_failed"
+            end
+        end
+    end
+    return true, "guidance_published"
+end
+
 function DarkPassengerLeadPlanner.HasDirection(plan, directionId)
     for _, current in ipairs(plan ~= nil and plan.directions or {}) do
         if current == directionId then return true end
@@ -309,6 +411,16 @@ function DarkPassengerLeadPlanner.Apply(generation)
             selected.caseTemplate,
             evidenceState
         )
+    local investigationState = nil
+    if DarkPassengerInvestigation ~= nil and
+       DarkPassengerInvestigation.GetState ~= nil then
+        investigationState = DarkPassengerInvestigation.GetState()
+    end
+    plan.guidance = DarkPassengerLeadPlanner.SelectGuidance(
+        selected.caseTemplate,
+        evidenceState,
+        investigationState
+    )
     local published, publishReason = DarkPassengerLeadPlanner.Publish(
         generation,
         selected.caseTemplate,
@@ -324,6 +436,14 @@ function DarkPassengerLeadPlanner.Apply(generation)
         )
     if not variantsPublished then
         Log("dialogue variants deferred reason=" .. tostring(variantReason))
+    end
+    local guidancePublished, guidanceReason =
+        DarkPassengerLeadPlanner.PublishGuidance(
+            selected.caseTemplate,
+            plan.guidance
+        )
+    if not guidancePublished then
+        Log("guidance deferred reason=" .. tostring(guidanceReason))
     end
     if DarkPassengerEvidence ~= nil and
        DarkPassengerEvidence.ApplyAvailability ~= nil then
@@ -362,6 +482,7 @@ function DarkPassengerLeadPlanner.RunSelfTest()
                 code = 1,
                 role = "innkeeper",
                 hints_unlocked_by = {},
+                reveals = { "rumor-known" },
             },
             {
                 id = "ledger",
@@ -369,12 +490,40 @@ function DarkPassengerLeadPlanner.RunSelfTest()
                 role = "document",
                 discoverable_without_hint = true,
                 hints_unlocked_by = { "rumor" },
+                reveals = { "ledger-known" },
             },
             {
                 id = "witness",
                 code = 3,
                 role = "witness",
                 hints_unlocked_by = { "rumor" },
+                reveals = { "witness-known" },
+            },
+        },
+        guidance = {
+            {
+                id = "ledger-marker",
+                evidence_code = 2,
+                visibility_mode = "step-active",
+                requires_fact_ids = { "rumor-known" },
+                lifetime = "step",
+                buff_guid = "guidance-ledger",
+            },
+            {
+                id = "witness-marker",
+                evidence_code = 3,
+                visibility_mode = "facts-known",
+                requires_fact_ids = { "ledger-known" },
+                lifetime = "case",
+                buff_guid = "guidance-witness",
+            },
+            {
+                id = "target-marker",
+                evidence_code = 3,
+                visibility_mode = "target-revealed",
+                requires_fact_ids = {},
+                lifetime = "case",
+                buff_guid = "guidance-target",
             },
         },
         dialogue_variants = {
@@ -428,6 +577,26 @@ function DarkPassengerLeadPlanner.RunSelfTest()
         caseTemplate,
         State("discovered", "placed", "pending")
     )
+    local guidanceBeforeRumor = DarkPassengerLeadPlanner.SelectGuidance(
+        caseTemplate,
+        State("pending", "pending", "pending"),
+        { revealed = false }
+    )
+    local guidanceAfterRumor = DarkPassengerLeadPlanner.SelectGuidance(
+        caseTemplate,
+        State("discovered", "placed", "pending"),
+        { revealed = false }
+    )
+    local guidanceAfterLedger = DarkPassengerLeadPlanner.SelectGuidance(
+        caseTemplate,
+        State("discovered", "discovered", "pending"),
+        { revealed = false }
+    )
+    local guidanceAfterReveal = DarkPassengerLeadPlanner.SelectGuidance(
+        caseTemplate,
+        State("discovered", "discovered", "pending"),
+        { revealed = true }
+    )
     local passed =
         DarkPassengerLeadPlanner.HasDirection(
             parallelAfterRumor,
@@ -454,10 +623,16 @@ function DarkPassengerLeadPlanner.RunSelfTest()
             "rumor"
         ) and
         not DarkPassengerLeadPlanner.HasDirection(
-            ledgerRumorWitness,
+        ledgerRumorWitness,
             "witness"
         ) and
-        #completed.directions == 0 and sameConfidence
+        #completed.directions == 0 and sameConfidence and
+        #guidanceBeforeRumor == 0 and
+        #guidanceAfterRumor == 1 and
+        guidanceAfterRumor[1].id == "ledger-marker" and
+        #guidanceAfterLedger == 1 and
+        guidanceAfterLedger[1].id == "witness-marker" and
+        #guidanceAfterReveal == 2
     local presentation, changed = DarkPassengerLeadPlanner.Transition(
         DefaultPresentationState(),
         { generation = 7, stateCode = 3 }
@@ -506,7 +681,13 @@ function DarkPassengerLeadPlanner.RunSelfTest()
         table.concat(ledgerRumorWitness.directions, ",") ..
         " parallel after rumor=" ..
         table.concat(parallelAfterRumor.directions, ",") ..
-        " same confidence=" .. tostring(sameConfidence)
+        " same confidence=" .. tostring(sameConfidence) ..
+        " guidance waits for prerequisite facts=" ..
+        tostring(#guidanceBeforeRumor == 0) ..
+        " guidance expires after evidence=" ..
+        tostring(#guidanceAfterLedger == 1) ..
+        " target guidance waits for reveal=" ..
+        tostring(#guidanceAfterReveal == 2)
     )
     return passed
 end

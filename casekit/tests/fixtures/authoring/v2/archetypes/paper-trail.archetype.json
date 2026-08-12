@@ -27,12 +27,26 @@
       "required": true,
       "capabilities": ["container.evidence"],
       "templateFields": ["locationHint"]
+    },
+    "gossipSourceA": {
+      "entityType": "actor",
+      "required": true,
+      "capabilities": ["interaction.overheard"],
+      "identityModes": ["named", "titled", "anonymous"],
+      "templateFields": ["displayLabel", "directionLabel", "name"]
+    },
+    "gossipSourceB": {
+      "entityType": "actor",
+      "required": true,
+      "capabilities": ["interaction.overheard"],
+      "identityModes": ["named", "titled", "anonymous"],
+      "templateFields": ["displayLabel", "directionLabel", "name"]
     }
   },
   "threadRules": {
     "minimum": 1,
     "maximum": 2,
-    "allowedLeadModes": ["case_start", "fact"],
+    "allowedLeadModes": ["case_start", "fact", "ambient"],
     "allowedStepKinds": ["lead", "search"],
     "allowBranching": true,
     "allowConvergence": true,
@@ -40,6 +54,7 @@
   },
   "evidenceRules": {
     "source-dialogue": {"confidence": 20, "minimum": 1, "maximum": 1},
-    "document-in-container": {"confidence": 30, "minimum": 1, "maximum": 1}
+    "document-in-container": {"confidence": 30, "minimum": 1, "maximum": 1},
+    "overheard-dialogue": {"confidence": 10, "minimum": 0, "maximum": 2}
   }
 }

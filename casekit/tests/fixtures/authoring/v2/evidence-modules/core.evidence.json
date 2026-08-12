@@ -28,6 +28,16 @@
       },
       "requiredContent": ["prompt", "responses", "journal"],
       "confidence": {"mode": "one_shot", "minimum": 10, "maximum": 30}
+    },
+    {
+      "id": "overheard-dialogue",
+      "stepKind": "lead",
+      "bindingPorts": {
+        "speakerA": {"entityType": "actor", "capabilities": ["interaction.overheard"]},
+        "speakerB": {"entityType": "actor", "capabilities": ["interaction.overheard"]}
+      },
+      "requiredContent": ["responses", "journal"],
+      "confidence": {"mode": "one_shot", "minimum": 5, "maximum": 20}
     }
   ]
 }

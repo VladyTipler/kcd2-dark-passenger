@@ -19,6 +19,22 @@
             "evidenceModule": "source-dialogue",
             "bindings": {"source": "rumorSource"}
           },
+          "guidance": [
+            {
+              "id": "settlement-search",
+              "target": {"kind": "area", "slot": "settlement"},
+              "precision": "area",
+              "objective": {
+                "nameAsset": "objective.guidance.search.name",
+                "states": {"active": "objective.guidance.search.active"}
+              }
+            },
+            {
+              "id": "find-source",
+              "target": {"kind": "actor", "slot": "rumorSource"},
+              "precision": "exact"
+            }
+          ],
           "requiresFacts": [],
           "presentations": [
             {
@@ -49,6 +65,18 @@
               "retention": "case"
             }
           },
+          "guidance": [
+            {
+              "id": "find-container",
+              "target": {"kind": "entity", "slot": "evidenceContainer"},
+              "precision": "exact"
+            },
+            {
+              "id": "search-place",
+              "target": {"kind": "place", "slot": "evidenceContainer"},
+              "precision": "point"
+            }
+          ],
           "requiresFacts": ["traveler_missing"],
           "presentations": [
             {
@@ -87,6 +115,20 @@
             "evidenceModule": "witness-dialogue",
             "bindings": {"witness": "witness"}
           },
+          "guidance": [
+            {
+              "id": "find-witness",
+              "target": {"kind": "actor", "slot": "witness"},
+              "precision": "exact"
+            },
+            {
+              "id": "revealed-target",
+              "target": {"kind": "actor", "slot": "target"},
+              "precision": "exact",
+              "visibility": {"mode": "target-revealed"},
+              "lifetime": "case"
+            }
+          ],
           "requiresFacts": ["letter_links_target"],
           "presentations": [
             {
@@ -101,6 +143,74 @@
           ],
           "result": {
             "revealsFacts": ["target_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "courtyard-gossip",
+      "archetypeId": "paper-trail",
+      "lead": {
+        "mode": "ambient",
+        "requiresFacts": [],
+        "directionAsset": "direction.overheard"
+      },
+      "entryStepIds": ["overhear-proximity", "overhear-interaction"],
+      "steps": [
+        {
+          "id": "overhear-proximity",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "overheard-dialogue",
+            "activation": {"mode": "proximity"},
+            "bindings": {
+              "speakerA": "gossipSourceA",
+              "speakerB": "gossipSourceB"
+            }
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "responses": ["dialogue.overheard.proximity"],
+                "journal": "journal.overheard.proximity"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["proximity_rumor_heard"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        },
+        {
+          "id": "overhear-interaction",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "overheard-dialogue",
+            "activation": {"mode": "interaction"},
+            "bindings": {
+              "speakerA": "gossipSourceA",
+              "speakerB": "gossipSourceB"
+            }
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "responses": ["dialogue.overheard.interaction"],
+                "journal": "journal.overheard.interaction"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["interaction_rumor_heard"],
             "nextStepIds": [],
             "unlockThreadIds": []
           }

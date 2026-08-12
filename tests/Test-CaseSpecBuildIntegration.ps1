@@ -1,11 +1,15 @@
 param(
-    [string]$DevGameRoot = $env:KCD2_DEV_ROOT
+    [string]$DevGameRoot = $env:KCD2_GAME_ROOT,
+    [string]$DevToolsRoot = $env:KCD2_DEV_ROOT
 )
 
 $ErrorActionPreference = 'Stop'
 
 if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
-    throw 'Set KCD2_DEV_ROOT or pass -DevGameRoot.'
+    throw 'Set KCD2_GAME_ROOT or pass -DevGameRoot.'
+}
+if ([string]::IsNullOrWhiteSpace($DevToolsRoot)) {
+    $DevToolsRoot = $DevGameRoot
 }
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -80,8 +84,11 @@ Add-Result (
 ) 'runtime dispatches compiled quest evidence through AddQuestItem bridge'
 
 if (Test-Path -LiteralPath $catalogPath) {
-    $luaCompiler = Join-Path $DevGameRoot `
+    $luaCompiler = Join-Path $DevToolsRoot `
         'Bin\Win64SharedPrivate\LuaCompiler.exe'
+    if (-not (Test-Path -LiteralPath $luaCompiler)) {
+        throw "LuaCompiler not found: $luaCompiler"
+    }
     & $luaCompiler -p $catalogPath *> $null
     Add-Result ($LASTEXITCODE -eq 0) `
         'real staged catalog passes LuaCompiler'

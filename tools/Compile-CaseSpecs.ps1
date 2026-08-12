@@ -98,16 +98,63 @@ else {
 $candidateConfigPath = Join-Path $repoRoot 'config\victim-candidates.json'
 $candidateConfig = [System.IO.File]::ReadAllText($candidateConfigPath) |
     ConvertFrom-Json -Depth 100
+$caseActivationSignals = @(Get-DpCaseActivationSignals -CaseSpecs $cases)
+$questItemSignalStart = [Math]::Max(
+    130,
+    122 + $caseActivationSignals.Count
+)
 $questItemPlacementSignals = @(Get-DpQuestItemPlacementSignals `
     -CaseSpecs $cases `
     -Bindings $bindings `
-    -CompiledDefinitions $compiledDefinitions)
+    -CompiledDefinitions $compiledDefinitions `
+    -StartSignalTag $questItemSignalStart)
+$areaManifestPath = Join-Path $repoRoot `
+    'config\settlement-investigation-areas.json'
+$areaManifest = [System.IO.File]::ReadAllText($areaManifestPath) |
+    ConvertFrom-Json -Depth 100
+$areaInventoryPath = Join-Path $repoRoot `
+    'build\generated\vanilla-trigger-areas.json'
+$areaInventory = if (
+    Test-Path -LiteralPath $areaInventoryPath -PathType Leaf
+) {
+    [System.IO.File]::ReadAllText($areaInventoryPath) |
+        ConvertFrom-Json -Depth 100
+}
+else { $null }
+$guidanceSignals = @(Get-DpGuidanceSignals `
+    -CompiledDefinitions $compiledDefinitions `
+    -AreaManifest $areaManifest `
+    -AreaInventory $areaInventory `
+    -StartSignalTag ($questItemSignalStart + $questItemPlacementSignals.Count))
+$signalTagEntries = @(
+    foreach ($signal in @(
+        $caseActivationSignals +
+        $questItemPlacementSignals +
+        $guidanceSignals
+    )) {
+        $tag = if ($signal -is [System.Collections.IDictionary]) {
+            $signal['signal_tag']
+        }
+        else { $signal.signal_tag }
+        if ($null -eq $tag) {
+            throw 'Generated native signal is missing signal_tag.'
+        }
+        [pscustomobject]@{ tag = [int]$tag }
+    }
+)
+$duplicateSignalTag = @($signalTagEntries |
+    Group-Object tag | Where-Object Count -gt 1) | Select-Object -First 1
+if ($null -ne $duplicateSignalTag) {
+    throw "Generated native signal tag '$($duplicateSignalTag.Name)' is duplicated."
+}
 $variantCatalog = ConvertTo-DpCaseVariantCatalogLua `
     -CompiledDefinitions $compiledDefinitions `
     -CaseSpecs $cases `
     -Candidates @($candidateConfig.candidates) `
     -Bindings $bindings `
-    -QuestItemPlacementSignals $questItemPlacementSignals
+    -QuestItemPlacementSignals $questItemPlacementSignals `
+    -GuidanceSignals $guidanceSignals `
+    -CaseActivationSignals $caseActivationSignals
 $questItemPlacementCatalog = ConvertTo-DpQuestItemPlacementCatalogLua `
     -Signals $questItemPlacementSignals
 $baseQuestItemCatalog = if (
@@ -121,17 +168,55 @@ $questItemCatalog = Merge-DpQuestItemCatalogLua `
     -Signals $questItemPlacementSignals
 $report = ConvertTo-DpCaseCompatibilityReport -CaseSpecs $cases
 $reportJson = ($report | ConvertTo-Json -Depth 100) + "`n"
-$nativeRegions = [System.Collections.Generic.List[object]]::new()
+$nativeModulesByRegion = @{}
 foreach ($case in $cases) {
-    $binding = @($bindings.settlements | Where-Object {
-        [string]$_.region -eq [string]$case.constraints.region -and
-        [string]$_.settlement -eq [string]$case.constraints.settlement
+    $activationSignal = @($caseActivationSignals | Where-Object {
+        [int]$_.case_code -eq [int]$case.code
     })[0]
-    $wiring = ConvertTo-DpNativeRegionWiring `
-        -CaseSpec $case `
-        -Binding $binding
-    $nativeRegions.Add($wiring)
-
+    $nativeRegionNames = if (
+        $null -ne $case.native.PSObject.Properties['regions']
+    ) { @($case.native.regions.PSObject.Properties.Name) } else {
+        @([string]$case.constraints.region)
+    }
+    foreach ($region in @($nativeRegionNames | Sort-Object -Unique)) {
+        $scopedBindings = @(Get-DpScopedCaseSettlementBindings `
+            -Bindings $bindings -CaseSpec $case -Region $region)
+        if ($scopedBindings.Count -eq 0) { continue }
+        $scopedBindings = @($scopedBindings | Sort-Object settlement |
+            ForEach-Object {
+                $binding = $_ | ConvertTo-Json -Depth 100 |
+                    ConvertFrom-Json -Depth 100
+                $targetSlots = @($candidateConfig.candidates | Where-Object {
+                    [string]$_.gameRegion -eq [string]$binding.region -and
+                    [string]$_.settlement -eq [string]$binding.settlement
+                } | ForEach-Object { [int]$_.slot } | Sort-Object -Unique)
+                $binding | Add-Member -NotePropertyName targetCandidateSlots `
+                    -NotePropertyValue $targetSlots -Force
+                $binding
+            })
+        $nativeRegion = if (
+            $null -ne $case.native.PSObject.Properties['regions']
+        ) { $case.native.regions.PSObject.Properties[$region].Value } else {
+            $case.native
+        }
+        $module = ConvertTo-DpNativeRegionWiring `
+            -CaseSpec $case `
+            -Bindings $scopedBindings `
+            -Region $region `
+            -NativeRegion $nativeRegion `
+            -CaseActivationSignal $activationSignal
+        if (-not $nativeModulesByRegion.ContainsKey($region)) {
+            $nativeModulesByRegion[$region] =
+                [System.Collections.Generic.List[object]]::new()
+        }
+        $nativeModulesByRegion[$region].Add($module)
+    }
+}
+$nativeRegions = @($nativeModulesByRegion.Keys | Sort-Object | ForEach-Object {
+    ConvertTo-DpNativeRegionBundle `
+        -Modules $nativeModulesByRegion[$_].ToArray()
+})
+foreach ($wiring in $nativeRegions) {
     $dialogRoot = Join-Path $BuildRoot (
         'mod\Data\Quests\darkpassengertest\' +
         [string]$wiring.region + '\' + [string]$wiring.dialogFolder
@@ -148,8 +233,11 @@ foreach ($case in $cases) {
 $nativeManifest = [ordered]@{
     schemaVersion = 1
     regions = @($nativeRegions | ForEach-Object {
+        $guidanceWiring = ConvertTo-DpGuidanceNativeWiring `
+            -Signals $guidanceSignals `
+            -Region ([string]$_.region)
         [ordered]@{
-            caseId = $_.caseId
+            caseIds = @($_.caseIds)
             region = $_.region
             settlement = $_.settlement
             questName = $_.questName
@@ -164,6 +252,9 @@ $nativeManifest = [ordered]@{
             evidenceType = $_.evidenceType
             evidenceLogs = $_.evidenceLogs
             journalStates = $_.journalStates
+            journalObjectives = $_.journalObjectives
+            storyModules = @($_.storyModules)
+            caseActivationSignals = @($_.caseActivationSignals)
             evidenceWitnessEdge = $_.evidenceWitnessEdge
             witnessObjectiveNodes = $_.witnessObjectiveNodes
             witnessType = $_.witnessType
@@ -176,6 +267,10 @@ $nativeManifest = [ordered]@{
                 ConvertTo-DpQuestItemPlacementAssetsXml `
                     -Signals $questItemPlacementSignals `
                     -Region ([string]$_.region)
+            guidanceNodes = $guidanceWiring.nodes
+            guidanceTypes = $guidanceWiring.types
+            guidanceAssets = $guidanceWiring.assets
+            guidanceObjectives = $guidanceWiring.objectives
             dialogueFiles = @($_.dialogues.fileName)
         }
     })
@@ -194,7 +289,8 @@ foreach ($language in @(
         -BaseLiteralPath $baseLocalizationPath `
         -CaseSpecs $cases `
         -Language $language.Code `
-        -CompiledDefinitions $compiledDefinitions
+        -CompiledDefinitions $compiledDefinitions `
+        -GuidanceSignals $guidanceSignals
     [System.IO.File]::WriteAllText(
         $localizationOutputPath,
         $localizationXml,
@@ -273,6 +369,26 @@ $stageTransforms = @(
             'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
         Transform = {
             param($xml)
+            ConvertTo-DpCaseActivationTagXml `
+                -BaseXml $xml `
+                -Signals $caseActivationSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpCaseActivationBuffXml `
+                -BaseXml $xml `
+                -Signals $caseActivationSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
             ConvertTo-DpDialogueVariantTagXml `
                 -BaseXml $xml `
                 -CaseSpecs $cases
@@ -326,6 +442,26 @@ $stageTransforms = @(
             ConvertTo-DpQuestItemPlacementBuffXml `
                 -BaseXml $xml `
                 -Signals $questItemPlacementSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpGuidanceTagXml `
+                -BaseXml $xml `
+                -Signals $guidanceSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpGuidanceBuffXml `
+                -BaseXml $xml `
+                -Signals $guidanceSignals
         }
     }
 )

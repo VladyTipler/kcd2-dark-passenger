@@ -32,6 +32,7 @@ function ConvertTo-CaseKitLegacyCaseDefinition {
             code = [int]$CaseSpec.code
             weight = $CaseSpec.weight
             revealThreshold = [int]$CaseSpec.revealThreshold
+            identityRequirement = $CaseSpec.identityRequirement
         }
         constraints = [pscustomobject][ordered]@{
             region = [string]$CaseSpec.constraints.region
@@ -115,6 +116,7 @@ function ConvertTo-CaseKitLegacyBackendInput {
             targetPolicy = $variant.targetPolicy
             crimeProfile = $variant.story.crimeProfile
             revealThreshold = [int]$variant.case.revealThreshold
+            identityRequirement = $variant.case.identityRequirement
             native = $variant.presentation.payload
             evidence = @($variant.evidence)
             text = $variant.story.text

@@ -25,6 +25,18 @@ function Add-Result {
     Write-Host "FAIL: $Label"
 }
 
+function Get-ThrownMessage {
+    param([Parameter(Mandatory)][scriptblock]$Action)
+
+    try {
+        & $Action
+        return ''
+    }
+    catch {
+        return [string]$_.Exception.Message
+    }
+}
+
 Add-Result (Test-Path -LiteralPath $modulePath) 'CaseSpec compiler module exists'
 Add-Result (Test-Path -LiteralPath $casePath) `
     'convenient-accident CaseSpec exists'
@@ -43,6 +55,7 @@ $requiredCommands = @(
     'Get-DpCaseSpecValidationErrors',
     'Get-DpValidatedCaseSpecs',
     'ConvertTo-DpLocalizationXml',
+    'ConvertTo-DpDialogueXml',
     'Get-DpDialogueVariants',
     'ConvertTo-DpDialogueVariantTagXml',
     'ConvertTo-DpDialogueVariantBuffXml',
@@ -128,6 +141,101 @@ if ((Test-Path -LiteralPath $modulePath) -and
         )
     ) 'missing RPG dialogue role definition is rejected'
 
+    $caseMismatchBindings = Copy-JsonObject $bindings
+    $caseMismatchBinding = @($caseMismatchBindings.settlements |
+        Where-Object {
+            [string]$_.region -eq 'kutnohorsko' -and
+            [string]$_.settlement -eq 'pritoky'
+        })[0]
+    $caseMismatchBinding.roles.innkeeper.dialogueRole =
+        'dp_innkeeper_rumor'
+    $caseMismatchErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $case `
+        -Bindings $caseMismatchBindings `
+        -SourceName 'case-mismatch-dialogue-role.json')
+    Add-Result (
+        $caseMismatchErrors -contains (
+            "case-mismatch-dialogue-role.json: dialogue role " +
+            "'dp_innkeeper_rumor' must have one registry definition"
+        )
+    ) 'dialogue role binding requires exact registry name casing'
+
+    $registryOwnedBindings = Copy-JsonObject $bindings
+    $registryOwnedBinding = @($registryOwnedBindings.settlements |
+        Where-Object {
+            [string]$_.region -eq 'kutnohorsko' -and
+            [string]$_.settlement -eq 'pritoky'
+        })[0]
+    $registryOwnedBinding.roles.innkeeper.dialogueRole =
+        'DP_ACTOR_REGISTRY_TEST'
+    $registryOwnedBindings.dialogueRoles = @(
+        @($registryOwnedBindings.dialogueRoles) +
+        [pscustomobject]@{
+            name = 'DP_ACTOR_REGISTRY_TEST'
+            roleId = '271d1f8b-1848-44b6-a29a-583ac023ee84'
+            metaRole = 'NPC'
+        }
+    )
+    $registryOwnedRoleXml = ConvertTo-DpDialogueRoleTableXml `
+        -BaseXml "<database>`n  <roles>`n  </roles>`n</database>`n" `
+        -CaseSpecs @($case) `
+        -Bindings $registryOwnedBindings
+    [xml]$registryOwnedRoleDocument = $registryOwnedRoleXml
+    $materializedRegistryRows = @(
+        $registryOwnedRoleDocument.database.roles.role
+    )
+    $unmaterializedRegistryRoles = @(
+        $registryOwnedBindings.dialogueRoles | Where-Object {
+            $definition = $_
+            @($materializedRegistryRows | Where-Object {
+                [string]$_.role_name -ceq [string]$definition.name -and
+                [string]$_.role_id -ieq [string]$definition.roleId -and
+                [string]$_.metarole_name -ceq [string]$definition.metaRole
+            }).Count -ne 1
+        }
+    )
+    Add-Result (
+        $unmaterializedRegistryRoles.Count -eq 0
+    ) 'RPG role table materializes the complete dialogue-role registry'
+
+    $registryRole = @($bindings.dialogueRoles | Where-Object {
+        [string]$_.name -eq 'DP_INNKEEPER_RUMOR'
+    })[0]
+    $registryRoleRow =
+        '    <role role_id="' + [string]$registryRole.roleId +
+        '" metarole_name="' + [string]$registryRole.metaRole +
+        '" role_name="' + [string]$registryRole.name + '" />'
+    $duplicateNameBaseXml =
+        "<database>`n  <roles>`n$registryRoleRow`n" +
+        "$registryRoleRow`n  </roles>`n</database>`n"
+    $duplicateNameMessage = Get-ThrownMessage -Action {
+        ConvertTo-DpDialogueRoleTableXml `
+            -BaseXml $duplicateNameBaseXml `
+            -CaseSpecs @($case) `
+            -Bindings $bindings | Out-Null
+    }
+    Add-Result (
+        $duplicateNameMessage -like
+            "*duplicate RPG role name 'DP_INNKEEPER_RUMOR'*"
+    ) 'duplicate RPG role name is rejected'
+
+    $duplicateGuidRow =
+        '    <role role_id="' + [string]$registryRole.roleId +
+        '" metarole_name="NPC" role_name="DP_STALE_ROLE" />'
+    $duplicateGuidBaseXml =
+        "<database>`n  <roles>`n$duplicateGuidRow`n" +
+        "$registryRoleRow`n  </roles>`n</database>`n"
+    $duplicateGuidMessage = Get-ThrownMessage -Action {
+        ConvertTo-DpDialogueRoleTableXml `
+            -BaseXml $duplicateGuidBaseXml `
+            -CaseSpecs @($case) `
+            -Bindings $bindings | Out-Null
+    }
+    Add-Result (
+        $duplicateGuidMessage -like
+            "*duplicate RPG role id '$([string]$registryRole.roleId)'*"
+    ) 'duplicate RPG role GUID is rejected'
+
     $withoutId = Copy-JsonObject $case
     $withoutId.id = ''
     $idErrors = @(Get-DpCaseSpecValidationErrors `
@@ -174,6 +282,37 @@ if ((Test-Path -LiteralPath $modulePath) -and
     ) 'unsupported settlement is rejected'
 
     $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+    Add-Result (
+        @($missingTraveler.identityRequirement.allOf).Count -eq 1 -and
+        $missingTraveler.identityRequirement.allOf[0] -eq
+            'horse_returner_identified'
+    ) 'CaseSpec declares one hard identity requirement'
+    $unknownIdentityFact = Copy-JsonObject $missingTraveler
+    $unknownIdentityFact.identityRequirement.allOf = @('unknown_identity')
+    $identityErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $unknownIdentityFact -Bindings $bindings `
+        -SourceName 'unknown-identity.json')
+    Add-Result (
+        $identityErrors -contains (
+            "unknown-identity.json: identityRequirement references " +
+            "unknown fact 'unknown_identity'"
+        )
+    ) 'CaseSpec rejects identity facts no evidence can reveal'
+    $alternativeIdentity = Copy-JsonObject $missingTraveler
+    $alternativeIdentity.identityRequirement.PSObject.Properties.Remove(
+        'allOf'
+    )
+    $alternativeIdentity.identityRequirement | Add-Member `
+        -NotePropertyName anyOf `
+        -NotePropertyValue @(
+            'horse_returner_identified',
+            'culprit_dismissed_widow_claim'
+        )
+    $alternativeIdentityErrors = @(Get-DpCaseSpecValidationErrors `
+        -CaseSpec $alternativeIdentity -Bindings $bindings `
+        -SourceName 'alternative-identity.json')
+    Add-Result ($alternativeIdentityErrors.Count -eq 0) `
+        'CaseSpec accepts reachable anyOf identity alternatives'
 
     $missingTravelerRuntimeCatalog = ConvertTo-DpCaseCatalogLua `
         -CaseSpecs @($missingTraveler) `

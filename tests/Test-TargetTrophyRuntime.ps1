@@ -84,12 +84,36 @@ Add-Result (
 Add-Result (
     $trophy.Contains('local function ResolveExpectedCorpseName(state)') -and
     $trophy.Contains('local expectedCorpseName = ResolveExpectedCorpseName(state)') -and
-    $trophy.Contains('return false, "target_identity_unavailable"')
-) 'burial resolves target identity from the immutable snapshot and fails closed'
+    $trophy.Contains('return true, "target_identity_unavailable"') -and
+    -not $trophy.Contains('return false, "target_identity_unavailable"')
+) 'burial only blocks a positively identified target and fails open when target identity is unavailable'
 Add-Result (
     $trophy.Contains('Script.SetTimerForFunction(') -and
     $trophy.Contains('DarkPassengerTrophy.Poll')
 ) 'placed trophy keeps a save-safe collection poll'
+$pollMatch = [regex]::Match(
+    $trophy,
+    '(?ms)^function DarkPassengerTrophy\.Poll\(payload\).*?^end$'
+)
+Add-Result (
+    $pollMatch.Success -and
+    $pollMatch.Value.Contains('if reason == "stale_generation" then') -and
+    $pollMatch.Value.IndexOf('if reason == "stale_generation" then') -lt
+        $pollMatch.Value.IndexOf('Schedule(state)')
+) 'stale trophy generation terminates polling instead of rescheduling'
+$restoreMatch = [regex]::Match(
+    $trophy,
+    '(?ms)^function DarkPassengerTrophy\.Restore\(\).*?^end$'
+)
+Add-Result (
+    $restoreMatch.Success -and
+    $restoreMatch.Value.Contains('if reason == "stale_generation" then') -and
+    $restoreMatch.Value.Contains(
+        'DarkPassengerTrophy.timerSerial = DarkPassengerTrophy.timerSerial + 1'
+    ) -and
+    $restoreMatch.Value.IndexOf('if reason == "stale_generation" then') -lt
+        $restoreMatch.Value.IndexOf('Schedule(state)')
+) 'restore invalidates stale trophy timers without starting a new chain'
 Add-Result (
     $target.Contains(
         'Script.ReloadScript("Scripts/mods/dptrophy.lua")'

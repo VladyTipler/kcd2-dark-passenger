@@ -388,6 +388,65 @@ Assert-True ($hybrid.primaryGuid -eq '10000000-0000-0000') `
 Assert-True (-not (@($hybrid.areaGuids) -contains $technical.guid)) `
     'hybrid selector never includes a technical all-hit area'
 
+$sceneTechnical = New-TestArea `
+    -Guid '41000000-0000-0000' `
+    -Name 'audio_scene_trigger' `
+    -EditorLayer 'Main/alpha/inn/audio' `
+    -Label 'audio_area' `
+    -MinX 1 -MinY 1 -MaxX 4 -MaxY 4
+$sceneQuestArea = New-TestArea `
+    -Guid '42000000-0000-0000' `
+    -Name 'sidequest_scene_area' `
+    -EditorLayer 'Main/_quest/side/static' `
+    -Label '' `
+    -MinX 1 -MinY 1 -MaxX 4 -MaxY 4
+$sceneTavernArea = New-TestArea `
+    -Guid '43000000-0000-0000' `
+    -Name 'alpha_tavernExteriorInnArea_1' `
+    -EditorLayer 'Main/alpha/inn/_script/crime' `
+    -Label '' `
+    -MinX 0 -MinY 0 -MaxX 6 -MaxY 6
+$sceneBroadArea = New-TestArea `
+    -Guid '44000000-0000-0000' `
+    -Name 'alpha_publicEnemiesRepulsionZoneInnArea_1' `
+    -EditorLayer 'Main/alpha/inn/_script/crime_publicEnemiesRepulsionZone' `
+    -Label 'crime_publicEnemiesRepulsionZone' `
+    -MinX -20 -MinY -20 -MaxX 20 -MaxY 20
+$sceneAnchors = @(
+    [pscustomobject]@{
+        id = 'speaker-a'
+        position = [pscustomobject]@{ x = 2.0; y = 2.0 }
+    }
+    [pscustomobject]@{
+        id = 'speaker-b'
+        position = [pscustomobject]@{ x = 3.0; y = 3.0 }
+    }
+)
+$sceneArea = Select-CommonInvestigationArea `
+    -Region 'test-region' `
+    -Areas @(
+        $sceneTechnical,
+        $sceneQuestArea,
+        $sceneTavernArea,
+        $sceneBroadArea
+    ) `
+    -Anchors $sceneAnchors
+Assert-True ($sceneArea.guid -eq $sceneTavernArea.guid) `
+    'scene selector chooses the smallest stable area containing every speaker'
+Assert-Throws `
+    { Select-CommonInvestigationArea `
+        -Region 'test-region' `
+        -Areas @($sceneTavernArea) `
+        -Anchors @(
+            $sceneAnchors[0],
+            [pscustomobject]@{
+                id = 'speaker-outside'
+                position = [pscustomobject]@{ x = 50.0; y = 50.0 }
+            }
+        ) } `
+    'No safe common investigation area.*speaker-a, speaker-outside' `
+    'scene selector rejects a pair without common vanilla coverage'
+
 $forcedPrimary = New-TestArea `
     -Guid '05000000-0000-0000' `
     -Name 'alpha_publicEnemiesRepulsionZoneForcedArea_1' `

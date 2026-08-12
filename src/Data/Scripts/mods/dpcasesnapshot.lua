@@ -156,6 +156,8 @@ end
 function DarkPassengerCaseSnapshot.Transition(state, event)
     local nextState = CopyState(state)
     local requested = CopyState(event)
+    local allowBindingMigration = event ~= nil and
+        event.allowBindingMigration == true
     if requested.generation <= 0 or requested.caseCode <= 0 or
        requested.openerCode <= 0 or requested.targetSlot <= 0 then
         return nextState, { accepted = false, reason = "invalid_snapshot" }
@@ -172,6 +174,19 @@ function DarkPassengerCaseSnapshot.Transition(state, event)
                 nextState.interrogationOffered or
                 requested.interrogationOffered
             return nextState, { accepted = true, reason = "restored" }
+        end
+        if allowBindingMigration and
+           requested.caseCode == nextState.caseCode and
+           requested.openerCode == nextState.openerCode and
+           requested.targetSlot == nextState.targetSlot and
+           requested.variantCode > 0 and requested.bindingCode > 0 then
+            requested.interrogationOffered =
+                nextState.interrogationOffered or
+                requested.interrogationOffered
+            return requested, {
+                accepted = true,
+                reason = "variant_migrated",
+            }
         end
         return nextState, { accepted = false, reason = "snapshot_conflict" }
     end
@@ -254,6 +269,9 @@ function DarkPassengerCaseSnapshot.Capture(generation, candidate, selected)
         candidate = DarkPassengerInvestigation.GetCandidate()
     end
     local current = ReadState()
+    local allowBindingMigration = current.variantCode > 0 and
+        (DarkPassengerCaseVariantCatalogByCode == nil or
+         DarkPassengerCaseVariantCatalogByCode[current.variantCode] == nil)
     local nextState, result = DarkPassengerCaseSnapshot.Transition(
         current,
         {
@@ -265,6 +283,7 @@ function DarkPassengerCaseSnapshot.Capture(generation, candidate, selected)
             targetSlot = candidate ~= nil and candidate.slot or 0,
             interrogationOffered = current.generation == generation and
                 current.interrogationOffered or false,
+            allowBindingMigration = allowBindingMigration,
         }
     )
     if not result.accepted then
@@ -344,6 +363,18 @@ function DarkPassengerCaseSnapshot.RunSelfTest()
             targetSlot = 10,
         }
     )
+    local rebound, reboundResult = DarkPassengerCaseSnapshot.Transition(
+        first,
+        {
+            generation = 4,
+            caseCode = 1001,
+            openerCode = 1101,
+            variantCode = 778,
+            bindingCode = 889,
+            targetSlot = 9,
+            allowBindingMigration = true,
+        }
+    )
     local legacy, migration = DarkPassengerCaseSnapshot.MigrateLegacyState({
         generation = 4,
         caseCode = 1001,
@@ -355,6 +386,9 @@ function DarkPassengerCaseSnapshot.RunSelfTest()
         restoredResult.accepted and restoredResult.reason == "restored" and
         SameIdentity(first, restored) and
         conflict.reason == "snapshot_conflict" and
+        reboundResult.accepted and
+        reboundResult.reason == "variant_migrated" and
+        rebound.variantCode == 778 and rebound.targetSlot == 9 and
         migration.reason == "legacy_v1" and legacy.variantCode == 0 and
         legacy.targetSlot == 9
     Log("selftest=" .. tostring(passed))

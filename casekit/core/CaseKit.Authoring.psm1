@@ -25,6 +25,41 @@ $script:CaseKitEvidencePlacementModes = @(
     'actor-container',
     'actor-home-container'
 )
+$script:CaseKitGuidanceKindEntityTypes = [ordered]@{
+    actor = @('actor')
+    entity = @('container')
+    place = @('container', 'settlement')
+    area = @('settlement')
+}
+$script:CaseKitGuidanceKindPrecisions = [ordered]@{
+    actor = @('exact', 'point')
+    entity = @('exact', 'point')
+    place = @('point', 'area')
+    area = @('area')
+}
+$script:CaseKitGuidanceVisibilityModes = @(
+    'step-active',
+    'facts-known',
+    'target-revealed'
+)
+$script:CaseKitGuidanceLifetimes = @('step', 'case')
+$script:CaseKitGuidanceFallbacks = @(
+    'journal-direction',
+    'reject-variant'
+)
+$script:CaseKitLifecycleObjectiveStates = [ordered]@{
+    search = @('active')
+    investigation = @()
+    target = @('active', 'done')
+    cleanup = @(
+        'active',
+        'witnessed',
+        'clean',
+        'controlled',
+        'noisy',
+        'external'
+    )
+}
 $script:CaseKitForbiddenNativeFields = @(
     'animation',
     'animationName',
@@ -129,6 +164,127 @@ function Assert-CaseKitAssetReference {
     }
 }
 
+function Assert-CaseKitObjectivePresentation {
+    param(
+        $Presentation,
+        [Parameter(Mandatory)]$AssetKeys,
+        [Parameter(Mandatory)][AllowEmptyCollection()][string[]]$AllowedStates,
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][string]$SourcePath,
+        [switch]$RequireActiveState
+    )
+
+    if ($null -eq $Presentation) { return }
+
+    $nameAsset = [string](Get-CaseKitProperty `
+        -Value $Presentation -Name 'nameAsset')
+    if ([string]::IsNullOrWhiteSpace($nameAsset)) {
+        throw "$Context requires nameAsset in '$SourcePath'."
+    }
+    Assert-CaseKitAssetReference -AssetKey $nameAsset -AssetKeys $AssetKeys `
+        -Context $Context -SourcePath $SourcePath
+
+    $states = Get-CaseKitProperty -Value $Presentation -Name 'states'
+    if ($RequireActiveState -and
+        ($null -eq $states -or
+            $null -eq $states.PSObject.Properties['active'])) {
+        throw "$Context requires objective state 'active' in '$SourcePath'."
+    }
+    if ($null -eq $states) { return }
+
+    foreach ($state in $states.PSObject.Properties) {
+        if ($AllowedStates -notcontains [string]$state.Name) {
+            throw "$Context uses unsupported objective state " +
+                "'$($state.Name)' in '$SourcePath'."
+        }
+        $assetKey = [string]$state.Value
+        if ([string]::IsNullOrWhiteSpace($assetKey) -or
+            -not $AssetKeys.Contains($assetKey)) {
+            throw "$Context objective state '$($state.Name)' references " +
+                "missing asset '$assetKey' in '$SourcePath'."
+        }
+    }
+}
+
+function Assert-CaseKitLifecycleObjectivePresentations {
+    param(
+        $Journal,
+        [Parameter(Mandatory)]$AssetKeys,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    if ($null -eq $Journal) { return }
+    $objectives = Get-CaseKitProperty -Value $Journal -Name 'objectives'
+    if ($null -eq $objectives) {
+        throw "Story journal requires objectives in '$SourcePath'."
+    }
+
+    foreach ($objective in $objectives.PSObject.Properties) {
+        $objectiveId = [string]$objective.Name
+        if (-not $script:CaseKitLifecycleObjectiveStates.Contains($objectiveId)) {
+            throw "Story journal uses unknown lifecycle objective " +
+                "'$objectiveId' in '$SourcePath'."
+        }
+        Assert-CaseKitObjectivePresentation -Presentation $objective.Value `
+            -AssetKeys $AssetKeys `
+            -AllowedStates $script:CaseKitLifecycleObjectiveStates[$objectiveId] `
+            -Context "Lifecycle objective '$objectiveId'" `
+            -SourcePath $SourcePath
+    }
+}
+
+function Get-CaseKitComparableLocalizedText {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { return '' }
+    return (($Value -replace '\s+', ' ').Trim()).ToLowerInvariant()
+}
+
+function Assert-CaseKitGuidanceObjectiveDistinctFromInvestigation {
+    param(
+        $GuidanceObjective,
+        $InvestigationObjective,
+        [Parameter(Mandatory)]$RussianAssets,
+        [Parameter(Mandatory)]$EnglishAssets,
+        [Parameter(Mandatory)][string]$QualifiedId,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    if ($null -eq $GuidanceObjective -or
+        $null -eq $InvestigationObjective) {
+        return
+    }
+    $guidanceAsset = [string](Get-CaseKitProperty `
+        -Value $GuidanceObjective -Name 'nameAsset')
+    $investigationAsset = [string](Get-CaseKitProperty `
+        -Value $InvestigationObjective -Name 'nameAsset')
+    if ($guidanceAsset -eq $investigationAsset) {
+        throw "GuidanceTarget '$QualifiedId' objective duplicates lifecycle " +
+            "investigation objective asset '$guidanceAsset' in " +
+            "'$SourcePath'."
+    }
+
+    foreach ($language in @(
+        [pscustomobject]@{ name = 'Russian'; assets = $RussianAssets },
+        [pscustomobject]@{ name = 'English'; assets = $EnglishAssets }
+    )) {
+        $guidanceText = Get-CaseKitComparableLocalizedText -Value (
+            [string](Get-CaseKitProperty -Value $language.assets `
+                -Name $guidanceAsset)
+        )
+        $investigationText = Get-CaseKitComparableLocalizedText -Value (
+            [string](Get-CaseKitProperty -Value $language.assets `
+                -Name $investigationAsset)
+        )
+        if (-not [string]::IsNullOrWhiteSpace($guidanceText) -and
+            $guidanceText -eq $investigationText) {
+            throw "GuidanceTarget '$QualifiedId' objective duplicates " +
+                "lifecycle investigation objective localized text " +
+                "($($language.name)) in '$SourcePath'."
+        }
+    }
+}
+
 function Get-CaseKitContentAssetKeys {
     param([Parameter(Mandatory)]$Content)
 
@@ -218,10 +374,11 @@ function Assert-CaseKitEvidenceModules {
 
 function Assert-CaseKitNoNativeAuthoringFields {
     param(
-        [Parameter(Mandatory)]$Value,
+        [Parameter(Mandatory)][AllowNull()]$Value,
         [Parameter(Mandatory)][string]$SourcePath
     )
 
+    if ($null -eq $Value) { return }
     if ($Value -is [string] -or $Value -is [ValueType]) {
         return
     }
@@ -424,6 +581,153 @@ function Assert-CaseKitV2EvidencePlacement {
     }
 }
 
+function Assert-CaseKitV2GuidanceTargets {
+    param(
+        [Parameter(Mandatory)]$Step,
+        [Parameter(Mandatory)]$Slots,
+        [Parameter(Mandatory)]$FactMap,
+        [Parameter(Mandatory)]$AssetKeys,
+        $InvestigationObjective,
+        [Parameter(Mandatory)]$RussianAssets,
+        [Parameter(Mandatory)]$EnglishAssets,
+        [Parameter(Mandatory)][string]$ThreadId,
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $ids = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($guidanceTarget in @($Step.guidance)) {
+        $id = [string](Get-CaseKitProperty `
+            -Value $guidanceTarget -Name 'id')
+        $qualifiedId = "$ThreadId/$([string]$Step.id)/$id"
+        if ([string]::IsNullOrWhiteSpace($id)) {
+            throw "$Context contains a GuidanceTarget without id in " +
+                "'$SourcePath'."
+        }
+        if (-not $ids.Add($id)) {
+            throw "$Context contains duplicate GuidanceTarget '$id' in " +
+                "'$SourcePath'."
+        }
+
+        $target = Get-CaseKitProperty `
+            -Value $guidanceTarget -Name 'target'
+        $kind = [string](Get-CaseKitProperty -Value $target -Name 'kind')
+        if (-not $script:CaseKitGuidanceKindEntityTypes.Contains($kind)) {
+            throw "GuidanceTarget '$qualifiedId' uses unknown kind '$kind' " +
+                "in '$SourcePath'."
+        }
+        $slotName = [string](Get-CaseKitProperty `
+            -Value $target -Name 'slot')
+        $slot = $Slots.PSObject.Properties[$slotName]
+        if ($null -eq $slot) {
+            throw "GuidanceTarget '$qualifiedId' references unknown slot " +
+                "'$slotName' in '$SourcePath'."
+        }
+        $entityType = [string]$slot.Value.entityType
+        if (@($script:CaseKitGuidanceKindEntityTypes[$kind]) -notcontains
+            $entityType) {
+            throw "GuidanceTarget '$qualifiedId' kind '$kind' is " +
+                "incompatible with slot '$slotName' entity type " +
+                "'$entityType' in '$SourcePath'."
+        }
+
+        $precision = [string](Get-CaseKitProperty `
+            -Value $guidanceTarget -Name 'precision')
+        if (@($script:CaseKitGuidanceKindPrecisions[$kind]) -notcontains
+            $precision) {
+            throw "GuidanceTarget '$qualifiedId' precision '$precision' is " +
+                "incompatible with kind '$kind' in '$SourcePath'."
+        }
+
+        $areaSelection = [string](Get-CaseKitProperty `
+            -Value $target -Name 'areaSelection')
+        $anchorSlotValues = Get-CaseKitProperty `
+            -Value $target -Name 'anchorSlots'
+        $anchorSlots = @($anchorSlotValues | Where-Object {
+            $null -ne $_
+        } | ForEach-Object { [string]$_ })
+        if (-not [string]::IsNullOrWhiteSpace($areaSelection) -or
+            $anchorSlots.Count -gt 0) {
+            if ($kind -ne 'area' -or $precision -ne 'area') {
+                throw "GuidanceTarget '$qualifiedId' local area selection " +
+                    "requires kind 'area' and precision 'area' in " +
+                    "'$SourcePath'."
+            }
+            if ($areaSelection -ne 'smallest-common') {
+                throw "GuidanceTarget '$qualifiedId' uses unknown area " +
+                    "selection '$areaSelection' in '$SourcePath'."
+            }
+            if ($anchorSlots.Count -eq 0) {
+                throw "GuidanceTarget '$qualifiedId' smallest-common area " +
+                    "selection requires anchorSlots in '$SourcePath'."
+            }
+            if (@($anchorSlots | Sort-Object -Unique).Count -ne
+                $anchorSlots.Count) {
+                throw "GuidanceTarget '$qualifiedId' contains duplicate " +
+                    "anchorSlots in '$SourcePath'."
+            }
+            foreach ($anchorSlotName in $anchorSlots) {
+                $anchorSlot = $Slots.PSObject.Properties[$anchorSlotName]
+                if ($null -eq $anchorSlot) {
+                    throw "GuidanceTarget '$qualifiedId' references unknown " +
+                        "area anchor slot '$anchorSlotName' in '$SourcePath'."
+                }
+                if ([string]$anchorSlot.Value.entityType -ne 'actor') {
+                    throw "GuidanceTarget '$qualifiedId' area anchor slot " +
+                        "'$anchorSlotName' is not an actor in '$SourcePath'."
+                }
+            }
+        }
+
+        $visibility = $guidanceTarget.visibility
+        $visibilityMode = [string]$visibility.mode
+        if ($script:CaseKitGuidanceVisibilityModes -notcontains
+            $visibilityMode) {
+            throw "GuidanceTarget '$qualifiedId' uses unknown visibility " +
+                "mode '$visibilityMode' in '$SourcePath'."
+        }
+        $visibilityFacts = @($visibility.requiresFacts)
+        Assert-CaseKitFactsExist -FactIds $visibilityFacts `
+            -FactMap $FactMap -Context "GuidanceTarget '$qualifiedId'" `
+            -SourcePath $SourcePath
+        if ($visibilityMode -eq 'facts-known' -and
+            $visibilityFacts.Count -eq 0) {
+            throw "GuidanceTarget '$qualifiedId' facts-known visibility " +
+                "requires at least one fact in '$SourcePath'."
+        }
+
+        if ($precision -eq 'exact' -and
+            @($slot.Value.capabilities) -contains 'victim.eligible' -and
+            $visibilityMode -ne 'target-revealed') {
+            throw "GuidanceTarget '$qualifiedId' exposes an exact victim " +
+                "before target-revealed visibility in '$SourcePath'."
+        }
+
+        $lifetime = [string]$guidanceTarget.lifetime
+        if ($script:CaseKitGuidanceLifetimes -notcontains $lifetime) {
+            throw "GuidanceTarget '$qualifiedId' uses unknown lifetime " +
+                "'$lifetime' in '$SourcePath'."
+        }
+        $fallback = [string]$guidanceTarget.fallback
+        if ($script:CaseKitGuidanceFallbacks -notcontains $fallback) {
+            throw "GuidanceTarget '$qualifiedId' uses unknown fallback " +
+                "'$fallback' in '$SourcePath'."
+        }
+
+        $objective = Get-CaseKitProperty `
+            -Value $guidanceTarget -Name 'objective'
+        Assert-CaseKitObjectivePresentation -Presentation $objective `
+            -AssetKeys $AssetKeys -AllowedStates @('active') `
+            -Context "GuidanceTarget '$qualifiedId'" `
+            -SourcePath $SourcePath -RequireActiveState
+        Assert-CaseKitGuidanceObjectiveDistinctFromInvestigation `
+            -GuidanceObjective $objective `
+            -InvestigationObjective $InvestigationObjective `
+            -RussianAssets $RussianAssets -EnglishAssets $EnglishAssets `
+            -QualifiedId $qualifiedId -SourcePath $SourcePath
+    }
+}
+
 function Assert-CaseKitV2DefinitionAssets {
     param(
         [Parameter(Mandatory)][object[]]$Entries,
@@ -448,6 +752,145 @@ function Assert-CaseKitV2DefinitionAssets {
                 -SourcePath $entry.path
         }
     }
+}
+
+function ConvertTo-CaseKitNormalizedReveal {
+    param(
+        [Parameter(Mandatory)]$Reveal,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $requiredFactsProperty = $Reveal.PSObject.Properties['requiredFacts']
+    $identityProperty = $Reveal.PSObject.Properties['identityRequirement']
+    if ($null -ne $requiredFactsProperty -and $null -ne $identityProperty) {
+        throw "Story reveal defines both 'requiredFacts' and " +
+            "'identityRequirement' in '$SourcePath'."
+    }
+
+    $mode = $null
+    $factIds = @()
+    if ($null -ne $requiredFactsProperty) {
+        $mode = 'allOf'
+        $factIds = @($requiredFactsProperty.Value)
+    }
+    elseif ($null -ne $identityProperty) {
+        $identityRequirement = $identityProperty.Value
+        $properties = @($identityRequirement.PSObject.Properties)
+        $supported = @($properties | Where-Object {
+            $_.Name -in @('allOf', 'anyOf')
+        })
+        $unknown = @($properties | Where-Object {
+            $_.Name -notin @('allOf', 'anyOf')
+        })
+        if ($unknown.Count -gt 0) {
+            throw "Story reveal uses unknown identity requirement " +
+                "'$($unknown[0].Name)' in '$SourcePath'."
+        }
+        if ($supported.Count -ne 1) {
+            throw 'Story reveal identityRequirement must define exactly one ' +
+                "of 'allOf' or 'anyOf' in '$SourcePath'."
+        }
+        $mode = [string]$supported[0].Name
+        $factIds = @($supported[0].Value)
+    }
+    else {
+        throw "Story reveal requires 'identityRequirement' in '$SourcePath'."
+    }
+
+    if ($factIds.Count -eq 0) {
+        throw "Story reveal identityRequirement.$mode must contain at least " +
+            "one fact in '$SourcePath'."
+    }
+    $normalizedFactIds = @($factIds | ForEach-Object { [string]$_ })
+    if (@($normalizedFactIds | Where-Object {
+        [string]::IsNullOrWhiteSpace($_)
+    }).Count -gt 0) {
+        throw "Story reveal identityRequirement.$mode contains an empty fact " +
+            "in '$SourcePath'."
+    }
+    if (@($normalizedFactIds | Sort-Object -Unique).Count -ne
+        $normalizedFactIds.Count) {
+        throw "Story reveal identityRequirement.$mode contains duplicate " +
+            "facts in '$SourcePath'."
+    }
+
+    $identityRequirement = [ordered]@{}
+    $identityRequirement[$mode] = $normalizedFactIds
+    return [pscustomobject][ordered]@{
+        confidence = [int]$Reveal.confidence
+        identityRequirement = [pscustomobject]$identityRequirement
+    }
+}
+
+function Get-CaseKitIdentityRequirement {
+    param([Parameter(Mandatory)]$Reveal)
+
+    $property = @($Reveal.identityRequirement.PSObject.Properties)[0]
+    return [pscustomobject][ordered]@{
+        mode = [string]$property.Name
+        factIds = @($property.Value | ForEach-Object { [string]$_ })
+    }
+}
+
+function ConvertTo-CaseKitNormalizedGuidanceTargets {
+    param($GuidanceTargets)
+
+    $normalized = [System.Collections.Generic.List[object]]::new()
+    if ($null -eq $GuidanceTargets) {
+        return $normalized.ToArray()
+    }
+    foreach ($guidanceTarget in @($GuidanceTargets)) {
+        $copy = ($guidanceTarget | ConvertTo-Json -Depth 100) |
+            ConvertFrom-Json -Depth 100
+        $visibility = Get-CaseKitProperty -Value $copy -Name 'visibility'
+        if ($null -eq $visibility) {
+            $visibility = [pscustomobject][ordered]@{
+                mode = 'step-active'
+                requiresFacts = @()
+            }
+            $copy | Add-Member -NotePropertyName visibility `
+                -NotePropertyValue $visibility
+        }
+        else {
+            if ([string]::IsNullOrWhiteSpace([string](
+                Get-CaseKitProperty -Value $visibility -Name 'mode'
+            ))) {
+                $visibility | Add-Member -NotePropertyName mode `
+                    -NotePropertyValue 'step-active' -Force
+            }
+            if ($null -eq $visibility.PSObject.Properties['requiresFacts']) {
+                $visibility | Add-Member -NotePropertyName requiresFacts `
+                    -NotePropertyValue @()
+            }
+        }
+        if ($null -eq $copy.PSObject.Properties['lifetime']) {
+            $copy | Add-Member -NotePropertyName lifetime `
+                -NotePropertyValue 'step'
+        }
+        if ($null -eq $copy.PSObject.Properties['fallback']) {
+            $copy | Add-Member -NotePropertyName fallback `
+                -NotePropertyValue 'journal-direction'
+        }
+        $normalized.Add($copy)
+    }
+    return $normalized.ToArray()
+}
+
+function ConvertTo-CaseKitNormalizedThreads {
+    param([Parameter(Mandatory)][object[]]$Threads)
+
+    foreach ($thread in $Threads) {
+        foreach ($step in @($thread.steps)) {
+            $guidanceTargets = Get-CaseKitProperty `
+                -Value $step -Name 'guidance'
+            $step | Add-Member -NotePropertyName guidance `
+                -NotePropertyValue @(
+                    ConvertTo-CaseKitNormalizedGuidanceTargets `
+                        -GuidanceTargets $guidanceTargets
+                ) -Force
+        }
+    }
+    return $Threads
 }
 
 function Read-CaseKitV2StoryPackage {
@@ -488,6 +931,8 @@ function Read-CaseKitV2StoryPackage {
     Assert-CaseKitV2TrophyDefinition -Case $case `
         -AssetKeys $russian.PSObject.Properties.Name `
         -SourcePath $CasePath
+    $reveal = ConvertTo-CaseKitNormalizedReveal -Reveal $case.reveal `
+        -SourcePath $CasePath
     $dialogueEntries = @(Read-CaseKitDefinitionDirectory `
         -LiteralPath (Join-Path $packageRoot 'dialogues') -Kind 'dialogues')
     $documentEntries = @(Read-CaseKitDefinitionDirectory `
@@ -509,10 +954,12 @@ function Read-CaseKitV2StoryPackage {
         archetypes = @($case.archetypes)
         truth = $case.truth
         facts = @($case.facts)
-        reveal = $case.reveal
+        reveal = $reveal
+        journal = Get-CaseKitProperty -Value $case -Name 'journal'
         trophyDefinition = Get-CaseKitProperty `
             -Value $case -Name 'trophyDefinition'
-        threads = @($threads.threads)
+        threads = @(ConvertTo-CaseKitNormalizedThreads `
+            -Threads @($threads.threads))
         dialogues = @($dialogueEntries.value | Sort-Object id)
         documents = @($documentEntries.value | Sort-Object id)
         assets = [pscustomobject][ordered]@{
@@ -558,6 +1005,23 @@ function ConvertTo-CaseKitNormalizedStory {
         -NotePropertyValue $SourceSchemaVersion -Force
     $normalized | Add-Member -NotePropertyName archetypeCompositions `
         -NotePropertyValue $archetypeCompositions -Force
+    if ($SourceSchemaVersion -eq 1) {
+        foreach ($thread in @($normalized.threads)) {
+            foreach ($step in @($thread.steps)) {
+                if ([string]$step.action.evidenceModule -ne
+                    'overheard-dialogue') {
+                    continue
+                }
+                if ($null -eq $step.action.PSObject.Properties['activation']) {
+                    $step.action | Add-Member `
+                        -NotePropertyName activation `
+                        -NotePropertyValue ([pscustomobject][ordered]@{
+                            mode = 'proximity'
+                        })
+                }
+            }
+        }
+    }
     if ($null -eq $normalized.PSObject.Properties['dialogues']) {
         $normalized | Add-Member -NotePropertyName dialogues `
             -NotePropertyValue @()
@@ -567,6 +1031,34 @@ function ConvertTo-CaseKitNormalizedStory {
             -NotePropertyValue @()
     }
     return $normalized
+}
+
+function Assert-CaseKitV2OverheardActivation {
+    param(
+        [Parameter(Mandatory)]$Step,
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    if ([string]$Step.action.evidenceModule -ne 'overheard-dialogue') {
+        return
+    }
+    $activation = Get-CaseKitProperty `
+        -Value $Step.action -Name 'activation'
+    if ($null -eq $activation) {
+        throw "$Context requires explicit activation mode for " +
+            "overheard-dialogue in '$SourcePath'."
+    }
+    $mode = [string](Get-CaseKitProperty `
+        -Value $activation -Name 'mode')
+    if ([string]::IsNullOrWhiteSpace($mode)) {
+        throw "$Context requires explicit activation mode for " +
+            "overheard-dialogue in '$SourcePath'."
+    }
+    if ($mode -notin @('interaction', 'proximity')) {
+        throw "$Context uses unsupported overheard activation mode " +
+            "'$mode' in '$SourcePath'."
+    }
 }
 
 function Merge-CaseKitV2ArchetypeSlots {
@@ -718,6 +1210,20 @@ function Assert-CaseKitV2StoryContract {
     $casePath = [string]$story.packageSources.case
     $threadsPath = [string]$story.packageSources.threads
     $factMap = [ordered]@{}
+    $journal = Get-CaseKitProperty -Value $story -Name 'journal'
+    Assert-CaseKitLifecycleObjectivePresentations `
+        -Journal $journal `
+        -AssetKeys $story.assets.ru.PSObject.Properties.Name `
+        -SourcePath $casePath
+    $journalObjectives = if ($null -eq $journal) { $null } else {
+        Get-CaseKitProperty -Value $journal -Name 'objectives'
+    }
+    $investigationObjective = if ($null -eq $journalObjectives) {
+        $null
+    }
+    else {
+        Get-CaseKitProperty -Value $journalObjectives -Name 'investigation'
+    }
     foreach ($fact in @($story.facts)) {
         $factId = [string]$fact.id
         if ([string]::IsNullOrWhiteSpace($factId)) {
@@ -729,15 +1235,23 @@ function Assert-CaseKitV2StoryContract {
         }
         $factMap[$factId] = $fact
     }
-    Assert-CaseKitFactsExist -FactIds @($story.reveal.requiredFacts) `
+    $identityRequirement = Get-CaseKitIdentityRequirement `
+        -Reveal $story.reveal
+    Assert-CaseKitFactsExist -FactIds @($identityRequirement.factIds) `
         -FactMap $factMap -Context "Story '$($story.id)' reveal" `
         -SourcePath $casePath
-    foreach ($factId in @($story.reveal.requiredFacts)) {
+    foreach ($factId in @($identityRequirement.factIds)) {
         $hardIdentity = Get-CaseKitProperty -Value $factMap[[string]$factId] `
             -Name 'hardIdentity'
         if ($hardIdentity -ne $true) {
-            throw "Story '$($story.id)' required reveal fact '$factId' is " +
-                "not a hard identity fact in '$casePath'."
+            $factKind = if ($identityRequirement.mode -eq 'allOf') {
+                'required reveal fact'
+            }
+            else {
+                'identity fact'
+            }
+            throw "Story '$($story.id)' $factKind '$factId' is not a hard " +
+                "identity fact in '$casePath'."
         }
     }
 
@@ -820,10 +1334,20 @@ function Assert-CaseKitV2StoryContract {
                     "module '$moduleId' in '$threadsPath'."
             }
             $module = $ModuleMap[$moduleId].value
+            Assert-CaseKitV2OverheardActivation -Step $step `
+                -Context $context -SourcePath $threadsPath
             Assert-CaseKitV2PhysicalItem -Step $step -Module $module `
                 -Context $context -SourcePath $threadsPath
             Assert-CaseKitV2EvidencePlacement -Step $step -Module $module `
                 -Slots $mergedSlots -Context $context `
+                -SourcePath $threadsPath
+            Assert-CaseKitV2GuidanceTargets -Step $step `
+                -Slots $mergedSlots -FactMap $factMap `
+                -AssetKeys $story.assets.ru.PSObject.Properties.Name `
+                -InvestigationObjective $investigationObjective `
+                -RussianAssets $story.assets.ru `
+                -EnglishAssets $story.assets.en `
+                -ThreadId $threadId -Context $context `
                 -SourcePath $threadsPath
             if ([string]$module.stepKind -ne [string]$step.kind) {
                 throw "Evidence module '$moduleId' requires step kind " +
@@ -977,10 +1501,16 @@ function Assert-CaseKitV2StoryContract {
             "$($reachability.maximumReachableConfidence) is below reveal " +
             "threshold $($story.reveal.confidence) in '$casePath'."
     }
-    foreach ($factId in @($story.reveal.requiredFacts)) {
+    foreach ($factId in @($identityRequirement.factIds)) {
         if (@($reachability.knownFacts) -notcontains [string]$factId) {
-            throw "Story '$($story.id)' cannot reach required reveal fact " +
-                "'$factId' in '$casePath'."
+            $factKind = if ($identityRequirement.mode -eq 'allOf') {
+                'required reveal fact'
+            }
+            else {
+                'identity alternative'
+            }
+            throw "Story '$($story.id)' cannot reach $factKind '$factId' " +
+                "in '$casePath'."
         }
     }
 
@@ -991,6 +1521,8 @@ function Assert-CaseKitV2StoryContract {
         )
         archetypes = @($story.archetypes)
         requiredHardFactsSatisfied = $true
+        identityRequirementMode = [string]$identityRequirement.mode
+        reachableIdentityFacts = @($identityRequirement.factIds)
     }
 }
 

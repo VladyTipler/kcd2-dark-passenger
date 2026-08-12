@@ -331,8 +331,8 @@ function DarkPassengerTrophy.CanBuryCorpse(corpse)
     local corpseName = EntityName(corpse)
     local expectedCorpseName = ResolveExpectedCorpseName(state)
     if expectedCorpseName == "" then
-        Log("burial blocked reason=target_identity_unavailable")
-        return false, "target_identity_unavailable"
+        Log("burial allowed reason=target_identity_unavailable")
+        return true, "target_identity_unavailable"
     end
     if corpseName == "" or corpseName ~= expectedCorpseName then
         return true, "not_target"
@@ -390,6 +390,10 @@ function DarkPassengerTrophy.Poll(payload)
     end
     local trophy, reason = ResolveTrophy(state.generation)
     if trophy == nil then
+        if reason == "stale_generation" then
+            Log("poll stopped reason=stale_generation")
+            return false
+        end
         Log("poll deferred reason=" .. tostring(reason))
         Schedule(state)
         return false
@@ -453,6 +457,11 @@ function DarkPassengerTrophy.Restore()
     end
     local trophy, reason = ResolveTrophy(state.generation)
     if trophy == nil then
+        if reason == "stale_generation" then
+            DarkPassengerTrophy.timerSerial = DarkPassengerTrophy.timerSerial + 1
+            Log("restore stopped reason=stale_generation")
+            return false, reason
+        end
         Schedule(state)
         return false, reason or "streaming_deferred"
     end

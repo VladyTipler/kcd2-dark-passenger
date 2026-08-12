@@ -24,6 +24,18 @@
           "stepId": "question-witness",
           "legacyId": "probe_witness",
           "code": 9103
+        },
+        {
+          "threadId": "courtyard-gossip",
+          "stepId": "overhear-proximity",
+          "legacyId": "probe_overheard_proximity",
+          "code": 9104
+        },
+        {
+          "threadId": "courtyard-gossip",
+          "stepId": "overhear-interaction",
+          "legacyId": "probe_overheard_interaction",
+          "code": 9105
         }
       ]
     }

@@ -1,15 +1,33 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "nativeRegions": {
+    "kutnohorsko": {
+      "questName": "dark_within_k",
+      "dialogFolder": "dark_within_k",
+      "shortName": "k"
+    },
+    "trosecko": {
+      "questName": "dark_within_t",
+      "dialogFolder": "dark_within_t",
+      "shortName": "t"
+    }
+  },
   "dialogueRoles": [
     {"name": "DP_INNKEEPER_RUMOR", "roleId": "8fe584ca-7b9b-48b3-a5c0-fa10122c25c2", "metaRole": "NPC"},
     {"name": "DP_TAVERN_WITNESS", "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b", "metaRole": "NPC"},
     {"name": "DP_OVERHEARD_SPEAKER_A", "roleId": "3be31ccb-48be-4af2-adbb-686e5fb5c3df", "metaRole": "NPC"},
     {"name": "DP_OVERHEARD_SPEAKER_B", "roleId": "50fc0e48-765a-4561-a5f0-5899135b559c", "metaRole": "NPC"}
   ],
+  "semanticDialogueRoles": {
+    "innkeeper": "DP_INNKEEPER_RUMOR",
+    "witness": "DP_TAVERN_WITNESS",
+    "speakerA": "DP_OVERHEARD_SPEAKER_A",
+    "speakerB": "DP_OVERHEARD_SPEAKER_B"
+  },
   "stories": [
     {
       "storyId": "convenient-accident",
-      "legacyVariant": {"region": "kutnohorsko", "settlement": "pritoky"},
+      "migrationAnchor": {"region": "kutnohorsko", "settlement": "pritoky"},
       "targetPolicy": {"sex": "any", "allowStoryCharacters": false, "requireKillable": true, "requireAlive": true},
       "crimeProfile": {"innocentVictim": "vojtech", "method": "murder_disguised_as_fall", "coverStory": "drunken_accident"},
       "localizationKeys": {
@@ -104,7 +122,7 @@
           "hintsUnlockedBy": ["paper-trail/ask-innkeeper"],
           "reaction": "vanilla_neutral",
           "directionAsset": "direction.belongings",
-          "item": {"name": "dp_vojtech_last_letter", "nameAsset": "document.letter.name", "infoAsset": "document.letter.info", "contentAsset": "document.letter.body"}
+          "item": {"guid": "73762008-de9b-4c42-b509-235e63e60840", "name": "dp_vojtech_last_letter", "nameAsset": "document.letter.name", "infoAsset": "document.letter.info", "contentAsset": "document.letter.body"}
         },
         {
           "qualifiedId": "witness-web/question-witness",
@@ -119,7 +137,7 @@
     },
     {
       "storyId": "missing-traveler",
-      "legacyVariant": {"region": "trosecko", "settlement": "zelejov"},
+      "migrationAnchor": {"region": "trosecko", "settlement": "zelejov"},
       "targetPolicy": {"sex": "male", "allowStoryCharacters": false, "requireKillable": true, "requireAlive": true},
       "crimeProfile": {"innocentVictim": "matej", "method": "robbery_murder", "motive": "steal_money_for_widow", "coverStory": "forged_departure"},
       "localizationKeys": {
@@ -176,22 +194,24 @@
         "dialogFolder": "dark_within_t",
         "signals": {"rumorAvailableTag": 32, "witnessAvailableTag": 36},
         "contexts": {"rumorHeard": "dp_rumor_heard_trosecko", "witnessHeard": "dp_witness_heard_trosecko"},
-        "overheard": {
-          "evidenceQualifiedId": "courtyard-gossip/overhear-argument",
-          "dialogueId": "courtyard-gossip",
-          "graphName": "overheard_missing_traveler_dialog_t",
-          "fileName": "overheard_missing_traveler_dialog_t.xml",
-          "rootAsset": "dialogue.overheard.root",
-          "decisionAlias": "darkPassenger_missingTravelerOverheard",
-          "sequenceName": "missing_traveler_overheard",
-          "cluePort": "clue_spoken",
-          "clueLabel": "Missing traveler clue spoken",
-          "hearingDistance": 15,
-          "repeatAfterSeconds": 20,
-          "availableTag": 71,
-          "context": "dp_overheard_clue_spoken_trosecko",
-          "speakerRoles": {"speakerA": "speakerA", "speakerB": "speakerB"}
-        },
+        "overheardScenes": [
+          {
+            "qualifiedId": "courtyard-gossip/overhear-argument",
+            "dialogueId": "courtyard-gossip",
+            "graphName": "overheard_missing_traveler_dialog_t",
+            "fileName": "overheard_missing_traveler_dialog_t.xml",
+            "rootAsset": "dialogue.overheard.root",
+            "decisionAlias": "darkPassenger_missingTravelerOverheard",
+            "sequenceName": "missing_traveler_overheard",
+            "cluePort": "clue_spoken",
+            "clueLabel": "Missing traveler clue spoken",
+            "hearingDistance": 15,
+            "repeatAfterSeconds": 20,
+            "availableTag": 71,
+            "context": "dp_overheard_clue_spoken_trosecko",
+            "speakerRoles": {"speakerA": "speakerA", "speakerB": "speakerB"}
+          }
+        ],
         "dialogues": [
           {
             "kind": "rumor",
@@ -232,7 +252,7 @@
       },
       "evidence": [
         {"qualifiedId": "paper-trail/ask-innkeeper", "kind": "dialogue", "role": "innkeeper", "purpose": "missing_person_rumor", "sourceStance": "guarded", "placement": "on_event", "discoverableWithoutHint": true, "hintsUnlockedBy": [], "promptAsset": "dialogue.rumor.prompt"},
-        {"qualifiedId": "paper-trail/read-ledger", "kind": "document", "role": "document", "placement": "case_start", "discoverableWithoutHint": true, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "reaction": "vanilla_neutral", "directionAsset": "direction.ledger", "item": {"name": "dp_matej_guest_ledger", "nameAsset": "document.ledger.name", "infoAsset": "document.ledger.info", "contentAsset": "document.ledger.body"}},
+        {"qualifiedId": "paper-trail/read-ledger", "kind": "document", "role": "document", "placement": "case_start", "discoverableWithoutHint": true, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "reaction": "vanilla_neutral", "directionAsset": "direction.ledger", "item": {"guid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3", "name": "dp_matej_guest_ledger", "nameAsset": "document.ledger.name", "infoAsset": "document.ledger.info", "contentAsset": "document.ledger.body"}},
         {"qualifiedId": "horse-witness/question-witness", "kind": "dialogue", "role": "witness", "purpose": "target_identification", "sourceStance": "afraid", "placement": "on_event", "discoverableWithoutHint": false, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "promptAsset": "dialogue.witness.prompt", "directionAsset": "objective.witness.active"},
         {"qualifiedId": "courtyard-gossip/overhear-argument", "kind": "dialogue", "role": "overheard", "purpose": "motive_corroboration", "sourceStance": "guarded", "placement": "ambient", "discoverableWithoutHint": true, "hintsUnlockedBy": []}
       ]

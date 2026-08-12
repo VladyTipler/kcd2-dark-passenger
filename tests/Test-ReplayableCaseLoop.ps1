@@ -149,7 +149,10 @@ $variantCatalog = if (
 Add-Result (
     $variantCatalog.Contains('cleanup_manifest = {') -and
     $variantCatalog.Contains(
-        'destination_entity_name = "stash[Chest.chest80_07a038c9-f683-49a0-9357-850dff8b1bf8]"'
+        'destination_entity_name = "stash[Chest/'
+    ) -and
+    $variantCatalog.Contains(
+        'destination_entity_guid = "277db45d-28ac-0286"'
     ) -and
     $lifecycle.Contains('item.destination_entity_name') -and
     $lifecycle.Contains('destination.inventory')

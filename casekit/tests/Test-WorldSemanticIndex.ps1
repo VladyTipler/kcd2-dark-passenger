@@ -4,6 +4,8 @@ $caseKitRoot = Split-Path -Parent $PSScriptRoot
 $manifestPath = Join-Path $caseKitRoot 'CaseKit.psd1'
 $worldPath = Join-Path $PSScriptRoot 'fixtures\world\actors.json'
 $victimPath = Join-Path $PSScriptRoot 'fixtures\world\victim-catalog.json'
+$troskovicePath = Join-Path $PSScriptRoot `
+    'fixtures\world\troskovice-auto.json'
 
 Import-Module $manifestPath -Force
 
@@ -70,8 +72,8 @@ try {
         $worker.policyFlags -is [array] -and
         'victim.eligible' -in @($worker.policyFlags) -and
         'person.killable' -in @($worker.capabilities) -and
-        'interaction.dialogue' -notin @($worker.capabilities)
-    ) 'generic eligible actor stays anonymous, killable and interaction-unreviewed'
+        'interaction.dialogue' -in @($worker.capabilities)
+    ) 'generic eligible tavern worker stays anonymous, killable and interactive'
 
     $storyActor = $index.entities |
         Where-Object entityName -eq 'test_story_actor'
@@ -98,6 +100,40 @@ try {
         -VictimCatalogPath $victimPath) | ConvertTo-Json -Depth 12
     Add-Result ($jsonA -ceq $jsonB) `
         'world index generation is byte-deterministic in memory'
+
+    $troskovice = New-CaseKitWorldIndex -RawWorldPath $troskovicePath
+    $autoInnkeeper = @($troskovice.entities | Where-Object {
+        [string]$_.entityName -eq 'ttkc_inkeeper'
+    })[0]
+    $autoWorker = @($troskovice.entities | Where-Object {
+        [string]$_.entityName -eq 'ttkc_woman_2'
+    })[0]
+    $autoGossip = @($troskovice.entities | Where-Object {
+        [string]$_.entityName -eq 'ttkc_man_10'
+    })[0]
+    $autoEvidence = @($troskovice.entities | Where-Object {
+        [string]$_.entityName -eq 'stash[Chest.chest25_test]'
+    })[0]
+    $autoTrade = @($troskovice.entities | Where-Object {
+        [string]$_.entityName -eq 'stash[Shop.test]'
+    })[0]
+    Add-Result (
+        'role.innkeeper' -in @($autoInnkeeper.capabilities) -and
+        'role.tavern_worker' -in @($autoInnkeeper.capabilities) -and
+        'interaction.dialogue' -in @($autoInnkeeper.capabilities)
+    ) 'native Troskovice metadata infers an interactive innkeeper'
+    Add-Result (
+        'role.tavern_worker' -in @($autoWorker.capabilities) -and
+        'interaction.dialogue' -in @($autoWorker.capabilities) -and
+        'interaction.overheard' -in @($autoWorker.capabilities)
+    ) 'native Troskovice metadata infers an interactive tavern worker'
+    Add-Result (
+        'interaction.overheard' -in @($autoGossip.capabilities)
+    ) 'native tavern residents are eligible for an overheard pair'
+    Add-Result (
+        'container.evidence' -in @($autoEvidence.capabilities) -and
+        'container.evidence' -notin @($autoTrade.capabilities)
+    ) 'non-trade tavern storage is evidence-capable while trade storage is not'
 
     $splitSourcePath = Join-Path ([System.IO.Path]::GetTempPath()) `
         'casekit-world-split-source.json'
@@ -152,6 +188,34 @@ try {
     }
     finally {
         Remove-Item -LiteralPath $duplicatePath -Force -ErrorAction SilentlyContinue
+    }
+
+    $staleContainerPath = Join-Path ([System.IO.Path]::GetTempPath()) `
+        'casekit-world-stale-container.json'
+    $staleContainerSource =
+        Get-Content -Raw -LiteralPath $worldPath | ConvertFrom-Json
+    $staleContainerSource.containers[0].PSObject.Properties.Remove('shopStash')
+    [System.IO.File]::WriteAllText(
+        $staleContainerPath,
+        (($staleContainerSource | ConvertTo-Json -Depth 12) + "`n"),
+        [System.Text.UTF8Encoding]::new($false)
+    )
+    try {
+        New-CaseKitWorldIndex `
+            -RawWorldPath $staleContainerPath `
+            -VictimCatalogPath $victimPath | Out-Null
+        Add-Result $false 'container without trade classification is rejected'
+    }
+    catch {
+        Add-Result (
+            $_.Exception.Message -like '*missing shopStash classification*'
+        ) 'container without trade classification is rejected'
+    }
+    finally {
+        Remove-Item `
+            -LiteralPath $staleContainerPath `
+            -Force `
+            -ErrorAction SilentlyContinue
     }
 }
 catch {

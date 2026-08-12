@@ -72,6 +72,7 @@
       "kind": "actor",
       "entityName": "preferred_farmhand",
       "entityGuid": "10000000-0000-0000-0000-000000000001",
+      "soulGuid": "20000000-0000-0000-0000-000000000001",
       "region": "trosecko",
       "settlement": "testville",
       "authoredPreference": 100,
@@ -121,6 +122,7 @@
       "kind": "actor",
       "entityName": "conflicting_innkeeper_target",
       "entityGuid": "10000000-0000-0000-0000-000000000004",
+      "soulGuid": "20000000-0000-0000-0000-000000000004",
       "region": "trosecko",
       "settlement": "testville",
       "authoredPreference": 90,
@@ -138,6 +140,7 @@
       "kind": "actor",
       "entityName": "safe_innkeeper",
       "entityGuid": "10000000-0000-0000-0000-000000000005",
+      "soulGuid": "20000000-0000-0000-0000-000000000005",
       "region": "trosecko",
       "settlement": "testville",
       "identityMode": "named",
@@ -230,6 +233,40 @@
         }
       },
       "capabilities": ["container", "container.evidence"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "gossip_source_a",
+      "entityGuid": "10000000-0000-0000-0000-000000000011",
+      "soulGuid": "20000000-0000-0000-0000-000000000011",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "местный житель", "direction": "местного жителя"},
+          "en": {"occupation": "local resident", "direction": "the local resident"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.overheard"],
+      "policyFlags": []
+    },
+    {
+      "kind": "actor",
+      "entityName": "gossip_source_b",
+      "entityGuid": "10000000-0000-0000-0000-000000000012",
+      "soulGuid": "20000000-0000-0000-0000-000000000012",
+      "region": "trosecko",
+      "settlement": "testville",
+      "identityMode": "anonymous",
+      "identity": {
+        "localized": {
+          "ru": {"occupation": "местная жительница", "direction": "местную жительницу"},
+          "en": {"occupation": "local resident", "direction": "the local resident"}
+        }
+      },
+      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.overheard"],
       "policyFlags": []
     }
   ]

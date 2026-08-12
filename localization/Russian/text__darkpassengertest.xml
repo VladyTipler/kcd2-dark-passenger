@@ -46,6 +46,7 @@
 	<Row><Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
 	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Расспросить о местных слухах</Cell></Row>
+	<Row><Cell>dp_overheard_listen_action</Cell><Cell>Прислушаться</Cell></Row>
 	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Тревога в округе</Cell></Row>
 	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Расспросить о тревоге в округе</Cell></Row>
 	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>Люди здесь будто чего-то опасаются. Стряслось что?</Cell></Row>
@@ -77,6 +78,7 @@
 	<Row><Cell>dark_within_witness_active</Cell><Cell>Войтех написал, что одна из служанок видела его разговор с убийцей. Возможно, она сможет опознать этого человека.</Cell></Row>
 	<Row><Cell>dark_within_witness_done</Cell><Cell>Служанка подтвердила, что Войтеху угрожали, и опознала подозреваемого.</Cell></Row>
 	<Row><Cell>dark_within_evidence_name</Cell><Cell>Собрать доказательства вины</Cell></Row>
+	<Row><Cell>dark_within_guidance</Cell><Cell>Проверить отмеченную зацепку.</Cell></Row>
 	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>Корчмарь слышит больше, чем говорит. Его слух подтвердил: здесь есть человек, чьи деяния заслуживают внимания. Нужны другие доказательства.</Cell></Row>
 	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Не оставить следов</Cell></Row>
 	<Row><Cell>dark_within_cleanup</Cell><Cell>Приговор исполнен. Теперь нужно уйти чисто и убедиться, что никто не свяжет эту смерть со мной.</Cell></Row>

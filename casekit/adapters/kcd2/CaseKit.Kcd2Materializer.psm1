@@ -249,6 +249,78 @@ function ConvertTo-CaseKitCompiledEvidence {
     return $compiled.ToArray()
 }
 
+function ConvertTo-CaseKitCompiledOverheardScenes {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$StableEvidenceMap
+    )
+
+    $scenes = [System.Collections.Generic.List[object]]::new()
+    foreach ($thread in @($Story.threads)) {
+        foreach ($step in @($thread.steps)) {
+            if ([string]$step.action.evidenceModule -ne
+                'overheard-dialogue') {
+                continue
+            }
+            $qualifiedId = "$([string]$thread.id)/$([string]$step.id)"
+            if (-not $StableEvidenceMap.Contains($qualifiedId)) {
+                throw "Missing stable evidence code for '$($Story.id)/" +
+                    "$qualifiedId'."
+            }
+            $scenes.Add([pscustomobject][ordered]@{
+                qualifiedId = $qualifiedId
+                evidenceId = [string]$StableEvidenceMap[$qualifiedId].legacyId
+                threadId = [string]$thread.id
+                stepId = [string]$step.id
+                activation = Copy-CaseKitMaterializerValue `
+                    -Value $step.action.activation
+                bindingSlots = [pscustomobject][ordered]@{
+                    speakerA = [string]$step.action.bindings.speakerA
+                    speakerB = [string]$step.action.bindings.speakerB
+                }
+            })
+        }
+    }
+    return $scenes.ToArray()
+}
+
+function Resolve-CaseKitCompiledOverheardScenes {
+    param(
+        [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
+        [object[]]$Scenes,
+        [Parameter(Mandatory)]$Variant
+    )
+
+    return @($Scenes | ForEach-Object {
+        $scene = $_
+        $speakerAProperty = $Variant.bindings.PSObject.Properties[
+            [string]$scene.bindingSlots.speakerA
+        ]
+        $speakerBProperty = $Variant.bindings.PSObject.Properties[
+            [string]$scene.bindingSlots.speakerB
+        ]
+        if ($null -eq $speakerAProperty -or
+            $null -eq $speakerBProperty -or
+            $null -eq $speakerAProperty.Value -or
+            $null -eq $speakerBProperty.Value) {
+            return
+        }
+        [pscustomobject][ordered]@{
+            qualifiedId = [string]$scene.qualifiedId
+            evidenceId = [string]$scene.evidenceId
+            activation = Copy-CaseKitMaterializerValue `
+                -Value $scene.activation
+            speakers = [pscustomobject][ordered]@{
+                speakerA = Copy-CaseKitMaterializerValue `
+                    -Value $speakerAProperty.Value
+                speakerB = Copy-CaseKitMaterializerValue `
+                    -Value $speakerBProperty.Value
+            }
+        }
+    })
+}
+
 function ConvertTo-CaseKitCompiledDefinitions {
     param(
         [Parameter(Mandatory)]$Deck,
@@ -287,6 +359,11 @@ function ConvertTo-CaseKitCompiledDefinitions {
         }
         $story = $storyMap[$storyId]
         $stableStory = $identities.stories[$storyId]
+        $storyJournal = Get-CaseKitMaterializerProperty `
+            -Value $story -Name 'journal'
+        $overheardScenes = @(ConvertTo-CaseKitCompiledOverheardScenes `
+            -Story $story `
+            -StableEvidenceMap $identities.evidence[$storyId])
         $compiledStories.Add([pscustomobject][ordered]@{
             schemaVersion = 1
             storyId = $storyId
@@ -299,11 +376,15 @@ function ConvertTo-CaseKitCompiledDefinitions {
             truth = Copy-CaseKitMaterializerValue -Value $story.truth
             facts = @(Copy-CaseKitMaterializerValue -Value @($story.facts))
             reveal = Copy-CaseKitMaterializerValue -Value $story.reveal
+            journal = if ($null -eq $storyJournal) { $null } else {
+                Copy-CaseKitMaterializerValue -Value $storyJournal
+            }
             threads = @(Copy-CaseKitMaterializerValue `
                 -Value @($story.threads))
             evidence = @(ConvertTo-CaseKitCompiledEvidence -Story $story `
                 -Deck $Deck `
                 -StableEvidenceMap $identities.evidence[$storyId])
+            overheardScenes = $overheardScenes
             dialogues = @(Copy-CaseKitMaterializerValue `
                 -Value @($story.dialogues))
             documents = @(Copy-CaseKitMaterializerValue `
@@ -343,6 +424,15 @@ function ConvertTo-CaseKitCompiledDefinitions {
                 -Value $variant.bindings
             evidencePlacements = @(Copy-CaseKitMaterializerValue `
                 -Value @($variant.evidencePlacements))
+            guidanceBindings = @(Copy-CaseKitMaterializerValue `
+                -Value @($variant.guidanceBindings))
+            overheardScenes = @(Resolve-CaseKitCompiledOverheardScenes `
+                -Scenes @(ConvertTo-CaseKitCompiledOverheardScenes `
+                    -Story $story `
+                    -StableEvidenceMap $identities.evidence[
+                        [string]$variant.storyId
+                    ]) `
+                -Variant $variant)
             renderedAssets = Copy-CaseKitMaterializerValue `
                 -Value $variant.renderedAssets
             trophyDefinition =

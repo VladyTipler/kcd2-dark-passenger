@@ -26,6 +26,35 @@
     "confidence": 70,
     "requiredFacts": ["horse_returner_identified"]
   },
+  "journal": {
+    "objectives": {
+      "search": {
+        "nameAsset": "objective.search.name",
+        "states": {"active": "objective.search.active"}
+      },
+      "investigation": {
+        "nameAsset": "objective.investigation.name"
+      },
+      "target": {
+        "nameAsset": "objective.target.name",
+        "states": {
+          "active": "objective.target.active",
+          "done": "objective.target.done"
+        }
+      },
+      "cleanup": {
+        "nameAsset": "objective.cleanup.name",
+        "states": {
+          "active": "objective.cleanup.active",
+          "witnessed": "objective.cleanup.witnessed",
+          "clean": "objective.cleanup.clean",
+          "controlled": "objective.cleanup.controlled",
+          "noisy": "objective.cleanup.noisy",
+          "external": "objective.cleanup.external"
+        }
+      }
+    }
+  },
   "trophyDefinition": {
     "preset": "bird-feather",
     "descriptionAsset": "trophy.description",

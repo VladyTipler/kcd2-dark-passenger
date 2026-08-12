@@ -49,6 +49,196 @@ function Read-CaseKitSettlementProfile {
     return $profile
 }
 
+function Read-CaseKitSettlementCatalog {
+    param([Parameter(Mandatory)][string]$LiteralPath)
+
+    if (-not (Test-Path -LiteralPath $LiteralPath -PathType Leaf)) {
+        throw "Settlement catalog not found: $LiteralPath"
+    }
+    $catalog = Get-Content -Raw -LiteralPath $LiteralPath | ConvertFrom-Json
+    if ([int]$catalog.schemaVersion -ne 1) {
+        throw "Unsupported settlement catalog schema '$($catalog.schemaVersion)'."
+    }
+    return $catalog
+}
+
+function New-CaseKitInferredIdentity {
+    param(
+        [Parameter(Mandatory)][ValidateSet('innkeeper', 'tavern_worker', 'resident')]
+        [string]$Kind,
+        [Parameter(Mandatory)][string]$RussianSettlement,
+        [Parameter(Mandatory)][string]$EnglishSettlement
+    )
+
+    switch ($Kind) {
+        'innkeeper' {
+            return [pscustomobject][ordered]@{
+                mode = 'titled'
+                localized = [pscustomobject][ordered]@{
+                    ru = [pscustomobject][ordered]@{
+                        title = "корчмарь в $RussianSettlement"
+                        direction = "корчмаря в $RussianSettlement"
+                    }
+                    en = [pscustomobject][ordered]@{
+                        title = "the innkeeper in $EnglishSettlement"
+                        direction = "the innkeeper in $EnglishSettlement"
+                    }
+                }
+            }
+        }
+        'tavern_worker' {
+            return [pscustomobject][ordered]@{
+                mode = 'anonymous'
+                localized = [pscustomobject][ordered]@{
+                    ru = [pscustomobject][ordered]@{
+                        occupation = 'работник корчмы'
+                        direction = "одного из работников корчмы в $RussianSettlement"
+                    }
+                    en = [pscustomobject][ordered]@{
+                        occupation = 'inn worker'
+                        direction = "one of the inn workers in $EnglishSettlement"
+                    }
+                }
+            }
+        }
+        default {
+            return [pscustomobject][ordered]@{
+                mode = 'anonymous'
+                localized = [pscustomobject][ordered]@{
+                    ru = [pscustomobject][ordered]@{
+                        occupation = 'местный житель'
+                        direction = "одного из жителей $RussianSettlement"
+                    }
+                    en = [pscustomobject][ordered]@{
+                        occupation = 'local resident'
+                        direction = "one of the residents of $EnglishSettlement"
+                    }
+                }
+            }
+        }
+    }
+}
+
+function Set-CaseKitInferredActorIdentity {
+    param(
+        [Parameter(Mandatory)]$Entity,
+        [Parameter(Mandatory)]$Identity
+    )
+
+    $mode = [string]$Identity.mode
+    $Entity.identityMode = $mode
+    $Entity.capabilities = @(
+        @($Entity.capabilities) |
+            Where-Object {
+                $_ -notin @(
+                    'person.anonymous',
+                    'person.identity_review_required',
+                    'person.named',
+                    'person.titled'
+                )
+            }
+        "person.$mode"
+    ) | Sort-Object -Unique
+    $Entity | Add-Member -NotePropertyName identity `
+        -NotePropertyValue $Identity -Force
+}
+
+function Add-CaseKitInferredSettlementSemantics {
+    param(
+        [Parameter(Mandatory)]$WorldIndex,
+        [Parameter(Mandatory)]$SettlementCatalog
+    )
+
+    $copy = $WorldIndex | ConvertTo-Json -Depth 30 | ConvertFrom-Json
+    $catalogMap = @{}
+    foreach ($region in @($SettlementCatalog.regions)) {
+        foreach ($settlement in @($region.settlements)) {
+            $catalogMap["$([string]$settlement.gameRegion)/$([string]$settlement.id)"] =
+                $settlement
+        }
+    }
+
+    foreach ($settlement in @($copy.settlements)) {
+        $key = "$([string]$settlement.region)/$([string]$settlement.settlement)"
+        $catalogEntry = if ($catalogMap.ContainsKey($key)) {
+            $catalogMap[$key]
+        }
+        else { $null }
+        $russianName = if ($null -ne $catalogEntry) {
+            [string]$catalogEntry.displayName.russian
+        }
+        else { [string]$settlement.settlement }
+        $englishName = if ($null -ne $catalogEntry) {
+            [string]$catalogEntry.displayName.english
+        }
+        else { [string]$settlement.settlement }
+        $settlement | Add-Member -NotePropertyName localized `
+            -NotePropertyValue ([pscustomobject][ordered]@{
+                ru = [pscustomobject][ordered]@{
+                    displayName = $russianName
+                }
+                en = [pscustomobject][ordered]@{
+                    displayName = $englishName
+                }
+            }) -Force
+    }
+
+    foreach ($entity in @($copy.entities)) {
+        $key = "$([string]$entity.region)/$([string]$entity.settlement)"
+        $catalogEntry = if ($catalogMap.ContainsKey($key)) {
+            $catalogMap[$key]
+        }
+        else { $null }
+        $russianSettlement = if ($null -ne $catalogEntry) {
+            [string]$catalogEntry.displayName.russian
+        }
+        else { [string]$entity.settlement }
+        $englishSettlement = if ($null -ne $catalogEntry) {
+            [string]$catalogEntry.displayName.english
+        }
+        else { [string]$entity.settlement }
+        $capabilities = @($entity.capabilities)
+
+        if ([string]$entity.kind -eq 'actor' -and
+            $null -eq $entity.PSObject.Properties['identity']) {
+            $identityKind = if ('role.innkeeper' -in $capabilities) {
+                'innkeeper'
+            }
+            elseif ('role.tavern_worker' -in $capabilities) {
+                'tavern_worker'
+            }
+            elseif ([string]$entity.identityMode -eq 'anonymous') {
+                'resident'
+            }
+            else { '' }
+            if (-not [string]::IsNullOrWhiteSpace($identityKind)) {
+                Set-CaseKitInferredActorIdentity -Entity $entity `
+                    -Identity (New-CaseKitInferredIdentity `
+                        -Kind $identityKind `
+                        -RussianSettlement $russianSettlement `
+                        -EnglishSettlement $englishSettlement)
+            }
+        }
+
+        if ([string]$entity.kind -eq 'container' -and
+            'container.evidence' -in $capabilities -and
+            $null -eq $entity.PSObject.Properties['presentation']) {
+            $entity | Add-Member -NotePropertyName presentation `
+                -NotePropertyValue ([pscustomobject][ordered]@{
+                    localized = [pscustomobject][ordered]@{
+                        ru = [pscustomobject][ordered]@{
+                            locationHint = "сундук в корчме в $russianSettlement"
+                        }
+                        en = [pscustomobject][ordered]@{
+                            locationHint = "a chest at the inn in $englishSettlement"
+                        }
+                    }
+                }) -Force
+        }
+    }
+    return $copy
+}
+
 function Test-CaseKitProfileIdentity {
     param(
         [Parameter(Mandatory)]$Identity,
@@ -295,6 +485,8 @@ function Merge-CaseKitSettlementProfile {
 }
 
 Export-ModuleMember -Function @(
+    'Add-CaseKitInferredSettlementSemantics',
     'Merge-CaseKitSettlementProfile',
+    'Read-CaseKitSettlementCatalog',
     'Read-CaseKitSettlementProfile'
 )
