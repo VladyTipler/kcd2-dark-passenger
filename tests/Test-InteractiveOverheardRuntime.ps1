@@ -32,6 +32,7 @@ function Add-Result([bool]$Condition, [string]$Label) {
 
 foreach ($export in @(
     'NormalizePairs',
+    'NormalizeScenes',
     'GetContextRequests',
     'GetInteractiveSceneForEntity',
     'CanStartInteraction',
@@ -50,6 +51,11 @@ Add-Result (
     $runtime.Contains('NormalizePairs(scene.pairs)') -and
     $runtime.Contains('ipairs(ScenePairs(scene))')
 ) 'runtime accepts legacy scalar pair and canonical pair arrays'
+Add-Result (
+    $runtime.Contains('function DarkPassengerOverheardEvidence.NormalizeScenes(scenes)') -and
+    $runtime.Contains('if scenes.id ~= nil then return { scenes } end') -and
+    $runtime.Contains('DarkPassengerOverheardEvidence.NormalizeScenes(')
+) 'runtime accepts a scalar generated scene and canonical scene arrays'
 
 Add-Result (
     $runtime.Contains('activation_mode == "interaction"') -and

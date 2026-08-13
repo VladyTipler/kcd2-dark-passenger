@@ -127,6 +127,12 @@ function DarkPassengerOverheardEvidence.NormalizePairs(pairs)
     return pairs
 end
 
+function DarkPassengerOverheardEvidence.NormalizeScenes(scenes)
+    if type(scenes) ~= "table" then return {} end
+    if scenes.id ~= nil then return { scenes } end
+    return scenes
+end
+
 local function ScenePairs(scene)
     if scene == nil then return {} end
     return DarkPassengerOverheardEvidence.NormalizePairs(scene.pairs)
@@ -275,10 +281,13 @@ end
 
 local function OverheardScenes(caseTemplate)
     if caseTemplate == nil then return {} end
-    local scenes = caseTemplate.overheard_scenes
-    if type(scenes) == "table" and #scenes > 0 then return scenes end
-    if caseTemplate.overheard ~= nil then return { caseTemplate.overheard } end
-    return {}
+    local scenes = DarkPassengerOverheardEvidence.NormalizeScenes(
+        caseTemplate.overheard_scenes
+    )
+    if #scenes > 0 then return scenes end
+    return DarkPassengerOverheardEvidence.NormalizeScenes(
+        caseTemplate.overheard
+    )
 end
 
 local function SceneId(scene)
