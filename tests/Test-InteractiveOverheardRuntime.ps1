@@ -33,6 +33,7 @@ function Add-Result([bool]$Condition, [string]$Label) {
 foreach ($export in @(
     'NormalizePairs',
     'NormalizeScenes',
+    'AreSpeakersWithinDistance',
     'GetContextRequests',
     'GetInteractiveSceneForEntity',
     'CanStartInteraction',
@@ -74,11 +75,26 @@ foreach ($reason in @(
     'speaker_dead',
     'player_in_combat',
     'dialogue_active',
+    'speakers_too_far',
     'out_of_range'
 )) {
     Add-Result ($runtime.Contains('"' + $reason + '"')) `
         "runtime defines rejection reason $reason"
 }
+
+$runtimeProduction = $runtime.Split(
+    'function DarkPassengerOverheardEvidence.RunSelfTest()'
+)[0]
+$speakerDistanceGates = ([regex]::Matches(
+    $runtimeProduction,
+    'local entities, entityReason = ResolveReadyPairEntities\(pair\)'
+)).Count
+Add-Result (
+    $runtime.Contains('local DEFAULT_MAX_SPEAKER_DISTANCE = 10') -and
+    $speakerDistanceGates -eq 2 -and
+    $runtime.Contains('"speaker_distance_boundary"') -and
+    $runtime.Contains('"speakers_too_far"')
+) "runtime requires both speakers within 10m before start and clue ($speakerDistanceGates/2)"
 
 Add-Result (
     $runtime.Contains('AddPairSignal(pair, scene.buff_guid)') -and

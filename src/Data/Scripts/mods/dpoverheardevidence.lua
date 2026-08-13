@@ -2,6 +2,8 @@ DarkPassengerOverheardEvidence = DarkPassengerOverheardEvidence or {}
 
 DarkPassengerOverheardEvidence.SCHEMA_VERSION = 2
 
+local DEFAULT_MAX_SPEAKER_DISTANCE = 10
+
 local KEYS = {
     schema = "dp_overheard_schema_version",
     generation = "dp_overheard_generation",
@@ -427,6 +429,31 @@ local function Distance(left, right)
     return math.sqrt(dx * dx + dy * dy + dz * dz)
 end
 
+function DarkPassengerOverheardEvidence.AreSpeakersWithinDistance(
+    entities,
+    maxDistance
+)
+    if type(entities) ~= "table" or #entities ~= 2 then return false end
+    local distance = Distance(
+        WorldPosition(entities[1]),
+        WorldPosition(entities[2])
+    )
+    local limit = tonumber(maxDistance) or DEFAULT_MAX_SPEAKER_DISTANCE
+    return distance ~= nil and limit >= 0 and distance <= limit
+end
+
+local function ResolveReadyPairEntities(pair)
+    local entities, reason = ResolvePairEntitiesDetailed(pair)
+    if entities == nil then return nil, reason end
+    if not DarkPassengerOverheardEvidence.AreSpeakersWithinDistance(
+        entities,
+        DEFAULT_MAX_SPEAKER_DISTANCE
+    ) then
+        return nil, "speakers_too_far"
+    end
+    return entities, "ready"
+end
+
 local function PlayerEntity()
     if g_localActor ~= nil then return g_localActor end
     if player ~= nil then return player end
@@ -569,7 +596,7 @@ function DarkPassengerOverheardEvidence.CanStartInteraction(entity, user)
     if PairContainsTarget(pair, TargetEntityName(context.snapshot)) then
         return false, "target_collision"
     end
-    local entities, entityReason = ResolvePairEntitiesDetailed(pair)
+    local entities, entityReason = ResolveReadyPairEntities(pair)
     if entities == nil then return false, entityReason end
     if IsInCombatDanger(user or PlayerEntity()) then
         return false, "player_in_combat"
@@ -681,6 +708,8 @@ function DarkPassengerOverheardEvidence.OnClueSpoken(gameRegion, sceneId)
     if pair == nil or PairContainsTarget(pair, TargetEntityName(snapshot)) then
         return false, "target_collision"
     end
+    local entities, entityReason = ResolveReadyPairEntities(pair)
+    if entities == nil then return false, entityReason end
     if not IsWithinHearingDistance(pair, scene.hearing_distance) then
         return false, "out_of_range"
     end
@@ -760,6 +789,28 @@ function DarkPassengerOverheardEvidence.RunSelfTest()
         function() return false end
     )
     Expect(pair == nil and index == 0, "unavailable")
+    local boundaryEntities = {
+        { GetWorldPos = function() return { x = 0, y = 0, z = 0 } end },
+        { GetWorldPos = function() return { x = 6, y = 8, z = 0 } end },
+    }
+    Expect(
+        DarkPassengerOverheardEvidence.AreSpeakersWithinDistance(
+            boundaryEntities,
+            DEFAULT_MAX_SPEAKER_DISTANCE
+        ),
+        "speaker_distance_boundary"
+    )
+    local distantEntities = {
+        { GetWorldPos = function() return { x = 0, y = 0, z = 0 } end },
+        { GetWorldPos = function() return { x = 10.01, y = 0, z = 0 } end },
+    }
+    Expect(
+        not DarkPassengerOverheardEvidence.AreSpeakersWithinDistance(
+            distantEntities,
+            DEFAULT_MAX_SPEAKER_DISTANCE
+        ),
+        "speaker_distance_far"
+    )
     local state = DefaultState()
     state = DarkPassengerOverheardEvidence.Transition(
         state,
