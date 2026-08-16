@@ -2,7 +2,8 @@ param(
     [switch]$SkipPackaging,
     [string]$DevGameRoot = $env:KCD2_DEV_ROOT,
     [string]$ReferenceDataRoot = $env:KCD2_REFERENCE_DATA_ROOT,
-    [string]$WorldSoulTablePath = $env:KCD2_WORLD_SOUL_TABLE
+    [string]$WorldSoulTablePath = $env:KCD2_WORLD_SOUL_TABLE,
+    [string]$DialogueMediaResultsPath = $env:DP_DIALOGUE_MEDIA_RESULTS
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,6 +14,12 @@ $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
 $generatorPath = Join-Path $PSScriptRoot 'Generate-VictimArtifacts.ps1'
 $caseCompilerPath = Join-Path $PSScriptRoot 'Compile-CaseSpecs.ps1'
+$dialogueVoicePakBuilderPath = Join-Path $PSScriptRoot `
+    'Build-DialogueVoicePak.ps1'
+$dialogueFacialAssetBuilderPath = Join-Path $PSScriptRoot `
+    'Build-DialogueFacialAssets.ps1'
+$dialogueMediaResultsConsumerPath = Join-Path $PSScriptRoot `
+    'Import-DialogueMediaResults.ps1'
 $caseKitCompilerPath = Join-Path $repoRoot `
     'casekit\cli\Compile-CaseKit.ps1'
 $worldIndexBuilderPath = Join-Path $repoRoot `
@@ -34,6 +41,14 @@ $levelRegistryMergeModulePath =
     Join-Path $PSScriptRoot 'LevelRegistryMerge.psm1'
 $worldExporterPath = Join-Path $PSScriptRoot 'Export-WorldVictimCandidates.ps1'
 $generatedLocalizationRoot = Join-Path $buildParent 'generated\localization'
+$dialogueVoiceManifestPath = Join-Path $buildParent `
+    'generated\voice\dialogue-voice-manifest.json'
+$dialogueMediaJobsPath = Join-Path $buildParent `
+    'generated\voice\dialogue-media-jobs.json'
+if ([string]::IsNullOrWhiteSpace($DialogueMediaResultsPath)) {
+    $DialogueMediaResultsPath = Join-Path $buildParent `
+        'generated\voice\dialogue-media-results.json'
+}
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
 $victimCatalogPath = Join-Path $repoRoot 'config\victim-candidates.json'
 
@@ -141,6 +156,16 @@ foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force) {
     -BuildRoot $buildParent
 
 & $generatorPath
+
+if (
+    -not (Test-Path -LiteralPath $DialogueMediaResultsPath -PathType Leaf) -and
+    (Test-Path -LiteralPath $dialogueVoiceManifestPath -PathType Leaf)
+) {
+    & $dialogueFacialAssetBuilderPath `
+        -ManifestPath $dialogueVoiceManifestPath `
+        -RepoRoot $repoRoot `
+        -OutputDataRoot (Join-Path $resolvedBuildRoot 'Data')
+}
 
 $sevenZip = (Get-Command 7z.exe -ErrorAction Stop).Source
 function Merge-BarboraRegionalGraph {
@@ -619,7 +644,7 @@ $dataPak = Join-Path $dataRoot 'darkpassengertest.pak'
 $localizationOutput = Join-Path $resolvedBuildRoot 'Localization'
 New-Item -ItemType Directory -Path $localizationOutput -Force | Out-Null
 
-$dataInputs = @('AI', 'Libs', 'Quests', 'Scripts') |
+$dataInputs = @('AI', 'Animations', 'Libs', 'Quests', 'Scripts') |
     ForEach-Object { Join-Path $dataRoot $_ } |
     Where-Object { Test-Path -LiteralPath $_ }
 
@@ -674,6 +699,37 @@ foreach ($language in @('English', 'Russian')) {
     }
     finally {
         Pop-Location
+    }
+}
+
+if (Test-Path -LiteralPath $DialogueMediaResultsPath -PathType Leaf) {
+    & $dialogueMediaResultsConsumerPath `
+        -JobsManifestPath $dialogueMediaJobsPath `
+        -ResultsManifestPath $DialogueMediaResultsPath `
+        -OutputModRoot $resolvedBuildRoot
+}
+elseif (Test-Path -LiteralPath $dialogueMediaJobsPath -PathType Leaf) {
+    $dialogueMediaJobs = [System.IO.File]::ReadAllText(
+        $dialogueMediaJobsPath
+    ) | ConvertFrom-Json -Depth 100
+    if (@($dialogueMediaJobs.jobs).Count -gt 0) {
+        throw 'DIALOGUE_MEDIA_RESULTS_MISSING: DialogueMediaKit results are ' +
+            "required for $(@($dialogueMediaJobs.jobs).Count) jobs: " +
+            $DialogueMediaResultsPath
+    }
+}
+elseif (Test-Path -LiteralPath $dialogueVoiceManifestPath -PathType Leaf) {
+    $dialogueVoiceManifest = [System.IO.File]::ReadAllText(
+        $dialogueVoiceManifestPath
+    ) | ConvertFrom-Json -Depth 100
+    if (@($dialogueVoiceManifest.assets | Where-Object {
+        [string]$_.packageLanguage -ceq 'english'
+    }).Count -gt 0) {
+        & $dialogueVoicePakBuilderPath `
+            -ManifestPath $dialogueVoiceManifestPath `
+            -RepoRoot $repoRoot `
+            -OutputPak (Join-Path $localizationOutput 'english.pak') `
+            -PackageLanguage 'english'
     }
 }
 
