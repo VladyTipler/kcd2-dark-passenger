@@ -9,17 +9,18 @@ status: approved
 ## Goal
 
 Build a standalone offline tool that turns authored KCD2 dialogue lines and
-resolved actor voice profiles into reproducible voice, native facial animation
-and game package artifacts. Dark Passenger and CaseKit consume the result but
-do not own media generation.
+the bounded pool of actors eligible to speak them into reproducible voice,
+native facial animation and game package artifacts. Dark Passenger and CaseKit
+consume the result but do not own media generation.
 
 ## Module boundary
 
 - Initial workspace: `H:\KCD2Mod\DialogueMediaKit`.
-- CaseKit remains the source of dialogue text, localization keys, actor
-  candidates and resolved `voiceProfile` bindings.
-- CaseKit emits only reachable media jobs. It must not build the blind Cartesian
-  product of every voice and every story line.
+- CaseKit remains the source of dialogue text, localization keys and the actor
+  candidates eligible for each dialogue role.
+- CaseKit emits the bounded product of reachable role lines and distinct voice
+  profiles in that role's eligible actor pool. It must not build the blind
+  Cartesian product of every game voice and every story line.
 - DialogueMediaKit owns reference preparation, OmniVoice calls, phoneme timing,
   native facial CAF generation, official Resource Compiler invocation, DBA/IMG
   assembly, caching and package output.
@@ -47,8 +48,8 @@ every voiced participant, including Henry, needs a facial asset.
 
 ## Input contract
 
-CaseKit writes `dialogue-media-jobs.json` after actor selection and regional
-dialogue compilation:
+CaseKit writes `dialogue-media-jobs.json` after regional candidate resolution
+and dialogue compilation, before the runtime case selects one actor:
 
 ```json
 {
@@ -62,6 +63,8 @@ dialogue compilation:
       "dialogueGraph": "dpcase2001_trosecko_troskovice_innkeeper_missing_traveler_dialog_t",
       "stringName": "dp_mt_rumor_innkeeper_left",
       "text": "He left before dawn...",
+      "speakerRole": "innkeeper",
+      "candidateActor": "ttkc_inkeeper",
       "voiceProfile": "beta-troskovice-en",
       "assetPrefix": "aals",
       "rig": "human_female",
@@ -80,6 +83,8 @@ Required invariants:
 - `jobId` is unique and deterministic.
 - `(voiceProfile, stringName, normalized text, rig)` uniquely describes an
   output job.
+- Every reachable `(speakerRole, candidate voiceProfile, stringName)` has one
+  job. Multiple actors sharing one voice prefix reuse the same media job.
 - `assetPrefix + '_' + stringName` is the shared KCD2 basename for OGG and CAF.
 - The English text sent to synthesis is the English subtitle text for the line.
 - Every `voiceProfile` resolves to one exact actor voice, a 20-30 second clean
@@ -87,6 +92,9 @@ Required invariants:
   facial rig. Reference target length is about 25 seconds.
 - A missing or invalid voice reference makes the actor ineligible for a voiced
   binding and produces a build diagnostic; it never silently switches voice.
+- Dialogue graphs do not pin a randomly assigned role to one authored NPC
+  voice. KCD2 resolves the selected actor's native voice prefix and loads the
+  matching prebuilt `assetPrefix + '_' + stringName` media.
 
 ## Output and error contract
 
@@ -122,37 +130,63 @@ Failures use stable codes such as `VOICE_PROFILE_MISSING`,
 ## Components
 
 1. `Core` validates manifests, plans deterministic jobs and computes cache keys.
-2. `VoiceCatalog` stores actor/voice eligibility, references and transcripts.
-3. `OmniVoiceProvider` talks to the local Gradio API and normalizes output audio.
-4. `PhonemeProvider` extracts time-aligned phonemes from the generated audio.
-5. `Kcd2FacialAdapter` maps timed phonemes to the appropriate male/female facial
+2. `Kcd2VoiceDiscoveryAdapter` resolves every eligible actor/soul voice prefix,
+   indexes vanilla dialogue audio plus subtitles and proposes clean reference
+   sources.
+3. `VoiceCatalog` stores actor/voice eligibility, references and transcripts.
+4. `OmniVoiceProvider` talks to the local Gradio API and normalizes output audio.
+5. `PhonemeProvider` extracts time-aligned phonemes from the generated audio.
+6. `Kcd2FacialAdapter` maps timed phonemes to the appropriate male/female facial
    controllers and writes legacy `0x0827` CAF sources.
-6. `Kcd2ResourceCompilerAdapter` invokes the official RC, creates an isolated
+7. `Kcd2ResourceCompilerAdapter` invokes the official RC, creates an isolated
    custom DBA and merges only custom entries into the retail
    `FacialAnimations.img` registry.
-7. `Kcd2Packager` builds deterministic voice/facial PAKs and verifies their
+8. `Kcd2Packager` builds deterministic voice/facial PAKs and verifies their
    contents before publishing them.
-8. `CLI` exposes validate, collect-reference, generate, build and verify stages.
+9. `CLI` exposes discover-voices, validate, collect-reference, generate, build
+   and verify stages.
 
 Provider interfaces keep OmniVoice replaceable. KCD2-specific CAF, RC, DBA, IMG
 and PAK logic stays behind KCD2 adapters rather than leaking into core jobs.
 
 ## Voice reference collection
 
+- Start from the CaseKit role's eligible actor pool, not a manually chosen
+  actor or voice.
+- Resolve actor entity/soul metadata to the same native voice prefix used by
+  `SelectedSoul Voice` in KCD2 dialogue XML.
+- Index matching vanilla dialogue assets and join them to their exact English
+  subtitle strings before selecting reference material.
 - Collect only dialogue audio belonging to an allowed actor voice profile.
 - Prefer clean speech without music, combat sounds, overlaps or long silence.
 - Concatenate multiple source clips non-destructively until 20-30 seconds.
 - Store the exact English transcript next to the resulting reference WAV.
 - Preserve source provenance so a profile can be rebuilt and audited.
 - Do not overwrite extracted vanilla sources.
+- Emit a reusable voice catalog entry keyed by actor identity and voice prefix.
+- If several reachable NPC candidates can fill one role, emit jobs for every
+  distinct eligible candidate voice profile and every line spoken by that role;
+  do not expand unrelated game voices.
+- Actors sharing one native prefix/reference deduplicate to one voice profile.
+- Actors whose voice cannot be resolved or whose clean reference is insufficient
+  are excluded from voiced-case eligibility. Never substitute a generic voice.
 
 ## Cache contract
 
-The cache key includes normalized English text, reference audio hash, reference
-transcript, OmniVoice model/settings, phoneme extractor version, facial mapping
-version, rig and RC version. A cache hit must reproduce identical final bytes or
-fail verification. Changed dialogue text or changed voice reference invalidates
-only affected jobs.
+Caching is content-addressed and separated by stage:
+
+- audio key: normalized English text, reference audio hash, exact reference
+  transcript, OmniVoice model/settings and provider version;
+- phoneme key: generated audio hash, normalized text and extractor version;
+- facial key: phoneme payload hash, rig, facial mapping/compiler version and RC
+  version;
+- package key: ordered artifact hashes and packager version.
+
+A matching audio cache hit never calls OmniVoice again, even when phoneme,
+facial or packaging code changes. Mere file existence is not a cache hit: the
+sidecar key, output hash and expected metadata must match. Corrupt or partial
+entries are regenerated atomically. Changed text or reference invalidates only
+affected audio; `--force` explicitly bypasses selected or all stages.
 
 ## Native KCD2 facial pipeline
 
@@ -173,8 +207,8 @@ curves are acceptable only as a diagnostic canary, not final generated lip-sync.
 
 ## Build flow
 
-1. CaseKit validates content and eligible actor bindings.
-2. CaseKit emits exact reachable jobs.
+1. CaseKit validates content and resolves the eligible actor pool per role.
+2. CaseKit emits the exact reachable role-line by candidate-voice matrix.
 3. DialogueMediaKit validates the job manifest and voice catalog.
 4. Cached jobs are reused; missing jobs run audio, phoneme and facial stages.
 5. KCD2 adapters compile, merge and package artifacts.
@@ -197,10 +231,17 @@ The first acceptance case is the existing 16-line Troskovice dialogue:
 
 Static tests and archive inspection do not replace the final cold retail proof.
 
+The second acceptance case is Zhelejov and must not add a hand-authored actor
+assignment. CaseKit supplies the settlement's eligible actor pool,
+DialogueMediaKit discovers and prepares each distinct voice, and whichever NPC
+the runtime case selects must speak with that NPC's native voice prefix and
+matching lip-sync.
+
 ## Non-goals
 
 - Runtime synthesis or GPU inference while the game runs.
-- Generating every story line in every vanilla voice.
+- Generating every story line in every vanilla voice outside its eligible role
+  pool.
 - Shipping cloned voice references or extracted vanilla source archives.
 - Replacing the game's global facial registries or character parameters.
 - Automatic support for unsupported rigs before the male/female human pilot is
