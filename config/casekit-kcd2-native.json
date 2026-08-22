@@ -1,0 +1,235 @@
+{
+  "schemaVersion": 2,
+  "nativeRegions": {
+    "kutnohorsko": {
+      "questName": "dark_within_k",
+      "dialogFolder": "dark_within_k",
+      "shortName": "k"
+    },
+    "trosecko": {
+      "questName": "dark_within_t",
+      "dialogFolder": "dark_within_t",
+      "shortName": "t"
+    }
+  },
+  "dialogueRoles": [
+    {"name": "DP_INNKEEPER_RUMOR", "roleId": "8fe584ca-7b9b-48b3-a5c0-fa10122c25c2", "metaRole": "NPC"},
+    {"name": "DP_TAVERN_WITNESS", "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b", "metaRole": "NPC"}
+  ],
+  "semanticDialogueRoles": {
+    "innkeeper": "DP_INNKEEPER_RUMOR",
+    "witness": "DP_TAVERN_WITNESS"
+  },
+  "stories": [
+    {
+      "storyId": "convenient-accident",
+      "migrationAnchor": {"region": "kutnohorsko", "settlement": "pritoky"},
+      "targetPolicy": {"sex": "any", "allowStoryCharacters": false, "requireKillable": true, "requireAlive": true},
+      "crimeProfile": {"innocentVictim": "vojtech", "method": "murder_disguised_as_fall", "coverStory": "drunken_accident"},
+      "localizationKeys": {
+        "direction.belongings": "dp_ca_direction_belongings",
+        "direction.witness": "dp_ca_direction_witness",
+        "dialogue.rumor.root": "dp_evidence_dialog_root",
+        "dialogue.rumor.prompt": "dp_evidence_ask_unease",
+        "dialogue.rumor.henryUnease": "dp_rumor_henry_unease",
+        "dialogue.rumor.innkeeperFear": "dp_rumor_innkeeper_fear",
+        "dialogue.rumor.henryWhy": "dp_rumor_henry_why",
+        "dialogue.rumor.innkeeperVojtech": "dp_rumor_innkeeper_vojtech",
+        "dialogue.rumor.henryThreat": "dp_rumor_henry_threat",
+        "dialogue.rumor.innkeeperRefusal": "dp_rumor_innkeeper_refusal",
+        "dialogue.rumor.henryWhatToSeek": "dp_rumor_henry_what_to_seek",
+        "dialogue.rumor.innkeeperBelongings": "dp_rumor_innkeeper_belongings",
+        "dialogue.witness.root": "dp_witness_dialog_root",
+        "dialogue.witness.prompt": "dp_witness_ask_vojtech",
+        "dialogue.witness.henryWorking": "dp_witness_henry_working",
+        "dialogue.witness.maidManyNights": "dp_witness_maid_many_nights",
+        "dialogue.witness.henryLetter": "dp_witness_henry_letter",
+        "dialogue.witness.maidFool": "dp_witness_maid_fool",
+        "dialogue.witness.henryDead": "dp_witness_henry_dead",
+        "dialogue.witness.maidStream": "dp_witness_maid_stream",
+        "dialogue.witness.henryHeard": "dp_witness_henry_heard",
+        "dialogue.witness.maidThreat": "dp_witness_maid_threat",
+        "dialogue.witness.henryWho": "dp_witness_henry_who",
+        "dialogue.witness.maidName": "dp_witness_maid_name",
+        "dialogue.witness.henryWhere": "dp_witness_henry_where",
+        "dialogue.witness.maidLocation": "dp_witness_maid_location",
+        "document.letter.name": "dp_vojtech_letter_name",
+        "document.letter.info": "dp_vojtech_letter_info",
+        "document.letter.body": "dp_vojtech_letter_content",
+        "objective.witness.name": "dark_within_witness_name",
+        "objective.witness.active": "dark_within_witness_active",
+        "objective.witness.done": "dark_within_witness_done"
+      },
+      "emitLocalizationAssets": ["direction.belongings", "direction.witness"],
+      "native": {
+        "questName": "dark_within_k",
+        "dialogFolder": "dark_within_k",
+        "signals": {"rumorAvailableTag": 32, "witnessAvailableTag": 36},
+        "contexts": {"rumorHeard": "dp_rumor_heard_kutnohorsko", "witnessHeard": "dp_witness_heard_kutnohorsko"},
+        "dialogues": [
+          {
+            "kind": "rumor",
+            "dialogueId": "innkeeper-rumor",
+            "graphName": "innkeeper_rumor_dialog_k",
+            "fileName": "innkeeper_rumor_dialog_k.xml",
+            "rootAsset": "dialogue.rumor.root",
+            "sequenceName": "convenient_accident_rumor",
+            "availableLabel": "Rumor available",
+            "heardLabel": "Rumor heard",
+            "speakerRoles": {"henry": "HENRY", "source": "innkeeper"}
+          },
+          {
+            "kind": "witness",
+            "dialogueId": "tavern-witness",
+            "graphName": "tavern_witness_dialog_k",
+            "fileName": "tavern_witness_dialog_k.xml",
+            "rootAsset": "dialogue.witness.root",
+            "sequenceName": "vojtech_tavern_witness",
+            "availableLabel": "Witness lead available",
+            "heardLabel": "Witness heard",
+            "speakerRoles": {"henry": "HENRY", "witness": "witness"}
+          }
+        ],
+        "witnessObjective": {
+          "assetName": "DarkWithinWitnessObjective_k",
+          "nameAsset": "objective.witness.name",
+          "activeAsset": "objective.witness.active",
+          "doneAsset": "objective.witness.done"
+        }
+      },
+      "evidence": [
+        {
+          "qualifiedId": "paper-trail/ask-innkeeper",
+          "kind": "dialogue",
+          "role": "innkeeper",
+          "purpose": "strong_suspicion",
+          "sourceStance": "afraid",
+          "placement": "on_event",
+          "discoverableWithoutHint": true,
+          "hintsUnlockedBy": [],
+          "promptAsset": "dialogue.rumor.prompt"
+        },
+        {
+          "qualifiedId": "paper-trail/read-letter",
+          "kind": "document",
+          "role": "document",
+          "placement": "case_start",
+          "discoverableWithoutHint": true,
+          "hintsUnlockedBy": ["paper-trail/ask-innkeeper"],
+          "reaction": "vanilla_neutral",
+          "directionAsset": "direction.belongings",
+          "item": {"guid": "73762008-de9b-4c42-b509-235e63e60840", "name": "dp_vojtech_last_letter", "nameAsset": "document.letter.name", "infoAsset": "document.letter.info", "contentAsset": "document.letter.body"}
+        },
+        {
+          "qualifiedId": "witness-web/question-witness",
+          "kind": "dialogue",
+          "role": "witness",
+          "placement": "on_event",
+          "discoverableWithoutHint": false,
+          "hintsUnlockedBy": ["paper-trail/read-letter"],
+          "directionAsset": "direction.witness"
+        }
+      ]
+    },
+    {
+      "storyId": "missing-traveler",
+      "migrationAnchor": {"region": "trosecko", "settlement": "zelejov"},
+      "targetPolicy": {"sex": "male", "allowStoryCharacters": false, "requireKillable": true, "requireAlive": true},
+      "crimeProfile": {"innocentVictim": "matej", "method": "robbery_murder", "motive": "steal_money_for_widow", "coverStory": "forged_departure"},
+      "localizationKeys": {
+        "dialogue.rumor.root": "dp_mt_rumor_root",
+        "dialogue.rumor.prompt": "dp_mt_rumor_prompt",
+        "dialogue.rumor.henryMissing": "dp_mt_rumor_henry_missing",
+        "dialogue.rumor.innkeeperLeft": "dp_mt_rumor_innkeeper_left",
+        "dialogue.rumor.henryHorse": "dp_mt_rumor_henry_horse",
+        "dialogue.rumor.innkeeperHorse": "dp_mt_rumor_innkeeper_horse",
+        "dialogue.rumor.henryName": "dp_mt_rumor_henry_name",
+        "dialogue.rumor.innkeeperMatej": "dp_mt_rumor_innkeeper_matej",
+        "dialogue.rumor.henryLedger": "dp_mt_rumor_henry_ledger",
+        "dialogue.rumor.innkeeperHand": "dp_mt_rumor_innkeeper_hand",
+        "dialogue.rumor.henrySee": "dp_mt_rumor_henry_see",
+        "dialogue.rumor.innkeeperChest": "dp_mt_rumor_innkeeper_chest",
+        "dialogue.rumor.foundPrompt": "dp_mt_rumor_prompt_ledger_found",
+        "dialogue.rumor.foundHenryHand": "dp_mt_rumor_found_henry_hand",
+        "dialogue.rumor.foundInnkeeperChest": "dp_mt_rumor_found_innkeeper_chest",
+        "dialogue.rumor.foundHenryNote": "dp_mt_rumor_found_henry_note",
+        "dialogue.rumor.foundInnkeeperHorse": "dp_mt_rumor_found_innkeeper_horse",
+        "dialogue.rumor.foundHenryWho": "dp_mt_rumor_found_henry_who",
+        "dialogue.rumor.foundInnkeeperBoguslav": "dp_mt_rumor_found_innkeeper_boguslav",
+        "dialogue.witness.root": "dp_mt_witness_root",
+        "dialogue.witness.prompt": "dp_mt_witness_prompt",
+        "dialogue.witness.henryHorse": "dp_mt_witness_henry_horse",
+        "dialogue.witness.bretislavRemembers": "dp_mt_witness_bretislav_remembers",
+        "dialogue.witness.henryWithout": "dp_mt_witness_henry_without",
+        "dialogue.witness.bretislavReturned": "dp_mt_witness_bretislav_returned",
+        "dialogue.witness.henryFace": "dp_mt_witness_henry_face",
+        "dialogue.witness.bretislavSaw": "dp_mt_witness_bretislav_saw",
+        "dialogue.witness.henrySilent": "dp_mt_witness_henry_silent",
+        "dialogue.witness.bretislavWarning": "dp_mt_witness_bretislav_warning",
+        "dialogue.witness.henryMore": "dp_mt_witness_henry_more",
+        "dialogue.witness.bretislavFire": "dp_mt_witness_bretislav_fire",
+        "dialogue.witness.henryPoint": "dp_mt_witness_henry_point",
+        "dialogue.witness.bretislavPoint": "dp_mt_witness_bretislav_point",
+        "objective.witness.name": "dp_mt_witness_objective_name",
+        "objective.witness.active": "dp_mt_witness_objective_active",
+        "objective.witness.done": "dp_mt_witness_objective_done",
+        "direction.ledger": "dp_mt_direction_ledger",
+        "document.ledger.name": "dp_mt_ledger_name",
+        "document.ledger.info": "dp_mt_ledger_info",
+        "document.ledger.body": "dp_mt_ledger_content"
+      },
+      "emitLocalizationAssets": [
+        "dialogue.rumor.root", "dialogue.rumor.prompt", "dialogue.rumor.henryMissing", "dialogue.rumor.innkeeperLeft", "dialogue.rumor.henryHorse", "dialogue.rumor.innkeeperHorse", "dialogue.rumor.henryName", "dialogue.rumor.innkeeperMatej", "dialogue.rumor.henryLedger", "dialogue.rumor.innkeeperHand", "dialogue.rumor.henrySee", "dialogue.rumor.innkeeperChest", "dialogue.rumor.foundPrompt", "dialogue.rumor.foundHenryHand", "dialogue.rumor.foundInnkeeperChest", "dialogue.rumor.foundHenryNote", "dialogue.rumor.foundInnkeeperHorse", "dialogue.rumor.foundHenryWho", "dialogue.rumor.foundInnkeeperBoguslav", "dialogue.witness.root", "dialogue.witness.prompt", "dialogue.witness.henryHorse", "dialogue.witness.bretislavRemembers", "dialogue.witness.henryWithout", "dialogue.witness.bretislavReturned", "dialogue.witness.henryFace", "dialogue.witness.bretislavSaw", "dialogue.witness.henrySilent", "dialogue.witness.bretislavWarning", "dialogue.witness.henryMore", "dialogue.witness.bretislavFire", "dialogue.witness.henryPoint", "dialogue.witness.bretislavPoint", "objective.witness.name", "objective.witness.active", "objective.witness.done", "direction.ledger", "document.ledger.name", "document.ledger.info", "document.ledger.body"
+      ],
+      "native": {
+        "questName": "dark_within_t",
+        "dialogFolder": "dark_within_t",
+        "signals": {"rumorAvailableTag": 32, "witnessAvailableTag": 36},
+        "contexts": {"rumorHeard": "dp_rumor_heard_trosecko", "witnessHeard": "dp_witness_heard_trosecko"},
+        "dialogues": [
+          {
+            "kind": "rumor",
+            "evidenceQualifiedId": "paper-trail/ask-innkeeper",
+            "dialogueId": "innkeeper-rumor",
+            "graphName": "innkeeper_missing_traveler_dialog_t",
+            "fileName": "innkeeper_missing_traveler_dialog_t.xml",
+            "rootAsset": "dialogue.rumor.root",
+            "sequenceName": "missing_traveler_rumor",
+            "availableLabel": "Missing traveler rumor available",
+            "heardLabel": "Missing traveler rumor heard",
+            "speakerRoles": {"henry": "HENRY", "source": "innkeeper"},
+            "emitVariants": true,
+            "variantConditions": {
+              "unread-ledger": {"allDiscovered": [], "allUndiscovered": ["paper-trail/read-ledger", "paper-trail/ask-innkeeper"]},
+              "ledger-discovered": {"allDiscovered": ["paper-trail/read-ledger"], "allUndiscovered": ["paper-trail/ask-innkeeper"]}
+            }
+          },
+          {
+            "kind": "witness",
+            "dialogueId": "stablehand-witness",
+            "graphName": "stablehand_missing_traveler_dialog_t",
+            "fileName": "stablehand_missing_traveler_dialog_t.xml",
+            "rootAsset": "dialogue.witness.root",
+            "sequenceName": "missing_traveler_stablehand",
+            "availableLabel": "Missing traveler witness available",
+            "heardLabel": "Missing traveler witness heard",
+            "speakerRoles": {"henry": "HENRY", "witness": "witness"}
+          }
+        ],
+        "witnessObjective": {
+          "assetName": "DarkWithinWitnessObjective_t",
+          "nameAsset": "objective.witness.name",
+          "activeAsset": "objective.witness.active",
+          "doneAsset": "objective.witness.done",
+          "fallbackDoneAsset": "objective.witness.fallbackDone"
+        }
+      },
+      "evidence": [
+        {"qualifiedId": "paper-trail/ask-innkeeper", "kind": "dialogue", "role": "innkeeper", "purpose": "missing_person_rumor", "sourceStance": "guarded", "placement": "on_event", "discoverableWithoutHint": true, "hintsUnlockedBy": [], "promptAsset": "dialogue.rumor.prompt"},
+        {"qualifiedId": "paper-trail/read-ledger", "kind": "document", "role": "document", "placement": "case_start", "discoverableWithoutHint": true, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "reaction": "vanilla_neutral", "directionAsset": "direction.ledger", "item": {"guid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3", "name": "dp_matej_guest_ledger", "nameAsset": "document.ledger.name", "infoAsset": "document.ledger.info", "contentAsset": "document.ledger.body"}},
+        {"qualifiedId": "horse-witness/question-witness", "kind": "dialogue", "role": "witness", "purpose": "target_identification", "sourceStance": "afraid", "placement": "on_event", "discoverableWithoutHint": false, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "promptAsset": "dialogue.witness.prompt", "directionAsset": "objective.witness.active"},
+        {"qualifiedId": "courtyard-gossip/listen-for-rumors", "kind": "area_action", "role": "area_action", "purpose": "motive_corroboration", "sourceStance": "ambient", "placement": "ambient", "discoverableWithoutHint": true, "hintsUnlockedBy": []}
+      ]
+    }
+  ]
+}

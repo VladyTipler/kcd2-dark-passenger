@@ -7,6 +7,7 @@ DarkPassengerHunger.LAST_SATISFACTION_KEY =
 DarkPassengerHunger.SECONDS_PER_DAY = 86400
 DarkPassengerHunger.HUNGER_PER_DAY = 10
 DarkPassengerHunger.MAX_HUNGER = 100
+DarkPassengerHunger.RELIEF_HUNGER = 50
 DarkPassengerHunger.FIRST_INSTALL_DAYS = 5
 DarkPassengerHunger.EVALUATION_INTERVAL_MS = 10000
 DarkPassengerHunger.SATISFACTION_GATE_GUID =
@@ -142,19 +143,28 @@ function DarkPassengerHunger.EnsureInitialized()
     return lastSatisfaction
 end
 
-function DarkPassengerHunger.ResetNow()
+function DarkPassengerHunger.ResetNow(graceDays)
     local now = WorldTime()
     if now == nil then return false end
+    local clampedGraceDays = math.max(0, tonumber(graceDays) or 0)
+    local effectiveAnchor =
+        now +
+        clampedGraceDays *
+        DarkPassengerHunger.SECONDS_PER_DAY
     WriteGlobal(
         DarkPassengerHunger.SCHEMA_KEY,
         DarkPassengerHunger.SCHEMA_VERSION
     )
     local written = WriteGlobal(
         DarkPassengerHunger.LAST_SATISFACTION_KEY,
-        now
+        effectiveAnchor
     )
     if written then
-        Log("satisfaction timestamp reset=" .. tostring(now))
+        Log(
+            "satisfaction timestamp reset=" .. tostring(now) ..
+            " graceDays=" .. tostring(clampedGraceDays) ..
+            " effectiveAnchor=" .. tostring(effectiveAnchor)
+        )
     end
     return written
 end
@@ -176,9 +186,13 @@ function DarkPassengerHunger.TierFor(hunger)
     return tier
 end
 
+function DarkPassengerHunger.InvalidateAppliedState()
+    DarkPassengerHunger.currentTier = nil
+    DarkPassengerHunger.satisfactionGateExpected = nil
+end
+
 function DarkPassengerHunger.ApplyTier(soul, tier)
     if soul == nil then return false end
-    if DarkPassengerHunger.currentTier == tier then return true end
     local desiredGuid = DarkPassengerHunger.BUFF_BY_TIER[tier]
     local shouldHaveSatisfactionGate = tier ~= nil and tier < 50
     local changed = DarkPassengerHunger.currentTier ~= tier
@@ -240,17 +254,146 @@ function DarkPassengerHunger.ApplyTier(soul, tier)
     return true
 end
 
-function DarkPassengerHunger.ResetAfterHunt()
-    if not DarkPassengerHunger.ResetNow() then return false end
+function DarkPassengerHunger.ResetAfterHunt(graceDays, result)
+    local clampedGraceDays = math.max(0, tonumber(graceDays) or 0)
+    local investigationState =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local lifecycleGeneration = tonumber(
+        investigationState ~= nil and investigationState.generation
+    )
+    if not DarkPassengerHunger.ResetNow(graceDays) then return false end
+    if lifecycleGeneration ~= nil and lifecycleGeneration > 0 and
+       DarkPassengerCaseLifecycle ~= nil and
+       DarkPassengerCaseLifecycle.ClearCaseArtifacts ~= nil then
+        DarkPassengerCaseLifecycle.ClearCaseArtifacts(
+            lifecycleGeneration,
+            "hunt_resolved"
+        )
+    end
     -- The native quest death branch has already added the hidden gate. Do not
     -- probe it: HasBuffDebug throws for this Cpp:Constant custom buff.
+    DarkPassengerHunger.lastGraceDays = clampedGraceDays
+    DarkPassengerHunger.lastResult = result
     DarkPassengerHunger.satisfactionGateExpected = true
     DarkPassengerHunger.currentTier = nil
     local hunger = DarkPassengerHunger.Evaluate()
     if hunger ~= nil then
-        Log("resolved hunt applied hunger=" .. tostring(hunger))
+        Log(
+            "resolved hunt applied hunger=" .. tostring(hunger) ..
+            " graceDays=" .. tostring(clampedGraceDays) ..
+            " result=" .. tostring(result)
+        )
     end
     return hunger ~= nil
+end
+
+function DarkPassengerHunger.ReliefTransition(hunger)
+    local value = tonumber(hunger)
+    if value == nil then
+        return {
+            accepted = false,
+            reason = "invalid_hunger",
+        }
+    end
+
+    value = math.max(
+        0,
+        math.min(DarkPassengerHunger.MAX_HUNGER, value)
+    )
+    if value <= DarkPassengerHunger.RELIEF_HUNGER then
+        return {
+            accepted = false,
+            reason = "not_hungry",
+            previous = value,
+            current = value,
+        }
+    end
+
+    return {
+        accepted = true,
+        reason = "relieved",
+        previous = value,
+        current = 50,
+    }
+end
+
+function DarkPassengerHunger.RelieveFromOrdinaryKill()
+    local transition = DarkPassengerHunger.ReliefTransition(
+        DarkPassengerHunger.Get()
+    )
+    if not transition.accepted then
+        return transition
+    end
+
+    local now = WorldTime()
+    if now == nil then
+        transition.accepted = false
+        transition.reason = "world_time_unavailable"
+        return transition
+    end
+
+    local lastSatisfaction =
+        now -
+        (DarkPassengerHunger.RELIEF_HUNGER /
+            DarkPassengerHunger.HUNGER_PER_DAY) *
+        DarkPassengerHunger.SECONDS_PER_DAY
+    if not WriteGlobal(
+        DarkPassengerHunger.LAST_SATISFACTION_KEY,
+        lastSatisfaction
+    ) then
+        transition.accepted = false
+        transition.reason = "timestamp_write_failed"
+        return transition
+    end
+    if not WriteGlobal(
+        DarkPassengerHunger.SCHEMA_KEY,
+        DarkPassengerHunger.SCHEMA_VERSION
+    ) then
+        transition.accepted = false
+        transition.reason = "schema_write_failed"
+        return transition
+    end
+
+    -- Force the neutral tier through ApplyTier even if this module was
+    -- hot-reloaded and no longer remembers the currently visible debuff.
+    DarkPassengerHunger.currentTier = false
+    local evaluated = DarkPassengerHunger.Evaluate()
+    if evaluated == nil then
+        transition.accepted = false
+        transition.reason = "evaluation_failed"
+        return transition
+    end
+
+    transition.current = evaluated
+    Log(
+        "ordinary kill relief previous=" ..
+        tostring(transition.previous) ..
+        " current=" .. tostring(transition.current)
+    )
+    return transition
+end
+
+function DarkPassengerHunger.RunReliefSelfTest()
+    local function assertTransition(input, accepted, current)
+        local transition = DarkPassengerHunger.ReliefTransition(input)
+        if transition.accepted ~= accepted or
+           transition.current ~= current then
+            error(
+                "relief transition failed input=" .. tostring(input) ..
+                " accepted=" .. tostring(transition.accepted) ..
+                " current=" .. tostring(transition.current)
+            )
+        end
+    end
+
+    assertTransition(40, false, 40)
+    assertTransition(50, false, 50)
+    assertTransition(60, true, 50)
+    assertTransition(100, true, 50)
+    Log("ordinary kill relief self-test passed")
+    return true
 end
 
 function DarkPassengerHunger.Status()
@@ -258,11 +401,23 @@ function DarkPassengerHunger.Status()
     local lastSatisfaction = DarkPassengerHunger.EnsureInitialized()
     local hunger = DarkPassengerHunger.Calculate(now, lastSatisfaction)
     local tier = DarkPassengerHunger.TierFor(hunger)
+    local graceRemainingDays = nil
+    if now ~= nil and lastSatisfaction ~= nil then
+        graceRemainingDays = math.max(
+            0,
+            (lastSatisfaction - now) /
+                DarkPassengerHunger.SECONDS_PER_DAY
+        )
+    end
+    local effectiveAnchor = lastSatisfaction
     Log(
         "status hunger=" .. tostring(hunger) ..
         " tier=" .. tostring(tier) ..
         " now=" .. tostring(now) ..
-        " lastSatisfactionWorldTime=" .. tostring(lastSatisfaction)
+        " lastSatisfactionWorldTime=" .. tostring(lastSatisfaction) ..
+        " graceRemainingDays=" .. tostring(graceRemainingDays) ..
+        " lastResult=" .. tostring(DarkPassengerHunger.lastResult) ..
+        " effectiveAnchor=" .. tostring(effectiveAnchor)
     )
     return hunger
 end
@@ -296,6 +451,7 @@ function DarkPassengerHunger.Set(argsLine)
     ) then
         return false
     end
+    DarkPassengerHunger.InvalidateAppliedState()
     return DarkPassengerHunger.Evaluate() ~= nil
 end
 

@@ -80,6 +80,7 @@ foreach ($settlement in $settlements) {
                     ($includeGeneric -and $_.characterName -like 'char_GENERIC_*') -or
                     $_.entityName -in $manualIncludes
                 ) -and
+                $_.factionName -ne 'deadBodies' -and
                 $_.entityName -notin $manualExclusions -and
                 $_.entityName -notin $mainStoryDeny
             } |

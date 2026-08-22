@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 2,
+  "id": "stablehand-witness",
+  "scenePreset": "standing-conversation",
+  "media": {
+    "voice": "native",
+    "lipSync": true
+  },
+  "variants": [
+    {
+      "id": "default",
+      "presentationId": "default",
+      "promptAsset": "dialogue.witness.prompt",
+      "turns": [
+        {"speaker": "henry", "asset": "dialogue.witness.henryHorse"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavRemembers"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryWithout"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavReturned"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryFace"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavSaw"},
+        {"speaker": "henry", "asset": "dialogue.witness.henrySilent"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavWarning"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryMore"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavFire"},
+        {"speaker": "henry", "asset": "dialogue.witness.henryPoint"},
+        {"speaker": "witness", "asset": "dialogue.witness.bretislavPoint"}
+      ]
+    }
+  ],
+  "localizationKeys": [
+    "dialogue.witness.root",
+    "dialogue.witness.prompt",
+    "dialogue.witness.henryHorse",
+    "dialogue.witness.bretislavRemembers",
+    "dialogue.witness.henryWithout",
+    "dialogue.witness.bretislavReturned",
+    "dialogue.witness.henryFace",
+    "dialogue.witness.bretislavSaw",
+    "dialogue.witness.henrySilent",
+    "dialogue.witness.bretislavWarning",
+    "dialogue.witness.henryMore",
+    "dialogue.witness.bretislavFire",
+    "dialogue.witness.henryPoint",
+    "dialogue.witness.bretislavPoint"
+  ]
+}

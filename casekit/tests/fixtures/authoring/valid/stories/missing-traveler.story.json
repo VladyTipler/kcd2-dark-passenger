@@ -1,0 +1,217 @@
+{
+  "schemaVersion": 1,
+  "id": "missing-traveler",
+  "compatibleArchetypes": ["paper-trail-witness"],
+  "truth": {
+    "innocentVictim": {"id": "matej", "ru": "Матей", "en": "Matej"},
+    "crime": {"id": "robbery-murder", "ru": "ограбление и убийство", "en": "robbery and murder"},
+    "motive": {"id": "widow-money", "ru": "деньги вдовы", "en": "the widow's money"},
+    "coverStory": {"id": "forged-departure", "ru": "поддельный отъезд", "en": "a forged departure"},
+    "escapedJustice": {"id": "body-never-found", "ru": "тело не нашли", "en": "the body was never found"}
+  },
+  "facts": [
+    {"id": "matej_missing", "category": "crime"},
+    {"id": "horse_returned", "category": "corroboration"},
+    {"id": "ledger_suspicious", "category": "coverup"},
+    {"id": "forged_departure", "category": "coverup"},
+    {"id": "culprit_knew_money", "category": "motive"},
+    {"id": "horse_returner_identified", "category": "identity"},
+    {"id": "widow_money_argument", "category": "motive"}
+  ],
+  "threads": [
+    {
+      "id": "paper-trail",
+      "lead": {
+        "mode": "case_start",
+        "requiresFacts": [],
+        "directionAsset": "direction.paper"
+      },
+      "entryStepIds": ["ask-innkeeper", "read-ledger"],
+      "steps": [
+        {
+          "id": "ask-innkeeper",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "source-dialogue",
+            "bindings": {"source": "rumorSource"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "ledger-unknown",
+              "when": {"allKnown": [], "allUnknown": ["forged_departure"]},
+              "content": {
+                "prompt": "dialogue.rumor.prompt",
+                "responses": ["dialogue.rumor.response"],
+                "journal": "journal.rumor"
+              }
+            },
+            {
+              "id": "ledger-known",
+              "when": {"allKnown": ["forged_departure"], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.rumor.foundPrompt",
+                "responses": ["dialogue.rumor.foundResponse"],
+                "journal": "journal.rumor"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["matej_missing", "horse_returned", "ledger_suspicious"],
+            "nextStepIds": ["read-ledger"],
+            "unlockThreadIds": ["horse-witness"]
+          }
+        },
+        {
+          "id": "read-ledger",
+          "kind": "search",
+          "action": {
+            "evidenceModule": "document-in-container",
+            "bindings": {"container": "evidenceContainer"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "name": "document.ledger.name",
+                "info": "document.ledger.info",
+                "body": "document.ledger.body",
+                "journal": "journal.ledger"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["forged_departure", "culprit_knew_money"],
+            "nextStepIds": [],
+            "unlockThreadIds": ["horse-witness"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "horse-witness",
+      "lead": {
+        "mode": "fact",
+        "requiresFacts": ["horse_returned"],
+        "directionAsset": "direction.witness"
+      },
+      "entryStepIds": ["question-witness"],
+      "steps": [
+        {
+          "id": "question-witness",
+          "kind": "communication",
+          "action": {
+            "evidenceModule": "witness-dialogue",
+            "bindings": {"witness": "witness"}
+          },
+          "requiresFacts": ["horse_returned"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.witness.prompt",
+                "responses": ["dialogue.witness.response"],
+                "journal": "journal.witness"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["horse_returner_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "courtyard-gossip",
+      "lead": {
+        "mode": "ambient",
+        "requiresFacts": [],
+        "directionAsset": "direction.overheard"
+      },
+      "entryStepIds": ["listen-for-rumors"],
+      "steps": [
+        {
+          "id": "listen-for-rumors",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "timed-area-listening",
+            "activation": {
+              "mode": "timed-area-action",
+              "availableFromHour": 10,
+              "availableUntilHour": 22,
+              "durationHours": 2
+            },
+            "bindings": {}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "action.listen.prompt",
+                "progress": "action.listen.progress",
+                "unavailable": "action.listen.unavailable",
+                "journal": "journal.overheard"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["widow_money_argument"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    }
+  ],
+  "assets": {
+    "ru": {
+      "direction.paper": "Расспросить {{rumorSource.directionLabel}} в {{settlement.displayName}} или самостоятельно поискать записи.",
+      "direction.witness": "Найти {{witness.directionLabel}} и спросить о коне Матея.",
+      "direction.overheard": "Прислушаться к разговорам у корчмы.",
+      "action.listen.prompt": "[F] Прислушаться к разговорам",
+      "action.listen.progress": "Ты слушаешь, о чём говорят люди...",
+      "action.listen.unavailable": "Сейчас здесь слишком тихо.",
+      "dialogue.rumor.prompt": "Спросить о пропавшем торговце",
+      "dialogue.rumor.response": "Постоялец исчез, но его конь вернулся в стойло без всадника.",
+      "dialogue.rumor.foundPrompt": "Спросить о поддельной записи",
+      "dialogue.rumor.foundResponse": "Значит, запись об отъезде действительно оставил кто-то другой.",
+      "document.ledger.name": "Вырванный лист гостевой книги",
+      "document.ledger.info": "Строка об отъезде написана другой рукой.",
+      "document.ledger.body": "Матей подозревал человека, который расспрашивал о деньгах вдовы.",
+      "dialogue.witness.prompt": "Расспросить {{witness.directionLabel}} о коне Матея",
+      "dialogue.witness.response": "Местный житель вернул коня один и велел забыть его лицо.",
+      "journal.rumor": "Конь Матея вернулся без всадника, а запись о его отъезде вызывает сомнения.",
+      "journal.ledger": "Запись об отъезде подделана. Кто-то знал о деньгах Матея.",
+      "journal.witness": "{{witness.displayLabel}} видел человека, вернувшего коня Матея.",
+      "journal.overheard": "Спор перед исчезновением Матея был связан с деньгами вдовы."
+    },
+    "en": {
+      "direction.paper": "Question {{rumorSource.directionLabel}} in {{settlement.displayName}} or search for the records yourself.",
+      "direction.witness": "Find {{witness.directionLabel}} and ask about Matej's horse.",
+      "direction.overheard": "Listen to the conversations around the inn.",
+      "action.listen.prompt": "[F] Listen to conversations",
+      "action.listen.progress": "You listen to what people are saying...",
+      "action.listen.unavailable": "It is too quiet here now.",
+      "dialogue.rumor.prompt": "Ask about the missing merchant",
+      "dialogue.rumor.response": "The guest vanished, but his horse returned to the stable without its rider.",
+      "dialogue.rumor.foundPrompt": "Ask about the forged entry",
+      "dialogue.rumor.foundResponse": "Then someone else truly did write the departure entry.",
+      "document.ledger.name": "Torn Guest-Ledger Page",
+      "document.ledger.info": "The departure line is written in another hand.",
+      "document.ledger.body": "Matej suspected the man who kept asking about the widow's money.",
+      "dialogue.witness.prompt": "Ask {{witness.directionLabel}} about Matej's horse",
+      "dialogue.witness.response": "A local man returned the horse alone and told me to forget his face.",
+      "journal.rumor": "Matej's horse returned without its rider, and the record of his departure is doubtful.",
+      "journal.ledger": "The departure entry was forged. Someone knew about Matej's money.",
+      "journal.witness": "{{witness.displayLabel}} saw the man who returned Matej's horse.",
+      "journal.overheard": "The argument before Matej vanished concerned the widow's money."
+    }
+  }
+}

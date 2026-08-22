@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "stories": [
+    {
+      "storyId": "composed-case-probe",
+      "caseId": "composed_case_probe",
+      "caseCode": 9001,
+      "weight": 1,
+      "evidence": [
+        {
+          "threadId": "paper-trail",
+          "stepId": "ask-innkeeper",
+          "legacyId": "probe_innkeeper",
+          "code": 9101
+        },
+        {
+          "threadId": "paper-trail",
+          "stepId": "read-letter",
+          "legacyId": "probe_letter",
+          "code": 9102
+        },
+        {
+          "threadId": "witness-web",
+          "stepId": "question-witness",
+          "legacyId": "probe_witness",
+          "code": 9103
+        },
+        {
+          "threadId": "courtyard-gossip",
+          "stepId": "listen-for-rumors",
+          "legacyId": "probe_area_listening",
+          "code": 9104
+        }
+      ]
+    }
+  ]
+}

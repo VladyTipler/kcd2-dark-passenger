@@ -2,15 +2,65 @@
 <Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
   <Skald>
     <Level Name="trosecko" HibernateMode="Auto" VoiceNamespace="false">
-      <Definitions>
-        <Definition File="trosecko/dark_within_t.xml" />
-      </Definitions>
       <Nodes>
-        <dark_within_t Name="dark_within_t" RequiredForOutput="trosecko">
-          <Edge From="OnWake" To="arm" />
-        </dark_within_t>
+        <Timer Name="ordinaryHumanKillBootDelay">
+          <Constant Name="Duration" Value="2s" />
+          <Constant Name="TimeType" Value="GameTime" />
+          <Edge From="OnWake" To="SetRunning" />
+        </Timer>
+        <Function Name="getHumanKillCount" MethodName="wh::rpgmodule::GetStatistic" DeclaringType="wh::rpgmodule">
+          <Constant Name="Statistic" Value="HumansKilled" />
+        </Function>
+        <Function Name="nextHumanKillThresholdValue" MethodName="wh::conceptmodule::math::AddFloat" DeclaringType="wh::conceptmodule::math">
+          <Edge From="getHumanKillCount.Value" To="A" />
+          <Constant Name="B" Value="1" />
+        </Function>
+        <Function Name="nextHumanKillThresholdDouble" MethodName="math::conversion::ToDouble(float)" DeclaringType="math::conversion">
+          <Edge From="nextHumanKillThresholdValue.float" To="float" />
+        </Function>
+        <State Name="nextHumanKillThreshold" TypeT="double">
+          <Edge From="nextHumanKillThresholdDouble.double" To="Value" />
+          <Edge From="ordinaryHumanKillBootDelay.OnFinished" To="Exec" />
+          <Edge From="ordinaryHumanKillThresholdRefreshDelay.OnFinished" To="Exec" />
+        </State>
+        <Timer Name="ordinaryHumanKillObserverArmDelay">
+          <Constant Name="Duration" Value="1s" />
+          <Constant Name="TimeType" Value="GameTime" />
+          <Edge From="ordinaryHumanKillBootDelay.OnFinished" To="SetRunning" />
+        </Timer>
+        <State Name="ordinaryHumanKillObserverActive" TypeT="bool">
+          <Edge From="OnWake" To="SetFalse" />
+          <Edge From="ordinaryHumanKillObserverArmDelay.OnFinished" To="SetTrue" />
+        </State>
+        <StatisticTrigger Name="ordinaryHumanKillTrigger">
+          <Constant Name="Statistic" Value="HumansKilled" />
+          <Edge From="nextHumanKillThreshold.State" To="Threshold" />
+          <Edge From="ordinaryHumanKillObserverActive.State" To="IsActive" />
+        </StatisticTrigger>
+        <Timer Name="ordinaryHumanKillThresholdRefreshDelay">
+          <Constant Name="Duration" Value="100ms" />
+          <Constant Name="TimeType" Value="GameTime" />
+          <Edge From="ordinaryHumanKillTrigger.OnThresholdPassed" To="SetRunning" />
+        </Timer>
+        <State Name="ordinaryHumanKillPulse" TypeT="bool">
+          <Edge From="ordinaryHumanKillTrigger.OnThresholdPassed" To="SetTrue" />
+          <Edge From="ordinaryHumanKillPulseTimer.OnFinished" To="SetFalse" />
+        </State>
+        <Timer Name="ordinaryHumanKillPulseTimer">
+          <Constant Name="Duration" Value="2s" />
+          <Constant Name="TimeType" Value="GameTime" />
+          <Edge From="ordinaryHumanKillTrigger.OnThresholdPassed" To="SetRunning" />
+        </Timer>
+        <SetEntityContext Name="ordinaryHumanKillRequest">
+          <Constant Name="Context" Value="dp_ordinary_human_kill" />
+          <Asset Name="Souls" Alias="player" />
+          <Edge From="ordinaryHumanKillPulse.State" To="IsActive" />
+        </SetEntityContext>
       </Nodes>
-      <Text Text="trosecko" />
+      <Assets>
+        <SoulAsset Name="player" SharedSoulGuids="4c2dcffb-dea1-6263-72d7-b39f4db2d8b5" />
+      </Assets>
+      <Text Text="Dark Passenger ordinary kill observer (Trosky)" />
     </Level>
   </Skald>
 </Database>

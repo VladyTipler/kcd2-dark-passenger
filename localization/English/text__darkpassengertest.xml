@@ -4,10 +4,88 @@
 	<Row><Cell>dark_within_t</Cell><Cell>Dark Within</Cell></Row>
 	<Row><Cell>dark_within_description_k</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
 	<Row><Cell>dark_within_description_t</Cell><Cell>I have learned to keep this darkness on a leash. To give it rules, and choose only those whose guilt leaves no room for doubt. But the hunger has returned, and I cannot hold it back for long.</Cell></Row>
-	<Row><Cell>dark_within_obj_name</Cell><Cell>Find someone who deserves to die</Cell></Row>
-	<Row><Cell>dark_within_obj</Cell><Cell>The hunger demands its due again. I need a victim—someone guilty, whose death will leave the world a little cleaner.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Find someone who deserves the sentence</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>The Passenger is restless. Before I pass sentence, I must find someone whose guilt leaves no room for doubt.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bohounovice</Cell><Cell>The trail leads to Bohunowitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bylansko</Cell><Cell>The trail leads to Bylany. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_certovka</Cell><Cell>The trail leads to Devil's Den. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_grunta</Cell><Cell>The trail leads to Grund. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_horansko</Cell><Cell>The trail leads to Horschan. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kuklicko</Cell><Cell>The trail leads to Kuklitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kutnahora</Cell><Cell>The trail leads to Kuttenberg. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_lorec</Cell><Cell>The trail leads to Loretz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_malesov</Cell><Cell>The trail leads to Maleshov. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_mezholezsko</Cell><Cell>The trail leads to Mesoles. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_miskovicko</Cell><Cell>The trail leads to Miskowitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_nabylance</Cell><Cell>The trail leads to Bylanka Valley. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_opatovicko</Cell><Cell>The trail leads to Opatowitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_pritoky</Cell><Cell>The trail leads to Pschitoky. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_rabstejnsko</Cell><Cell>The trail leads to Rabstein. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_ratboricko</Cell><Cell>The trail leads to Raborsch. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sedlcko</Cell><Cell>The trail leads to Sedletz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_starakutna</Cell><Cell>The trail leads to Old Kutna. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_suchdol</Cell><Cell>The trail leads to Suchdol. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sukov</Cell><Cell>The trail leads to Sukov. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vlcihory</Cell><Cell>The trail leads to the Wolf Mountains. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vrchlicko</Cell><Cell>The trail leads to Vrchlitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vysoka</Cell><Cell>The trail leads to Wysoka. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_bukovina</Cell><Cell>The trail leads to Bukovina. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_kopanina</Cell><Cell>The trail leads to Kopanina. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_krcak</Cell><Cell>The trail leads to Kerchak Pond. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_nebakov</Cell><Cell>The trail leads to Nebakov. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_podseminsko</Cell><Cell>The trail leads to the Lower Semine region. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_semin</Cell><Cell>The trail leads to Semine. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_slatejov</Cell><Cell>The trail leads to Slatego. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_tachov</Cell><Cell>The trail leads to Tachov. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_troskovice</Cell><Cell>The trail leads to Troskowitz. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vezicko</Cell><Cell>The trail leads to the Rocktower region. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vidlak</Cell><Cell>The trail leads to Vidlak Pond. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zdar</Cell><Cell>The trail leads to Schdiar Valley. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zelejov</Cell><Cell>The trail leads to Zhelejov. Somewhere within this ground is someone whose guilt may deserve a sentence. I must listen, watch, and be certain.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Hunt down the chosen victim</Cell></Row>
-	<Row><Cell>dark_within_target</Cell><Cell>The Dark Passenger has made its choice. I must hunt the victim down and carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell></Row>
+	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
+	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Ask about local rumors</Cell></Row>
+	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Unease in the area</Cell></Row>
+	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Ask about the unease in the area</Cell></Row>
+	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>People here seem afraid of something. Has something happened?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_fear</Cell><Cell>Afraid? Everyone here is afraid of someone: one of the tax collector, another of his own wife. But there is someone whose presence makes even drunks lower their voices.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_why</Cell><Cell>Why?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_vojtech</Cell><Cell>A month ago they found a farmhand named Vojtech by the stream. The bailiff decided he had tumbled down the slope while drunk. A convenient explanation - the dead do not argue.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_threat</Cell><Cell>Who threatened him?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_refusal</Cell><Cell>Someone local. Do not expect a name from me - I have no wish to tumble down a slope while drunk myself one day.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_what_to_seek</Cell><Cell>Then what should I look for?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_belongings</Cell><Cell>Vojtech slept in the hayloft behind the inn. His chest is still there. The bailiff did not even bother to look inside. If the lad knew what was coming, perhaps he left something. Hurry, before the mice learn to read.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_name</Cell><Cell>Vojtech's Unsent Letter</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_info</Cell><Cell>A folded sheet hidden among the dead farmhand's belongings.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_content</Cell><Cell>&lt;p&gt;Marta,&lt;/p&gt;&lt;p&gt;you asked why I no longer sleep. I lied to you. It was not the drink.&lt;/p&gt;&lt;p&gt;Three nights ago by the old ford, I saw that man with the merchant's apprentice. The lad was on his knees, begging to be let go. He dragged him into the water and forced his face to the bottom. Twice he let him raise his head and take a breath — only to push him under again. The third time, the boy's hands stopped scraping at the stones.&lt;/p&gt;&lt;p&gt;I was hiding behind the willows. I could have called for help. Could have rushed him. But I lay in the mud with my hand over my mouth and waited for it to end.&lt;/p&gt;&lt;p&gt;Yesterday he found me in the tavern. Sat beside me, ordered two mugs, and said accidents were always happening to drunken farmhands: one falls from a bluff, another drowns in a stream. Then he smiled and paid for my ale.&lt;/p&gt;&lt;p&gt;He knows what I saw.&lt;/p&gt;&lt;p&gt;At dawn I am leaving. If I do not reach you, give this letter to someone who is not afraid to speak his name. The woman clearing tables after sunset saw us together. Perhaps she heard enough.&lt;/p&gt;&lt;p&gt;Forgive me. When I close my eyes, I can still hear the boy's fingernails scraping against the stones.&lt;/p&gt;&lt;p&gt;Vojtech&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_witness_dialog_root</Cell><Cell>A witness at the inn</Cell></Row>
+	<Row><Cell>dp_witness_ask_vojtech</Cell><Cell>Ask about Vojtech</Cell></Row>
+	<Row><Cell>dp_witness_henry_working</Cell><Cell>You were working here the night a man sat down with Vojtech.</Cell></Row>
+	<Row><Cell>dp_witness_maid_many_nights</Cell><Cell>I work here most nights. Plenty of men sit down with drunken farmhands.</Cell></Row>
+	<Row><Cell>dp_witness_henry_letter</Cell><Cell>Vojtech left a letter. He wrote that you saw them together.</Cell></Row>
+	<Row><Cell>dp_witness_maid_fool</Cell><Cell>Fool… I told him to keep quiet.</Cell></Row>
+	<Row><Cell>dp_witness_henry_dead</Cell><Cell>Now he is dead.</Cell></Row>
+	<Row><Cell>dp_witness_maid_stream</Cell><Cell>You think I do not know? Every morning since that night, I have looked at the stream and feared I would see someone else in it.</Cell></Row>
+	<Row><Cell>dp_witness_henry_heard</Cell><Cell>What did you hear?</Cell></Row>
+	<Row><Cell>dp_witness_maid_threat</Cell><Cell>The man ordered two mugs. Vojtech never touched his. He leaned close and said, “Even sober men lose their footing by the water.” Then he left a coin and walked away.</Cell></Row>
+	<Row><Cell>dp_witness_henry_who</Cell><Cell>Who was he?</Cell></Row>
+	<Row><Cell>dp_witness_maid_name</Cell><Cell>Do not make me say his name in here.</Cell></Row>
+	<Row><Cell>dp_witness_henry_where</Cell><Cell>Then tell me where to find him.</Cell></Row>
+	<Row><Cell>dp_witness_maid_location</Cell><Cell>I will tell you what he looks like and where to find him. But if he asks, we never spoke.</Cell></Row>
+	<Row><Cell>dark_within_witness_name</Cell><Cell>Question the inn workers</Cell></Row>
+	<Row><Cell>dark_within_witness_active</Cell><Cell>Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.</Cell></Row>
+	<Row><Cell>dark_within_witness_done</Cell><Cell>The maid confirmed that Vojtech had been threatened and identified the suspect.</Cell></Row>
+	<Row><Cell>dark_within_evidence_name</Cell><Cell>Gather proof of guilt</Cell></Row>
+	<Row><Cell>dark_within_guidance</Cell><Cell>Follow the marked lead.</Cell></Row>
+	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>An innkeeper hears more than he says. His rumor confirms that someone here has deeds worth examining. I need more proof.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Leave no trace</Cell></Row>
+	<Row><Cell>dark_within_cleanup</Cell><Cell>The work is done. Now I must make sure no one connects it to me.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_witnessed</Cell><Cell>Someone saw too much.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Everything is quiet. No one saw a thing. The Passenger is satisfied, and the world is a little cleaner.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_controlled</Cell><Cell>There were loose ends, but I cut them. It is enough to quiet the Passenger.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_noisy</Cell><Cell>It was not clean. I left too much noise behind. The hunger is sated, but the price will keep rising.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_external</Cell><Cell>Death found the chosen one without me. The case is closed, but the Passenger got nothing from it.</Cell></Row>
 	<Row><Cell>dark_within_toast</Cell><Cell>The darkness within has awoken...</Cell></Row>
 	<Row><Cell>dp_sated_obj_name</Cell><Cell>The darkness sleeps</Cell></Row>
 	<Row><Cell>dp_sated_obj</Cell><Cell>The hunger is sated. For now.</Cell></Row>
@@ -23,4 +101,27 @@
 	<Row><Cell>dp_hunger_80_desc</Cell><Cell>&lt;p&gt;The need gnaws at me without rest. Every guilty face begins to look like an invitation.&lt;/p&gt;&lt;p&gt;Effects: Strength -2, agility -2, vitality -1, marksmanship -2, stealth -2, thievery -2, speech -2, charisma -3.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_90_desc</Cell><Cell>&lt;p&gt;The Passenger is no longer asking. Its demand drowns out caution and mercy alike.&lt;/p&gt;&lt;p&gt;Effects: Strength -2, agility -2, vitality -2, marksmanship -3, stealth -3, thievery -3, speech -3, charisma -4.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_100_desc</Cell><Cell>&lt;p&gt;There is no silence left. Only the Passenger, the hunger, and the certainty that someone must die.&lt;/p&gt;&lt;p&gt;Effects: Strength -3, agility -3, vitality -3, marksmanship -4, stealth -4, thievery -3, speech -4, charisma -5.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_burial_action</Cell><Cell>Bury the body</Cell></Row>
+	<Row><Cell>dp_burial_no_shovel</Cell><Cell>You need a shovel.</Cell></Row>
+	<Row><Cell>dp_burial_bad_ground</Cell><Cell>The ground here cannot be dug.</Cell></Row>
+	<Row><Cell>dp_burial_quest_item</Cell><Cell>Something important is still on the body.</Cell></Row>
+	<Row><Cell>dp_burial_trophy_pending</Cell><Cell>I have not yet taken what I came for.</Cell></Row>
+	<Row><Cell>dp_burial_busy</Cell><Cell>You are already burying a body.</Cell></Row>
+	<Row><Cell>dp_burial_in_combat</Cell><Cell>You cannot bury a body during combat.</Cell></Row>
+	<Row><Cell>dp_burial_skiptime</Cell><Cell>The earth keeps its secrets...</Cell></Row>
+	<Row><Cell>dp_pose_probe_root</Cell><Cell>Scene probe</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_check</Cell><Cell>Can you hear me?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_reply</Cell><Cell>Where am I?.. What do you want?</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_motive</Cell><Cell>Why did you do it?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_motive</Cell><Cell>Why did you do it?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_motive</Cell><Cell>Because nothing would have changed otherwise. I did what the others lacked the nerve to do.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_truth</Cell><Cell>Do you even understand what you have done?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_truth</Cell><Cell>Do you even understand what you have done?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_truth</Cell><Cell>Better than you do. Do not pretend to be a judge — the same hunger drives you.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_finish</Cell><Cell>I have heard enough.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_finish</Cell><Cell>I have heard enough.</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_finish</Cell><Cell>Then you have already decided.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_end</Cell><Cell>Yes.</Cell></Row>
+	<Row><Cell>dp_confession_wake_action</Cell><Cell>Bring around</Cell></Row>
+	<Row><Cell>dp_confession_requires_cockerel</Cell><Cell>Requires Cockerel</Cell></Row>
 </Table>

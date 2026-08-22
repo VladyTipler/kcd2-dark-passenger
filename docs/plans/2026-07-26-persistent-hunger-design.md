@@ -99,6 +99,20 @@ removes the positive tag; the existing live quest graph then starts the hunt
 with its native banner and sound. Successful target death resets hunger to 0
 through the reward signal.
 
+## Partial relief from an ordinary kill
+
+A player-caused death of any human other than the selected victim provides
+incomplete relief. If hunger is above 50, move its persisted time anchor just
+far enough back to derive exactly 50 hunger. If hunger is already 50 or lower,
+leave it unchanged; an ordinary kill must never increase hunger.
+
+This transition removes every negative hunger-tier buff but does not grant a
+positive satisfaction buff, complete or restart the Case, replace the selected
+victim, or change investigation progress. Repeated ordinary kills cannot push
+hunger below 50. Animals and deaths not attributed to the player do not count.
+The selected victim keeps the stronger existing path: hunger resets to 0 and
+the Case reaches its normal aftermath/completion flow.
+
 ## Failure handling
 
 - Missing player or Soul: retry without initializing storage.
@@ -128,4 +142,3 @@ Runtime acceptance is split:
 
 - Exact stat modifiers for each positive and negative tier.
 - Final lore names/descriptions for all ten visible tiers.
-

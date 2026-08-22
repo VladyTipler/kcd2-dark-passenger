@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Entities>
+  <Entity Name="fixture_settlement_area"
+          Pos="100,200,10"
+          Scale="2,3,1"
+          EntityClass="TriggerArea"
+          EntityId="101"
+          EntityGuid="11111111-2222-3333"
+          EditorLayer="Main/fixture/settlement-area" />
+  <Entity Name="fixture_missing_area"
+          Pos="0,0,0"
+          Scale="1,1,1"
+          EntityClass="TriggerArea"
+          EntityId="102"
+          EntityGuid="aaaaaaaa-bbbb-cccc"
+          EditorLayer="Main/fixture/missing-area" />
+  <Entity Name="fixture_prefab_area"
+          Pos="0,0,0"
+          Scale="1,1,1"
+          EntityClass="TriggerArea"
+          EntityId="104"
+          EntityGuid="22222222-3333-4444"
+          EditorLayer="Main/fixture/settlement-area" />
+  <Entity Name="fixture_non_trigger"
+          EntityClass="BasicEntity"
+          EntityId="103"
+          EntityGuid="dddddddd-eeee-ffff"
+          EditorLayer="Main/fixture/missing-non-trigger" />
+</Entities>

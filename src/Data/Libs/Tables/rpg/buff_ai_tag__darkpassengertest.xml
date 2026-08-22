@@ -3,5 +3,16 @@
 	<buff_ai_tags version="1">
 		<buff_ai_tag buff_ai_tag_id="23" buff_ai_tag_name="darkpassenger_satisfaction" />
 		<buff_ai_tag buff_ai_tag_id="24" buff_ai_tag_name="darkpassenger_target" />
+		<buff_ai_tag buff_ai_tag_id="25" buff_ai_tag_name="darkpassenger_result_clean" />
+		<buff_ai_tag buff_ai_tag_id="26" buff_ai_tag_name="darkpassenger_result_controlled" />
+		<buff_ai_tag buff_ai_tag_id="27" buff_ai_tag_name="darkpassenger_result_noisy" />
+		<buff_ai_tag buff_ai_tag_id="28" buff_ai_tag_name="darkpassenger_result_external" />
+		<buff_ai_tag buff_ai_tag_id="29" buff_ai_tag_name="darkpassenger_witness_detected" />
+		<buff_ai_tag buff_ai_tag_id="30" buff_ai_tag_name="darkpassenger_target_revealed" />
+		<buff_ai_tag buff_ai_tag_id="31" buff_ai_tag_name="dp_evidence_first_lead" />
+		<buff_ai_tag buff_ai_tag_id="32" buff_ai_tag_name="dp_evidence_rumor_available" />
+		<buff_ai_tag buff_ai_tag_id="36" buff_ai_tag_name="dp_tavern_witness_available" />
+		<buff_ai_tag buff_ai_tag_id="120" buff_ai_tag_name="dp_confession_probe" />
+		<buff_ai_tag buff_ai_tag_id="121" buff_ai_tag_name="dp_confession_probe_stance" />
 	</buff_ai_tags>
 </database>

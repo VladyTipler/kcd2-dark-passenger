@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Objects>
+  <Entity EntityClass="NPC" Name="fixture_actor" EntityGuid="00000000-0000-0000-0000-000000000401" EditorLayer="Main/kfix_fixture/inn/_script/npc/worker" Pos="1,2,3">
+    <EntityLinks>
+      <Link TargetId="21" TargetGuid="00000000-0000-0000" Name="home" />
+      <Link TargetId="22" TargetGuid="00000000-0000-0000" Name="_@villager_work" />
+      <Link TargetId="23" TargetGuid="00000000-0000-0000" Name="unrelated" />
+    </EntityLinks>
+  </Entity>
+  <Entity EntityClass="Stash" Name="stash[Chest.fixture]" EntityId="42" EntityGuid="00000000-0000-0000-0000-000000000402" EditorLayer="Main/kfix_fixture/inn/_common" Pos="4,5,6" />
+  <Entity EntityClass="Shop" Name="shop.fixture" EntityGuid="00000000-0000-0000-0000-000000000404" EditorLayer="Main/kfix_fixture/inn/_script/shop" Pos="5,5,6">
+    <EntityLinks>
+      <Link TargetId="42" TargetGuid="00000000-0000-0000-0000-000000000402" Name="shopStash" />
+    </EntityLinks>
+  </Entity>
+  <Entity EntityClass="NPC_Female" Name="fixture_woman" EntityGuid="00000000-0000-0000-0000-000000000403" EditorLayer="Main/kfix_fixture/inn/_script/npc/worker" Pos="7,8,9">
+    <EntityLinks>
+      <Link TargetId="24" TargetGuid="00000000-0000-0000" Name="home" />
+    </EntityLinks>
+  </Entity>
+</Objects>

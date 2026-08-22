@@ -1,0 +1,116 @@
+{
+  "schemaVersion": 1,
+  "dialogueRoles": [
+    {
+      "name": "DP_INNKEEPER_RUMOR",
+      "roleId": "8fe584ca-7b9b-48b3-a5c0-fa10122c25c2",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_TAVERN_WITNESS",
+      "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_OVERHEARD_SPEAKER_A",
+      "roleId": "3be31ccb-48be-4af2-adbb-686e5fb5c3df",
+      "metaRole": "NPC"
+    },
+    {
+      "name": "DP_OVERHEARD_SPEAKER_B",
+      "roleId": "50fc0e48-765a-4561-a5f0-5899135b559c",
+      "metaRole": "NPC"
+    }
+  ],
+  "settlements": [
+    {
+      "region": "kutnohorsko",
+      "settlement": "pritoky",
+      "roles": {
+        "innkeeper": {
+          "entityName": "kpri_innkeeper",
+          "dialogueRole": "DP_INNKEEPER_RUMOR"
+        },
+        "document": {
+          "containerGuid": "277db45d-28ac-0286",
+          "documentGuid": "73762008-de9b-4c42-b509-235e63e60840",
+          "legacyDocumentGuid": "08a31823-a5c6-43f9-9b4b-27b8230a352f"
+        },
+        "witness": {
+          "entityName": "kpri_woman_10",
+          "dialogueRole": "DP_TAVERN_WITNESS"
+        }
+      }
+    },
+    {
+      "region": "trosecko",
+      "settlement": "zelejov",
+      "roles": {
+        "innkeeper": {
+          "entityName": "tzel_vavrinec",
+          "dialogueRole": "DP_INNKEEPER_RUMOR"
+        },
+        "document": {
+          "containerGuid": "aaf89994-e94b-0309",
+          "documentGuid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3"
+        },
+        "witness": {
+          "entityName": "tzel_bretislav",
+          "dialogueRole": "DP_TAVERN_WITNESS",
+          "identity": {
+            "ru": {
+              "name": "Богуслав",
+              "occupation": "батрак"
+            },
+            "en": {
+              "name": "Bretislav",
+              "occupation": "farmhand"
+            }
+          }
+        },
+        "overheard": {
+          "pairs": [
+            {
+              "id": "inn_yard_primary",
+              "speakers": [
+                {
+                  "role": "speakerA",
+                  "entityName": "tzel_man_12",
+                  "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+                  "questAlias": "DpOverheardZelejovPrimaryA",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+                },
+                {
+                  "role": "speakerB",
+                  "entityName": "tzel_woman_9",
+                  "soulGuid": "4758bdb9-f854-38ef-1ea4-e8799614ceb7",
+                  "questAlias": "DpOverheardZelejovPrimaryB",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+                }
+              ]
+            },
+            {
+              "id": "inn_yard_fallback",
+              "speakers": [
+                {
+                  "role": "speakerA",
+                  "entityName": "tzel_man_13",
+                  "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+                  "questAlias": "DpOverheardZelejovFallbackA",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+                },
+                {
+                  "role": "speakerB",
+                  "entityName": "tzel_woman_11",
+                  "soulGuid": "40924ea1-1d40-e575-9c92-f0b3806656aa",
+                  "questAlias": "DpOverheardZelejovFallbackB",
+                  "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

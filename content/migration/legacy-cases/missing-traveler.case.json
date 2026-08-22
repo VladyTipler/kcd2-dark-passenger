@@ -1,0 +1,520 @@
+{
+  "schemaVersion": 2,
+  "id": "missing_traveler",
+  "code": 2001,
+  "weight": 1,
+  "constraints": {
+    "region": "trosecko",
+    "settlement": "zelejov"
+  },
+  "targetPolicy": {
+    "sex": "male",
+    "allowStoryCharacters": false,
+    "requireKillable": true,
+    "requireAlive": true
+  },
+  "crimeProfile": {
+    "innocentVictim": "matej",
+    "method": "robbery_murder",
+    "motive": "steal_money_for_widow",
+    "coverStory": "forged_departure"
+  },
+  "revealThreshold": 70,
+  "identityRequirement": {
+    "allOf": ["horse_returner_identified"]
+  },
+  "native": {
+    "questName": "dark_within_t",
+    "dialogFolder": "dark_within_t",
+    "signals": {
+      "rumorAvailableTag": 32,
+      "witnessAvailableTag": 36
+    },
+    "contexts": {
+      "rumorHeard": "dp_rumor_heard_trosecko",
+      "witnessHeard": "dp_witness_heard_trosecko"
+    },
+    "journal": {
+      "objectives": {
+        "search": {
+          "nameKey": "dp_case_2001_objective_search_name",
+          "fallbackName": "Find the missing traveler's trail",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_search_active",
+              "fallback": "The trail leads into the marked area. Somewhere here lies the truth of Matej's disappearance."
+            }
+          }
+        },
+        "investigation": {
+          "nameKey": "dp_case_2001_objective_investigation_name",
+          "fallbackName": "Uncover Matej's fate",
+          "states": {}
+        },
+        "target": {
+          "nameKey": "dp_case_2001_objective_target_name",
+          "fallbackName": "Hunt down Matej's killer",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_target_active",
+              "fallback": "The evidence is conclusive. Find the guilty man and carry out the sentence."
+            },
+            "done": {
+              "key": "dp_case_2001_objective_target_done",
+              "fallback": "Matej's killer is dead. Now no trace can be left behind."
+            }
+          }
+        },
+        "cleanup": {
+          "nameKey": "dp_case_2001_objective_cleanup_name",
+          "fallbackName": "Leave no trace",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_cleanup_active",
+              "fallback": "The killing is done. Make certain no one can connect it to Henry."
+            },
+            "witnessed": {
+              "key": "dp_case_2001_objective_cleanup_witnessed",
+              "fallback": "Someone saw too much. Witnesses may lead the guards to the truth."
+            },
+            "clean": {
+              "key": "dp_case_2001_objective_cleanup_clean",
+              "fallback": "No alarm was raised. The case can be closed."
+            },
+            "controlled": {
+              "key": "dp_case_2001_objective_cleanup_controlled",
+              "fallback": "Every dangerous witness is gone. The case can be closed."
+            },
+            "noisy": {
+              "key": "dp_case_2001_objective_cleanup_noisy",
+              "fallback": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence."
+            },
+            "external": {
+              "key": "dp_case_2001_objective_cleanup_external",
+              "fallback": "The guilty man died without Henry's hand. No trail remains."
+            }
+          }
+        }
+      }
+    },
+    "guidance": [
+      {
+        "qualifiedId": "courtyard-gossip/overhear-argument/listen-area",
+        "mode": "native-marker",
+        "alias": "DpGuidance_courtyard_gossip_overhear_argument_listen_area",
+        "assetKind": "TriggerAreaAsset",
+        "catalogKey": "trosecko/zelejov",
+        "binding": {
+          "kind": "settlement",
+          "entityName": "zelejov",
+          "entityGuid": "",
+          "soulGuid": "",
+          "region": "trosecko",
+          "settlement": "zelejov",
+          "position": null
+        },
+        "areaSelection": "smallest-common",
+        "anchorBindings": [
+          {
+            "slot": "gossipSourceA",
+            "kind": "actor",
+            "entityName": "tzel_man_12",
+            "entityGuid": "92a51bce-1613-4778",
+            "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+            "region": "trosecko",
+            "settlement": "zelejov",
+            "position": {
+              "x": 1661.686,
+              "y": 2163.033,
+              "z": 34.88597
+            }
+          },
+          {
+            "slot": "gossipSourceB",
+            "kind": "actor",
+            "entityName": "tzel_man_13",
+            "entityGuid": "fd4139c7-22d0-47cb",
+            "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+            "region": "trosecko",
+            "settlement": "zelejov",
+            "position": {
+              "x": 1662.284,
+              "y": 2163.542,
+              "z": 34.98262
+            }
+          }
+        ],
+        "visibility": {"mode": "step-active", "requiresFacts": []},
+        "lifetime": "step",
+        "objective": {
+          "nameKey": "dp_case_2001_objective_guidance_listen_name",
+          "fallbackName": "Listen to the conversations in the inn yard",
+          "states": {
+            "active": {
+              "key": "dp_case_2001_objective_guidance_listen_active",
+              "fallback": "The inn yard is crowded. Someone may let slip what happened to Matej."
+            }
+          }
+        }
+      }
+    ],
+    "overheardScenes": [
+      {
+        "id": "courtyard_gossip_overhear_argument",
+        "qualifiedId": "courtyard-gossip/overhear-argument",
+        "activation": {"mode": "interaction"},
+        "speakers": {
+          "speakerA": {
+            "role": "speakerA",
+            "entityName": "tzel_man_12",
+            "entityGuid": "92a51bce-1613-4778",
+            "soulGuid": "5927ef47-3d33-4483-8316-ab3247f7aa4e",
+            "questAlias": "DpOverheard_courtyard_gossip_overhear_argument_A",
+            "dialogueRole": "DP_OVERHEARD_SPEAKER_A"
+          },
+          "speakerB": {
+            "role": "speakerB",
+            "entityName": "tzel_man_13",
+            "entityGuid": "fd4139c7-22d0-47cb",
+            "soulGuid": "d7bbff0a-c9a0-4b9d-ad3b-2bf8381965aa",
+            "questAlias": "DpOverheard_courtyard_gossip_overhear_argument_B",
+            "dialogueRole": "DP_OVERHEARD_SPEAKER_B"
+          }
+        },
+        "evidenceId": "zelejov_inn_yard_whisper",
+        "graphName": "overheard_missing_traveler_dialog_t",
+        "fileName": "overheard_missing_traveler_dialog_t.xml",
+        "rootKey": "dp_mt_overheard_root",
+        "decisionAlias": "darkPassenger_missingTravelerOverheard",
+        "sequenceName": "missing_traveler_overheard",
+        "cluePort": "clue_spoken",
+        "clueLabel": "Missing traveler clue spoken",
+        "hearingDistance": 15,
+        "repeatAfterSeconds": 20,
+        "availableTag": 71,
+        "context": "dp_overheard_clue_spoken_trosecko",
+        "responses": [
+          { "role": "speakerA", "key": "dp_mt_overheard_matej_argument" },
+          { "role": "speakerB", "key": "dp_mt_overheard_widow_money" },
+          { "role": "speakerA", "key": "dp_mt_overheard_gone_by_dawn" }
+        ]
+      }
+    ],
+    "dialogues": [
+      {
+        "kind": "rumor",
+        "evidenceId": "zelejov_innkeeper_missing_traveler",
+        "graphName": "innkeeper_missing_traveler_dialog_t",
+        "fileName": "innkeeper_missing_traveler_dialog_t.xml",
+        "rootKey": "dp_mt_rumor_root",
+        "sequenceName": "missing_traveler_rumor",
+        "promptKey": "dp_mt_rumor_prompt",
+        "availableLabel": "Missing traveler rumor available",
+        "heardLabel": "Missing traveler rumor heard",
+        "variants": [
+          {
+            "id": "unread_ledger",
+            "when": {
+              "allDiscovered": [],
+              "allUndiscovered": [
+                "matej_guest_ledger",
+                "zelejov_innkeeper_missing_traveler"
+              ]
+            },
+            "promptKey": "dp_mt_rumor_prompt",
+            "responses": [
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_missing" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_left" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_horse" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_horse" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_name" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_matej" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_ledger" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_hand" },
+              { "role": "HENRY", "key": "dp_mt_rumor_henry_see" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_innkeeper_chest" }
+            ]
+          },
+          {
+            "id": "ledger_discovered",
+            "when": {
+              "allDiscovered": ["matej_guest_ledger"],
+              "allUndiscovered": [
+                "zelejov_innkeeper_missing_traveler"
+              ]
+            },
+            "promptKey": "dp_mt_rumor_prompt_ledger_found",
+            "responses": [
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_hand" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_chest" },
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_note" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_horse" },
+              { "role": "HENRY", "key": "dp_mt_rumor_found_henry_who" },
+              { "role": "innkeeper", "key": "dp_mt_rumor_found_innkeeper_boguslav" }
+            ]
+          }
+        ]
+      },
+      {
+        "kind": "witness",
+        "graphName": "stablehand_missing_traveler_dialog_t",
+        "fileName": "stablehand_missing_traveler_dialog_t.xml",
+        "rootKey": "dp_mt_witness_root",
+        "sequenceName": "missing_traveler_stablehand",
+        "promptKey": "dp_mt_witness_prompt",
+        "availableLabel": "Missing traveler witness available",
+        "heardLabel": "Missing traveler witness heard",
+        "responses": [
+          { "role": "HENRY", "key": "dp_mt_witness_henry_horse" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_remembers" },
+          { "role": "HENRY", "key": "dp_mt_witness_henry_without" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_returned" },
+          { "role": "HENRY", "key": "dp_mt_witness_henry_face" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_saw" },
+          { "role": "HENRY", "key": "dp_mt_witness_henry_silent" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_warning" },
+          { "role": "HENRY", "key": "dp_mt_witness_henry_more" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_fire" },
+          { "role": "HENRY", "key": "dp_mt_witness_henry_point" },
+          { "role": "witness", "key": "dp_mt_witness_bretislav_point" }
+        ]
+      }
+    ],
+    "witnessObjective": {
+      "assetName": "DarkWithinWitnessObjective_t",
+      "nameKey": "dp_mt_witness_objective_name",
+      "activeKey": "dp_mt_witness_objective_active",
+      "doneKey": "dp_mt_witness_objective_done",
+      "fallbackName": "Question the farmhand Bretislav",
+      "fallbackActive": "Lavrentiy said Matej's horse returned without its rider. The farmhand Bretislav may have seen who brought it back.",
+      "fallbackDone": "Bretislav saw a local man return Matej's horse alone and destroy evidence by the road. He identified the suspect."
+    }
+  },
+  "evidence": [
+    {
+      "id": "zelejov_innkeeper_missing_traveler",
+      "code": 2101,
+      "kind": "dialogue",
+      "role": "innkeeper",
+      "purpose": "missing_person_rumor",
+      "sourceStance": "guarded",
+      "confidence": 20,
+      "placement": "on_event",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": [],
+      "reveals": [
+        "matej_missing",
+        "matej_horse_returned",
+        "guest_ledger_suspicious"
+      ],
+      "promptKey": "dp_mt_rumor_prompt"
+    },
+    {
+      "id": "matej_guest_ledger",
+      "code": 2102,
+      "kind": "document",
+      "role": "document",
+      "confidence": 30,
+      "placement": "case_start",
+      "destination": {
+        "qualifiedId": "paper-trail/read-ledger",
+        "mode": "world-container",
+        "actorSlot": "",
+        "actorEntityName": "",
+        "actorEntityGuid": "",
+        "containerSlot": "evidenceContainer",
+        "containerEntityName": "stash[Chest.chest80_07a038c9-f683-49a0-9357-850dff8b1bf8]",
+        "containerEntityGuid": "aaf89994-e94b-0309"
+      },
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": ["zelejov_innkeeper_missing_traveler"],
+      "reveals": [
+        "forged_departure",
+        "old_willow_route",
+        "culprit_knew_about_money"
+      ],
+      "reaction": "vanilla_neutral",
+      "direction": {
+        "key": "dp_mt_direction_ledger"
+      },
+      "item": {
+        "name": "dp_matej_guest_ledger",
+        "classification": "quest",
+        "retention": "case",
+        "nameKey": "dp_mt_ledger_name",
+        "infoKey": "dp_mt_ledger_info",
+        "contentKey": "dp_mt_ledger_content"
+      }
+    },
+    {
+      "id": "zelejov_stablehand_witness",
+      "code": 2103,
+      "kind": "dialogue",
+      "role": "witness",
+      "purpose": "target_identification",
+      "sourceStance": "afraid",
+      "confidence": 20,
+      "placement": "on_event",
+      "discoverableWithoutHint": false,
+      "hintsUnlockedBy": ["zelejov_innkeeper_missing_traveler"],
+      "reveals": [
+        "horse_returner_identified",
+        "suspect_identified"
+      ],
+      "promptKey": "dp_mt_witness_prompt",
+      "direction": {
+        "key": "dp_mt_witness_objective_active"
+      }
+    },
+    {
+      "id": "zelejov_inn_yard_whisper",
+      "code": 2104,
+      "kind": "dialogue",
+      "role": "overheard",
+      "purpose": "motive_corroboration",
+      "sourceStance": "guarded",
+      "confidence": 15,
+      "placement": "ambient",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": [],
+      "reveals": [
+        "matej_argued_about_widow_money",
+        "culprit_dismissed_widow_claim"
+      ]
+    }
+  ],
+  "text": {
+    "ru": {
+      "title": "Пропавший путник",
+      "description": "Матей исчез из Желеёва, оставив коня и заплаченные вперёд деньги. Запись о его отъезде выглядит слишком удобной."
+    },
+    "en": {
+      "title": "The Missing Traveler",
+      "description": "Matej vanished from Zhelejov, leaving behind his horse and several paid nights. The record of his departure looks far too convenient."
+    }
+  },
+  "localization": {
+    "ru": {
+      "dp_case_2001_objective_search_name": "Найти след пропавшего путника",
+      "dp_case_2001_objective_search_active": "След привёл в отмеченную область. Где-то здесь скрыта правда об исчезновении Матея.",
+      "dp_case_2001_objective_investigation_name": "Раскрыть судьбу Матея",
+      "dp_case_2001_objective_target_name": "Настигнуть убийцу Матея",
+      "dp_case_2001_objective_target_active": "Улики сошлись. Найти виновного и привести приговор в исполнение.",
+      "dp_case_2001_objective_target_done": "Убийца Матея мёртв. Теперь нельзя оставить следов.",
+      "dp_case_2001_objective_cleanup_name": "Не оставить следов",
+      "dp_case_2001_objective_cleanup_active": "Убийство совершено. Убедиться, что никто не сможет связать его с Генри.",
+      "dp_case_2001_objective_cleanup_witnessed": "Кто-то видел слишком много. Свидетели могут привести стражу по следу.",
+      "dp_case_2001_objective_cleanup_clean": "Никто не поднял тревогу. Дело можно закрыть.",
+      "dp_case_2001_objective_cleanup_controlled": "Все опасные свидетели устранены. Дело можно закрыть.",
+      "dp_case_2001_objective_cleanup_noisy": "Тревога поднята, но погоня потеряла след. Дело закрыто не без последствий.",
+      "dp_case_2001_objective_cleanup_external": "Смерть настигла виновного без участия Генри. Следов не осталось.",
+      "dp_case_2001_objective_guidance_listen_name": "Прислушаться к разговорам во дворе корчмы",
+      "dp_case_2001_objective_guidance_listen_active": "Во дворе корчмы людно. Возможно, кто-то проговорится о Матее.",
+      "dp_mt_rumor_root": "Пропавший постоялец",
+      "dp_mt_rumor_prompt": "Спросить о пропавшем торговце",
+      "dp_mt_rumor_henry_missing": "Говорят, у тебя постоялец пропал.",
+      "dp_mt_rumor_innkeeper_left": "Не пропал. Уехал до рассвета. По крайней мере, так записано в гостевой книге.",
+      "dp_mt_rumor_henry_horse": "А коня зачем оставил?",
+      "dp_mt_rumor_innkeeper_horse": "Вот это мне и не нравится. За три ночи заплатил вперёд, а к утру исчез. Коня потом нашли в стойле, уже рассёдланного.",
+      "dp_mt_rumor_henry_name": "Как его звали? И что он здесь делал?",
+      "dp_mt_rumor_innkeeper_matej": "Матей. Мелкий торговец. Вёз деньги вдове товарища — тот помер в дороге, а Матей поклялся отдать семье его долю.",
+      "dp_mt_rumor_henry_ledger": "Кто записал, что он уехал?",
+      "dp_mt_rumor_innkeeper_hand": "Не я. Строка появилась утром и почерк там чужой. После этого я убрал книгу под замок.",
+      "dp_mt_rumor_henry_see": "Мне нужно на неё взглянуть.",
+      "dp_mt_rumor_innkeeper_chest": "Книга наверху. Я спрятал её в одном из сундуков. Ключа тебе не дам. Если кто-то вписал туда ложь, я предпочту не знать, как ты до неё добрался.",
+      "dp_mt_rumor_prompt_ledger_found": "Спросить о поддельной записи",
+      "dp_mt_rumor_found_henry_hand": "Строку об отъезде Матея вписал не ты.",
+      "dp_mt_rumor_found_innkeeper_chest": "Значит, ты всё-таки добрался до книги. Ключа у тебя быть не могло.",
+      "dp_mt_rumor_found_henry_note": "Почерк другой. А записка между страницами говорит, что его заманили к старой иве.",
+      "dp_mt_rumor_found_innkeeper_horse": "Тогда он не уехал сам. И конь вернулся без него — до рассвета уже стоял в стойле.",
+      "dp_mt_rumor_found_henry_who": "Кто его привёл?",
+      "dp_mt_rumor_found_innkeeper_boguslav": "Не знаю. Богуслав был у лошадей той ночью. Если он что-то видел, говорить станет неохотно.",
+      "dp_mt_witness_root": "Конь без всадника",
+      "dp_mt_witness_prompt": "Расспросить Богуслава о коне Матея",
+      "dp_mt_witness_henry_horse": "Ты присматриваешь за лошадьми. Помнишь коня торговца Матея?",
+      "dp_mt_witness_bretislav_remembers": "Гнедой, с белой бабкой на задней ноге. Матей уехал на нём ночью. А до рассвета конь снова стоял в стойле.",
+      "dp_mt_witness_henry_without": "Вернулся без хозяина?",
+      "dp_mt_witness_bretislav_returned": "Его привёл один из здешних. Сапоги в грязи, на рукаве что-то тёмное. Сказал, Матей пошёл дальше пешком.",
+      "dp_mt_witness_henry_face": "Ты хорошо его видел?",
+      "dp_mt_witness_bretislav_saw": "Достаточно хорошо. Он сунул мне грош и велел забыть, кто держал поводья.",
+      "dp_mt_witness_henry_silent": "И ты забыл?",
+      "dp_mt_witness_bretislav_warning": "На следующий день у порога лежала дохлая ворона. Я понял намёк. Не всякая правда стоит собственной шеи.",
+      "dp_mt_witness_henry_more": "Что ещё ты видел?",
+      "dp_mt_witness_bretislav_fire": "Позже он жёг что-то у старой ивы. Пахло палёной шерстью. Наутро я нашёл обгоревшую пряжку от дорожного плаща.",
+      "dp_mt_witness_henry_point": "Покажешь мне этого человека.",
+      "dp_mt_witness_bretislav_point": "Покажу. Но после этого мы с тобой никогда не говорили.",
+      "dp_mt_witness_objective_name": "Расспросить батрака Богуслава",
+      "dp_mt_witness_objective_active": "Лаврентий сказал, что конь Матея вернулся без всадника. Батрак Богуслав мог видеть, кто привёл его обратно.",
+      "dp_mt_witness_objective_done": "Богуслав видел, как местный житель вернул коня Матея один, а затем сжёг что-то у дороги. Он указал на подозреваемого.",
+      "dp_mt_direction_ledger": "Лаврентий спрятал гостевую книгу в одном из сундуков наверху. Строку об отъезде Матея написал кто-то другой — книгу стоит осмотреть.",
+      "dp_mt_overheard_root": "Разговор во дворе",
+      "dp_mt_overheard_matej_argument": "Слышал, как Матей спорил с кем-то за корчмой. Всё твердил: деньги не его, их ждёт вдова.",
+      "dp_mt_overheard_widow_money": "Я тоже слышал. А тот ему: вдове серебро всё равно мертвеца не вернёт.",
+      "dp_mt_overheard_gone_by_dawn": "До рассвета Матей исчез. Видно, спор разрешился сам собой.",
+      "dp_mt_ledger_name": "Вырванный лист гостевой книги",
+      "dp_mt_ledger_info": "Лист из гостевой книги Желеёвского трактира. Строка об отъезде выведена другим почерком, а между страницами спрятана записка.",
+      "dp_mt_ledger_content": "<p>Матей из Ледеча. Три ночи оплачено.</p><p><i>Уехал до заутрени.</i></p><p>Последняя строка выведена более тёмными чернилами и другой рукой. Между страницами сложен клочок бумаги:</p><p>Если я не вернусь, деньги в кошеле принадлежат Маркете, вдове Павла. Один здешний узнал о них и весь вечер расспрашивал, сколько я везу и кто меня ждёт. На рассвете он обещал показать короткую дорогу мимо старой ивы.</p><p>Он слишком любезен для человека, которому от меня ничего не нужно. Но если я ошибаюсь, к полудню буду уже далеко.</p><p>Матей</p>"
+    },
+    "en": {
+      "dp_case_2001_objective_search_name": "Find the missing traveler's trail",
+      "dp_case_2001_objective_search_active": "The trail leads into the marked area. Somewhere here lies the truth of Matej's disappearance.",
+      "dp_case_2001_objective_investigation_name": "Uncover Matej's fate",
+      "dp_case_2001_objective_target_name": "Hunt down Matej's killer",
+      "dp_case_2001_objective_target_active": "The evidence is conclusive. Find the guilty man and carry out the sentence.",
+      "dp_case_2001_objective_target_done": "Matej's killer is dead. Now no trace can be left behind.",
+      "dp_case_2001_objective_cleanup_name": "Leave no trace",
+      "dp_case_2001_objective_cleanup_active": "The killing is done. Make certain no one can connect it to Henry.",
+      "dp_case_2001_objective_cleanup_witnessed": "Someone saw too much. Witnesses may lead the guards to the truth.",
+      "dp_case_2001_objective_cleanup_clean": "No alarm was raised. The case can be closed.",
+      "dp_case_2001_objective_cleanup_controlled": "Every dangerous witness is gone. The case can be closed.",
+      "dp_case_2001_objective_cleanup_noisy": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence.",
+      "dp_case_2001_objective_cleanup_external": "The guilty man died without Henry's hand. No trail remains.",
+      "dp_case_2001_objective_guidance_listen_name": "Listen to the conversations in the inn yard",
+      "dp_case_2001_objective_guidance_listen_active": "The inn yard is crowded. Someone may let slip what happened to Matej.",
+      "dp_mt_rumor_root": "The Missing Guest",
+      "dp_mt_rumor_prompt": "Ask about the missing merchant",
+      "dp_mt_rumor_henry_missing": "I hear one of your guests disappeared.",
+      "dp_mt_rumor_innkeeper_left": "He did not disappear. He left before dawn. At least, that is what the guest ledger says.",
+      "dp_mt_rumor_henry_horse": "Then why leave his horse behind?",
+      "dp_mt_rumor_innkeeper_horse": "That is what troubles me. He paid three nights ahead, then vanished. By morning his horse was back in the stable, already unsaddled.",
+      "dp_mt_rumor_henry_name": "What was his name? What brought him here?",
+      "dp_mt_rumor_innkeeper_matej": "Matej. A petty merchant. He was carrying money to a companion's widow — the man died on the road, and Matej swore his family would receive their share.",
+      "dp_mt_rumor_henry_ledger": "Who wrote that he left?",
+      "dp_mt_rumor_innkeeper_hand": "Not me. The line appeared that morning, in a hand I did not know. I locked the book away after that.",
+      "dp_mt_rumor_henry_see": "I need to see it.",
+      "dp_mt_rumor_innkeeper_chest": "It is upstairs. I hid it in one of the chests. I will not give you a key. If someone wrote a lie in my book, I would rather not know how you reached it.",
+      "dp_mt_rumor_prompt_ledger_found": "Ask about the forged entry",
+      "dp_mt_rumor_found_henry_hand": "You did not write the line saying Matej left.",
+      "dp_mt_rumor_found_innkeeper_chest": "So you got to the ledger after all. You could not have had a key.",
+      "dp_mt_rumor_found_henry_note": "The hand is different. And the note between the pages says someone lured him past the old willow.",
+      "dp_mt_rumor_found_innkeeper_horse": "Then he did not leave of his own accord. His horse came back without him and was in the stable before dawn.",
+      "dp_mt_rumor_found_henry_who": "Who brought it back?",
+      "dp_mt_rumor_found_innkeeper_boguslav": "I do not know. Bretislav was with the horses that night. If he saw anything, he will not speak of it willingly.",
+      "dp_mt_witness_root": "A Horse Without Its Rider",
+      "dp_mt_witness_prompt": "Ask Bretislav about Matej's horse",
+      "dp_mt_witness_henry_horse": "You tend the horses. Do you remember the merchant Matej's mount?",
+      "dp_mt_witness_bretislav_remembers": "A bay, white fetlock on the hind leg. Matej rode out in the night. Before dawn, the horse was back in its stall.",
+      "dp_mt_witness_henry_without": "Without its master?",
+      "dp_mt_witness_bretislav_returned": "A local man led it in. Mud on his boots, something dark on his sleeve. He said Matej had continued on foot.",
+      "dp_mt_witness_henry_face": "Did you see him clearly?",
+      "dp_mt_witness_bretislav_saw": "Clearly enough. He pressed a coin into my hand and told me to forget who held the reins.",
+      "dp_mt_witness_henry_silent": "And you forgot?",
+      "dp_mt_witness_bretislav_warning": "The next day a dead crow lay on my threshold. I understood. Not every truth is worth one's neck.",
+      "dp_mt_witness_henry_more": "What else did you see?",
+      "dp_mt_witness_bretislav_fire": "Later he burned something by the old willow. It smelled of scorched wool. In the morning I found a blackened clasp from a travelling cloak.",
+      "dp_mt_witness_henry_point": "You will point this man out to me.",
+      "dp_mt_witness_bretislav_point": "I will. But after that, you and I never spoke.",
+      "dp_mt_witness_objective_name": "Question the farmhand Bretislav",
+      "dp_mt_witness_objective_active": "Lavrentiy said Matej's horse returned without its rider. The farmhand Bretislav may have seen who brought it back.",
+      "dp_mt_witness_objective_done": "Bretislav saw a local man return Matej's horse alone, then burn something by the road. He identified the suspect.",
+      "dp_mt_direction_ledger": "Lavrentiy hid the guest ledger in one of the upstairs chests. Someone else wrote Matej's departure line, so the book is worth examining.",
+      "dp_mt_overheard_root": "A Conversation in the Yard",
+      "dp_mt_overheard_matej_argument": "I heard Matej arguing with someone behind the inn. He kept saying the money was not his, that a widow was waiting for it.",
+      "dp_mt_overheard_widow_money": "I heard it too. The other man said silver would not bring her dead husband back.",
+      "dp_mt_overheard_gone_by_dawn": "Matej was gone before dawn. Seems the argument settled itself.",
+      "dp_mt_ledger_name": "Torn Guest-Ledger Page",
+      "dp_mt_ledger_info": "A page from the Zhelejov inn ledger. The departure line is in another hand, and a note was hidden between the leaves.",
+      "dp_mt_ledger_content": "<p>Matej of Ledetchko. Three nights paid.</p><p><i>Left before matins.</i></p><p>The last line is written in darker ink and another hand. A folded scrap lies between the pages:</p><p>If I do not return, the money in my purse belongs to Marketa, Pavel's widow. A local man learned of it and spent the evening asking how much I carried and who expected me. At dawn he means to show me a shorter road past the old willow.</p><p>He is too obliging for a man who wants nothing from me. But if I am wrong, I shall be far away by noon.</p><p>Matej</p>"
+    }
+  }
+}

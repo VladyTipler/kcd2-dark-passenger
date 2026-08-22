@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Layer GUID="bbbbbbbb-cccc-dddd-eeee-ffffffffffff"
+       Name="settlement-area">
+  <Objects>
+    <ObjectGUID Instance="22222222-3333-4444-5555-666666666666"
+                Name="fixture_prefab_area"
+                Template="77777777-8888-9999-aaaa-bbbbbbbbbbbb" />
+    <Object EntityClass="TriggerArea"
+            Height="12"
+            Id="11111111-2222-3333-4444-555555555555"
+            Name="fixture_settlement_area"
+            Pos="100,200,10"
+            Rotate="1,0,0,0"
+            Scale="2,3,1"
+            Type="WH_TriggerArea">
+      <Properties Label="fixture_publicEnemiesRepulsionZone" />
+      <Points>
+        <Point Pos="0,0,0" />
+        <Point Pos="1,0,0" />
+        <Point Pos="1,1,0" />
+        <Point Pos="0,1,0" />
+      </Points>
+    </Object>
+  </Objects>
+</Layer>

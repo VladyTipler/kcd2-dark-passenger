@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "candidates": [
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "zelejov",
+      "entityName": "test_innkeeper",
+      "entityGuid": "00000000-0000-0000-0000-000000000101",
+      "soulGuid": "00000000-0000-0000-0000-000000000201",
+      "factionName": "trosecko_settlements_zelejov_commonFolk_tavern_staff",
+      "characterName": "char_HOSPODSKY_TEST",
+      "position": { "x": 10.0, "y": 20.0, "z": 30.0 },
+      "editorLayer": "Main/tzel_zelejov/inn/_script/npc/innkeeper",
+      "homeLinks": [
+        { "name": "home", "targetId": "10", "targetGuid": "00000000-0000-0000" }
+      ],
+      "workLinks": [
+        { "name": "_@servicesVillage_work", "targetId": "11", "targetGuid": "00000000-0000-0000" }
+      ]
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlementHint": "pritoky",
+      "entityName": "test_worker",
+      "entityGuid": "00000000-0000-0000-0000-000000000102",
+      "soulGuid": "00000000-0000-0000-0000-000000000202",
+      "factionName": "kutnohorsko_settlements_pritoky_commonFolk_inn_staff",
+      "characterName": "char_GENERIC_WOMAN_VILLAGER_01",
+      "position": { "x": 40.0, "y": 50.0, "z": 60.0 },
+      "editorLayer": "Main/kpri_pritoky/inn/_script/npc/worker",
+      "homeLinks": [],
+      "workLinks": [
+        { "name": "_@villager_work", "targetId": "12", "targetGuid": "00000000-0000-0000" }
+      ]
+    },
+    {
+      "gameRegion": "kutnohorsko",
+      "settlementHint": "pritoky",
+      "entityName": "test_story_actor",
+      "entityGuid": "00000000-0000-0000-0000-000000000103",
+      "soulGuid": "00000000-0000-0000-0000-000000000203",
+      "factionName": "kutnohorsko_main_story",
+      "characterName": "char_TEST_STORY_ACTOR",
+      "position": { "x": 70.0, "y": 80.0, "z": 90.0 },
+      "editorLayer": "Main/kpri_pritoky/quest/npc/story_actor",
+      "homeLinks": [],
+      "workLinks": [],
+      "storyCritical": true
+    }
+  ],
+  "containers": [
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "zelejov",
+      "entityName": "stash[Chest.test]",
+      "entityGuid": "00000000-0000-0000-0000-000000000301",
+      "entityId": "42",
+      "entityClass": "Stash",
+      "shopStash": true,
+      "position": { "x": 15.0, "y": 25.0, "z": 35.0 },
+      "editorLayer": "Main/tzel_zelejov/inn/_common"
+    }
+  ]
+}

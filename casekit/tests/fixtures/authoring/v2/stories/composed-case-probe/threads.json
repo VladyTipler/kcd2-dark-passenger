@@ -1,0 +1,210 @@
+{
+  "schemaVersion": 2,
+  "storyId": "composed-case-probe",
+  "threads": [
+    {
+      "id": "paper-trail",
+      "archetypeId": "paper-trail",
+      "lead": {
+        "mode": "case_start",
+        "requiresFacts": [],
+        "directionAsset": "direction.paper"
+      },
+      "entryStepIds": ["ask-innkeeper"],
+      "steps": [
+        {
+          "id": "ask-innkeeper",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "source-dialogue",
+            "bindings": {"source": "rumorSource"}
+          },
+          "guidance": [
+            {
+              "id": "settlement-search",
+              "target": {"kind": "area", "slot": "settlement"},
+              "precision": "area",
+              "objective": {
+                "nameAsset": "objective.guidance.search.name",
+                "states": {"active": "objective.guidance.search.active"}
+              }
+            },
+            {
+              "id": "find-source",
+              "target": {"kind": "actor", "slot": "rumorSource"},
+              "precision": "exact"
+            }
+          ],
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.innkeeper.prompt",
+                "responses": ["dialogue.innkeeper.response"],
+                "journal": "journal.rumor"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["traveler_missing"],
+            "nextStepIds": ["read-letter"],
+            "unlockThreadIds": []
+          }
+        },
+        {
+          "id": "read-letter",
+          "kind": "search",
+          "action": {
+            "evidenceModule": "document-in-container",
+            "bindings": {"container": "evidenceContainer"},
+            "placement": {"mode": "world-container"},
+            "item": {
+              "classification": "quest",
+              "retention": "case"
+            }
+          },
+          "guidance": [
+            {
+              "id": "find-container",
+              "target": {"kind": "entity", "slot": "evidenceContainer"},
+              "precision": "exact"
+            },
+            {
+              "id": "search-place",
+              "target": {"kind": "place", "slot": "evidenceContainer"},
+              "precision": "point"
+            }
+          ],
+          "requiresFacts": ["traveler_missing"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "name": "document.letter.name",
+                "info": "document.letter.info",
+                "body": "document.letter.body",
+                "journal": "journal.letter"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["letter_links_target"],
+            "nextStepIds": [],
+            "unlockThreadIds": ["witness-web"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "witness-web",
+      "archetypeId": "witness-web",
+      "lead": {
+        "mode": "fact",
+        "requiresFacts": ["letter_links_target"],
+        "directionAsset": "direction.witness"
+      },
+      "entryStepIds": ["question-witness"],
+      "steps": [
+        {
+          "id": "question-witness",
+          "kind": "communication",
+          "action": {
+            "evidenceModule": "witness-dialogue",
+            "bindings": {"witness": "witness"}
+          },
+          "guidance": [
+            {
+              "id": "find-witness",
+              "target": {"kind": "actor", "slot": "witness"},
+              "precision": "exact"
+            },
+            {
+              "id": "revealed-target",
+              "target": {"kind": "actor", "slot": "target"},
+              "precision": "exact",
+              "visibility": {"mode": "target-revealed"},
+              "lifetime": "case"
+            }
+          ],
+          "requiresFacts": ["letter_links_target"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.witness.prompt",
+                "responses": ["dialogue.witness.response"],
+                "journal": "journal.witness"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["target_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    },
+    {
+      "id": "courtyard-gossip",
+      "archetypeId": "paper-trail",
+      "lead": {
+        "mode": "ambient",
+        "requiresFacts": [],
+        "directionAsset": "direction.overheard"
+      },
+      "entryStepIds": ["listen-for-rumors"],
+      "steps": [
+        {
+          "id": "listen-for-rumors",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "timed-area-listening",
+            "activation": {
+              "mode": "timed-area-action",
+              "availableFromHour": 10,
+              "availableUntilHour": 22,
+              "durationHours": 2
+            },
+            "bindings": {}
+          },
+          "guidance": [{
+            "id": "listen-area",
+            "target": {
+              "kind": "area",
+              "slot": "settlement",
+              "areaSelection": "smallest-common",
+              "anchorSlots": ["rumorSource", "witness"]
+            },
+            "precision": "area",
+            "visibility": {"mode": "step-active", "requiresFacts": []},
+            "lifetime": "step",
+            "fallback": "reject-variant"
+          }],
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "action.listen.prompt",
+                "progress": "action.listen.progress",
+                "unavailable": "action.listen.unavailable",
+                "journal": "journal.area-listening"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["area_rumor_heard"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    }
+  ]
+}

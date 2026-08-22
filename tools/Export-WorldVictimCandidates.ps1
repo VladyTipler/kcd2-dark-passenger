@@ -46,6 +46,44 @@ function Write-Utf8NoBom {
     )
 }
 
+function ConvertTo-WorldPosition {
+    param([Parameter(Mandatory)][string]$Position)
+
+    $parts = @(
+        $Position.Split(',') |
+            ForEach-Object {
+                [double]::Parse(
+                    $_,
+                    [System.Globalization.CultureInfo]::InvariantCulture
+                )
+            }
+    )
+    return [ordered]@{
+        x = $parts[0]
+        y = $parts[1]
+        z = $parts[2]
+    }
+}
+
+function Get-SettlementHint {
+    param([string]$EditorLayer)
+
+    if ($EditorLayer -match '^Main/[^/_]+_([^/]+)/') {
+        return [string]$Matches[1]
+    }
+    return $null
+}
+
+function ConvertTo-WorldLink {
+    param([Parameter(Mandatory)]$Link)
+
+    return [ordered]@{
+        name = [string]$Link.Name
+        targetId = [string]$Link.TargetId
+        targetGuid = [string]$Link.TargetGuid
+    }
+}
+
 foreach ($path in @($KuttenbergObjectsPath, $TroskyObjectsPath, $SoulTablePath)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Required source not found: $path"
@@ -61,7 +99,9 @@ foreach ($soul in $soulTable.Values) {
     }
 }
 
-$records = [System.Collections.Generic.List[object]]::new()
+$legacyCandidates = [System.Collections.Generic.List[object]]::new()
+$actors = [System.Collections.Generic.List[object]]::new()
+$containers = [System.Collections.Generic.List[object]]::new()
 
 $regionSources = @(
     [ordered]@{ gameRegion = 'kutnohorsko'; objectsPath = $KuttenbergObjectsPath }
@@ -70,30 +110,51 @@ $regionSources = @(
 
 foreach ($regionSource in $regionSources) {
     [xml]$objects = Get-Content -Raw -LiteralPath $regionSource.objectsPath
-    foreach ($entity in $objects.SelectNodes('//Entity[@EntityClass="NPC"]')) {
+    $shopStashTargetIds = [System.Collections.Generic.HashSet[string]]::new()
+    $shopStashTargetGuids = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($link in $objects.SelectNodes('//Link[@Name="shopStash"]')) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$link.TargetId)) {
+            $null = $shopStashTargetIds.Add([string]$link.TargetId)
+        }
+        if (-not [string]::IsNullOrWhiteSpace([string]$link.TargetGuid)) {
+            $null = $shopStashTargetGuids.Add([string]$link.TargetGuid)
+        }
+    }
+    foreach ($entity in $objects.SelectNodes(
+        '//Entity[starts-with(@EntityClass,"NPC")]'
+    )) {
         $entityName = [string]$entity.Name
         $soul = $soulsByName[$entityName]
         if ($null -eq $soul) {
             continue
         }
 
-        $linkNames = @($entity.EntityLinks.Link | ForEach-Object { [string]$_.Name })
-        $homeLink = @($linkNames | Where-Object { $_ -like '_!home*' }).Count -gt 0
-        $workLink = @($linkNames | Where-Object { $_ -like '_@villager_work*' }).Count -gt 0
-        $layer = [string]$entity.EditorLayer
-        $settlementHint = $null
-        if ($layer -match '^Main/[^/_]+_([^/]+)/') {
-            $settlementHint = $Matches[1]
-        }
-
-        $positionParts = @(
-            ([string]$entity.Pos).Split(',') |
-                ForEach-Object {
-                    [double]::Parse($_, [System.Globalization.CultureInfo]::InvariantCulture)
-                }
+        $links = @($entity.EntityLinks.Link)
+        $homeLinks = @(
+            $links |
+                Where-Object {
+                    $_.Name -eq 'home' -or $_.Name -like '_!home*'
+                } |
+                ForEach-Object { ConvertTo-WorldLink -Link $_ } |
+                Sort-Object name, targetId, targetGuid
         )
+        $workLinks = @(
+            $links |
+                Where-Object { $_.Name -match '^_@.*work' } |
+                ForEach-Object { ConvertTo-WorldLink -Link $_ } |
+                Sort-Object name, targetId, targetGuid
+        )
+        $linkNames = @($links | ForEach-Object { [string]$_.Name })
+        $homeLink = @(
+            $linkNames | Where-Object { $_ -like '_!home*' }
+        ).Count -gt 0
+        $workLink = @(
+            $linkNames | Where-Object { $_ -like '_@villager_work*' }
+        ).Count -gt 0
+        $layer = [string]$entity.EditorLayer
+        $settlementHint = Get-SettlementHint -EditorLayer $layer
 
-        $records.Add([ordered]@{
+        $record = [ordered]@{
             gameRegion = [string]$regionSource.gameRegion
             settlementHint = $settlementHint
             entityName = $entityName
@@ -101,12 +162,10 @@ foreach ($regionSource in $regionSources) {
             soulGuid = [string]$soul.soul_id
             factionName = [string]$soul.faction_name
             characterName = [string]$soul.character_name
-            position = [ordered]@{
-                x = $positionParts[0]
-                y = $positionParts[1]
-                z = $positionParts[2]
-            }
+            position = ConvertTo-WorldPosition -Position ([string]$entity.Pos)
             editorLayer = $layer
+            homeLinks = $homeLinks
+            workLinks = $workLinks
             hasHomeLink = $homeLink
             hasVillagerWorkLink = $workLink
             permanentResidentEvidence = ($homeLink -and $workLink)
@@ -114,14 +173,51 @@ foreach ($regionSource in $regionSources) {
                 objects = [string]$regionSource.objectsPath
                 souls = $SoulTablePath
             }
+        }
+        $actors.Add($record)
+        if ([string]$entity.EntityClass -eq 'NPC') {
+            $legacyCandidates.Add($record)
+        }
+    }
+
+    foreach ($entity in $objects.SelectNodes('//Entity[@EntityClass="Stash"]')) {
+        $layer = [string]$entity.EditorLayer
+        $settlementHint = Get-SettlementHint -EditorLayer $layer
+        if ([string]::IsNullOrWhiteSpace($settlementHint)) {
+            continue
+        }
+        $containers.Add([ordered]@{
+            gameRegion = [string]$regionSource.gameRegion
+            settlementHint = $settlementHint
+            entityName = [string]$entity.Name
+            entityId = [string]$entity.EntityId
+            entityGuid = [string]$entity.EntityGuid
+            entityClass = [string]$entity.EntityClass
+            shopStash = (
+                $shopStashTargetIds.Contains([string]$entity.EntityId) -or
+                $shopStashTargetGuids.Contains([string]$entity.EntityGuid)
+            )
+            position = ConvertTo-WorldPosition -Position ([string]$entity.Pos)
+            editorLayer = $layer
+            source = [ordered]@{
+                objects = [string]$regionSource.objectsPath
+            }
         })
     }
 }
 
 $document = [ordered]@{
     schemaVersion = 1
-    candidates = @($records | Sort-Object gameRegion, entityName)
+    candidates = @($legacyCandidates | Sort-Object gameRegion, entityName)
+    actors = @($actors | Sort-Object gameRegion, entityName)
+    containers = @(
+        $containers | Sort-Object gameRegion, settlementHint, entityName, entityGuid
+    )
 }
 $json = $document | ConvertTo-Json -Depth 8
 Write-Utf8NoBom -LiteralPath $OutputPath -Content ($json + "`n")
-Write-Host "Exported $($records.Count) joined NPC records across both regions."
+Write-Host (
+    "Exported $($actors.Count) joined actors, " +
+    "$($legacyCandidates.Count) legacy victim-source records and " +
+    "$($containers.Count) settlement stashes across both regions."
+)

@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "region": "trosecko",
+  "settlement": "zelejov",
+  "localized": {
+    "ru": {"displayName": "Желеёв"},
+    "en": {"displayName": "Zhelejov"}
+  },
+  "anonymousIdentity": {
+    "mode": "anonymous",
+    "localized": {
+      "ru": {
+        "occupation": "местный житель",
+        "direction": "одного из жителей Желеёва"
+      },
+      "en": {
+        "occupation": "local resident",
+        "direction": "one of the residents of Zhelejov"
+      }
+    }
+  },
+  "native": {
+    "roles": {
+      "innkeeper": {
+        "entityName": "tzel_vavrinec",
+        "dialogueRole": "DP_INNKEEPER_RUMOR"
+      },
+      "document": {
+        "containerGuid": "aaf89994-e94b-0309",
+        "documentGuid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3"
+      },
+      "witness": {
+        "entityName": "tzel_bretislav",
+        "dialogueRole": "DP_TAVERN_WITNESS",
+        "identity": {
+          "ru": {"name": "Богуслав", "occupation": "батрак"},
+          "en": {"name": "Bretislav", "occupation": "farmhand"}
+        }
+      }
+    }
+  },
+  "entities": [
+    {
+      "entityName": "tzel_vavrinec",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.innkeeper",
+        "role.tavern_worker"
+      ],
+      "identity": {
+        "mode": "named",
+        "localized": {
+          "ru": {
+            "name": "Лаврентий",
+            "occupation": "корчмарь",
+            "direction": "корчмаря Лаврентия"
+          },
+          "en": {
+            "name": "Lavrentiy",
+            "occupation": "innkeeper",
+            "direction": "the innkeeper Lavrentiy"
+          }
+        }
+      }
+    },
+    {
+      "entityName": "tzel_bretislav",
+      "addCapabilities": [
+        "interaction.dialogue",
+        "role.farmhand",
+        "role.tavern_worker",
+        "workplace.inn_stable"
+      ],
+      "identity": {
+        "mode": "named",
+        "localized": {
+          "ru": {
+            "name": "Богуслав",
+            "occupation": "батрак",
+            "direction": "батрак при желеевской корчме"
+          },
+          "en": {
+            "name": "Bretislav",
+            "occupation": "farmhand",
+            "direction": "the farmhand at the Zhelejov inn"
+          }
+        }
+      }
+    },
+    {
+      "entityGuid": "aaf89994-e94b-0309",
+      "addCapabilities": [
+        "container.evidence"
+      ],
+      "presentation": {
+        "localized": {
+          "ru": {
+            "locationHint": "запертый сундук на втором этаже желеевской корчмы"
+          },
+          "en": {
+            "locationHint": "the locked chest upstairs at the Zhelejov inn"
+          }
+        }
+      }
+    }
+  ]
+}

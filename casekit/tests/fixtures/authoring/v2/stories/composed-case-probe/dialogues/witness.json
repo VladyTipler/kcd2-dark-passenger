@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 2,
+  "id": "witness",
+  "scenePreset": "seated-tavern",
+  "localizationKeys": [
+    "dialogue.witness.prompt",
+    "dialogue.witness.response"
+  ]
+}

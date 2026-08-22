@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 2,
+  "id": "paper-trail-witness",
+  "slots": {
+    "settlement": {
+      "entityType": "settlement",
+      "required": true,
+      "capabilities": [],
+      "templateFields": ["displayName"]
+    },
+    "target": {
+      "entityType": "actor",
+      "required": true,
+      "capabilities": ["person.killable", "victim.eligible"],
+      "identityModes": ["named", "titled", "anonymous"],
+      "templateFields": ["displayLabel", "directionLabel", "name"]
+    },
+    "rumorSource": {
+      "entityType": "actor",
+      "required": true,
+      "capabilities": ["role.innkeeper", "interaction.dialogue"],
+      "identityModes": ["named", "titled", "anonymous"],
+      "templateFields": ["displayLabel", "directionLabel", "name"]
+    },
+    "evidenceContainer": {
+      "entityType": "container",
+      "required": true,
+      "capabilities": ["container.evidence"],
+      "templateFields": ["locationHint"]
+    },
+    "witness": {
+      "entityType": "actor",
+      "required": true,
+      "capabilities": ["role.tavern_worker", "interaction.dialogue"],
+      "identityModes": ["named", "titled", "anonymous"],
+      "templateFields": ["displayLabel", "directionLabel", "name"]
+    }
+  },
+  "threadRules": {
+    "minimum": 2,
+    "maximum": 6,
+    "allowedLeadModes": ["case_start", "fact", "ambient"],
+    "allowedStepKinds": ["lead", "search", "communication"],
+    "allowBranching": true,
+    "allowConvergence": true,
+    "allowOutOfOrder": true
+  },
+  "evidenceRules": {
+    "source-dialogue": {"confidence": 20, "minimum": 1, "maximum": 2},
+    "document-in-container": {"confidence": 30, "minimum": 1, "maximum": 2},
+    "witness-dialogue": {"confidence": 20, "minimum": 1, "maximum": 2},
+    "timed-area-listening": {"confidence": 15, "minimum": 0, "maximum": 2}
+  }
+}

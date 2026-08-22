@@ -1,0 +1,270 @@
+{
+  "schemaVersion": 2,
+  "id": "convenient_accident",
+  "code": 1001,
+  "weight": 1,
+  "constraints": {
+    "region": "kutnohorsko",
+    "settlement": "pritoky"
+  },
+  "targetPolicy": {
+    "sex": "any",
+    "allowStoryCharacters": false,
+    "requireKillable": true,
+    "requireAlive": true
+  },
+  "crimeProfile": {
+    "innocentVictim": "vojtech",
+    "method": "murder_disguised_as_fall",
+    "coverStory": "drunken_accident"
+  },
+  "revealThreshold": 70,
+  "identityRequirement": {
+    "allOf": ["suspect_identified"]
+  },
+  "native": {
+    "questName": "dark_within_k",
+    "dialogFolder": "dark_within_k",
+    "signals": {
+      "rumorAvailableTag": 32,
+      "witnessAvailableTag": 36
+    },
+    "contexts": {
+      "rumorHeard": "dp_rumor_heard_kutnohorsko",
+      "witnessHeard": "dp_witness_heard_kutnohorsko"
+    },
+    "journal": {
+      "objectives": {
+        "search": {
+          "nameKey": "dp_case_1001_objective_search_name",
+          "fallbackName": "Learn the truth of Vojtech's death",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_search_active",
+              "fallback": "Someone in the marked area remembers more about Vojtech's death than they are willing to say."
+            }
+          }
+        },
+        "investigation": {
+          "nameKey": "dp_case_1001_objective_investigation_name",
+          "fallbackName": "Prove that Vojtech was murdered",
+          "states": {}
+        },
+        "target": {
+          "nameKey": "dp_case_1001_objective_target_name",
+          "fallbackName": "Hunt down Vojtech's killer",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_target_active",
+              "fallback": "Vojtech's death was no accident. Find the guilty man and carry out the sentence."
+            },
+            "done": {
+              "key": "dp_case_1001_objective_target_done",
+              "fallback": "Vojtech's killer is dead. Now no trace can be left behind."
+            }
+          }
+        },
+        "cleanup": {
+          "nameKey": "dp_case_1001_objective_cleanup_name",
+          "fallbackName": "Leave no trace",
+          "states": {
+            "active": {
+              "key": "dp_case_1001_objective_cleanup_active",
+              "fallback": "The killing is done. Make certain no one can connect it to Henry."
+            },
+            "witnessed": {
+              "key": "dp_case_1001_objective_cleanup_witnessed",
+              "fallback": "Someone saw too much. Witnesses may lead the guards to the truth."
+            },
+            "clean": {
+              "key": "dp_case_1001_objective_cleanup_clean",
+              "fallback": "No alarm was raised. The case can be closed."
+            },
+            "controlled": {
+              "key": "dp_case_1001_objective_cleanup_controlled",
+              "fallback": "Every dangerous witness is gone. The case can be closed."
+            },
+            "noisy": {
+              "key": "dp_case_1001_objective_cleanup_noisy",
+              "fallback": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence."
+            },
+            "external": {
+              "key": "dp_case_1001_objective_cleanup_external",
+              "fallback": "The guilty man died without Henry's hand. No trail remains."
+            }
+          }
+        }
+      }
+    },
+    "dialogues": [
+      {
+        "kind": "rumor",
+        "graphName": "innkeeper_rumor_dialog_k",
+        "fileName": "innkeeper_rumor_dialog_k.xml",
+        "rootKey": "dp_evidence_dialog_root",
+        "sequenceName": "convenient_accident_rumor",
+        "promptKey": "dp_evidence_ask_unease",
+        "availableLabel": "Rumor available",
+        "heardLabel": "Rumor heard",
+        "responses": [
+          { "role": "HENRY", "key": "dp_rumor_henry_unease" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_fear" },
+          { "role": "HENRY", "key": "dp_rumor_henry_why" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_vojtech" },
+          { "role": "HENRY", "key": "dp_rumor_henry_threat" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_refusal" },
+          { "role": "HENRY", "key": "dp_rumor_henry_what_to_seek" },
+          { "role": "innkeeper", "key": "dp_rumor_innkeeper_belongings" }
+        ]
+      },
+      {
+        "kind": "witness",
+        "graphName": "tavern_witness_dialog_k",
+        "fileName": "tavern_witness_dialog_k.xml",
+        "rootKey": "dp_witness_dialog_root",
+        "sequenceName": "vojtech_tavern_witness",
+        "promptKey": "dp_witness_ask_vojtech",
+        "availableLabel": "Witness lead available",
+        "heardLabel": "Witness heard",
+        "responses": [
+          { "role": "HENRY", "key": "dp_witness_henry_working" },
+          { "role": "witness", "key": "dp_witness_maid_many_nights" },
+          { "role": "HENRY", "key": "dp_witness_henry_letter" },
+          { "role": "witness", "key": "dp_witness_maid_fool" },
+          { "role": "HENRY", "key": "dp_witness_henry_dead" },
+          { "role": "witness", "key": "dp_witness_maid_stream" },
+          { "role": "HENRY", "key": "dp_witness_henry_heard" },
+          { "role": "witness", "key": "dp_witness_maid_threat" },
+          { "role": "HENRY", "key": "dp_witness_henry_who" },
+          { "role": "witness", "key": "dp_witness_maid_name" },
+          { "role": "HENRY", "key": "dp_witness_henry_where" },
+          { "role": "witness", "key": "dp_witness_maid_location" }
+        ]
+      }
+    ],
+    "witnessObjective": {
+      "assetName": "DarkWithinWitnessObjective_k",
+      "nameKey": "dark_within_witness_name",
+      "activeKey": "dark_within_witness_active",
+      "doneKey": "dark_within_witness_done",
+      "fallbackName": "Question the inn workers",
+      "fallbackActive": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.",
+      "fallbackDone": "The maid confirmed that Vojtech had been threatened and identified the suspect."
+    }
+  },
+  "evidence": [
+    {
+      "id": "pritoky_innkeeper_strong_suspicion",
+      "code": 1101,
+      "kind": "dialogue",
+      "role": "innkeeper",
+      "purpose": "strong_suspicion",
+      "sourceStance": "afraid",
+      "confidence": 20,
+      "placement": "on_event",
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": [],
+      "reveals": [
+        "vojtech_death_suspicious",
+        "vojtech_belongings_location"
+      ],
+      "promptKey": "dp_evidence_ask_unease"
+    },
+    {
+      "id": "vojtech_belongings",
+      "code": 1102,
+      "kind": "document",
+      "role": "document",
+      "confidence": 30,
+      "placement": "case_start",
+      "destination": {
+        "qualifiedId": "paper-trail/read-letter",
+        "mode": "world-container",
+        "actorSlot": "",
+        "actorEntityName": "",
+        "actorEntityGuid": "",
+        "containerSlot": "evidenceContainer",
+        "containerEntityName": "stash[Chest/chest119_8a251500-3764-482f-aa61-7c397aa24bf0]",
+        "containerEntityGuid": "277db45d-28ac-0286"
+      },
+      "discoverableWithoutHint": true,
+      "hintsUnlockedBy": ["pritoky_innkeeper_strong_suspicion"],
+      "reveals": [
+        "vojtech_witnessed_murder",
+        "tavern_witness_identity"
+      ],
+      "reaction": "vanilla_neutral",
+      "direction": {
+        "key": "dp_ca_direction_belongings"
+      },
+      "item": {
+        "name": "dp_vojtech_last_letter",
+        "classification": "quest",
+        "retention": "case",
+        "nameKey": "dp_vojtech_letter_name",
+        "infoKey": "dp_vojtech_letter_info",
+        "contentKey": "dp_vojtech_letter_content"
+      }
+    },
+    {
+      "id": "tavern_witness",
+      "code": 1103,
+      "kind": "dialogue",
+      "role": "witness",
+      "confidence": 20,
+      "placement": "on_event",
+      "discoverableWithoutHint": false,
+      "hintsUnlockedBy": ["vojtech_belongings"],
+      "reveals": ["suspect_identified"],
+      "direction": {
+        "key": "dp_ca_direction_witness"
+      }
+    }
+  ],
+  "text": {
+    "ru": {
+      "title": "Удобная случайность",
+      "description": "Смерть батрака Войтеха слишком поспешно признали несчастным случаем. Нужно восстановить то, что здешние предпочли забыть."
+    },
+    "en": {
+      "title": "A Convenient Accident",
+      "description": "The farmhand Vojtech's death was too quickly dismissed as an accident. I must uncover what the locals chose to forget."
+    }
+  },
+  "localization": {
+    "ru": {
+      "dp_case_1001_objective_search_name": "Узнать правду о смерти Войтеха",
+      "dp_case_1001_objective_search_active": "В отмеченной области кто-то помнит больше, чем готов сказать о смерти Войтеха.",
+      "dp_case_1001_objective_investigation_name": "Доказать, что Войтеха убили",
+      "dp_case_1001_objective_target_name": "Настигнуть убийцу Войтеха",
+      "dp_case_1001_objective_target_active": "Смерть Войтеха не была случайностью. Найти виновного и привести приговор в исполнение.",
+      "dp_case_1001_objective_target_done": "Убийца Войтеха мёртв. Теперь нельзя оставить следов.",
+      "dp_case_1001_objective_cleanup_name": "Не оставить следов",
+      "dp_case_1001_objective_cleanup_active": "Убийство совершено. Убедиться, что никто не сможет связать его с Генри.",
+      "dp_case_1001_objective_cleanup_witnessed": "Кто-то видел слишком много. Свидетели могут привести стражу по следу.",
+      "dp_case_1001_objective_cleanup_clean": "Никто не поднял тревогу. Дело можно закрыть.",
+      "dp_case_1001_objective_cleanup_controlled": "Все опасные свидетели устранены. Дело можно закрыть.",
+      "dp_case_1001_objective_cleanup_noisy": "Тревога поднята, но погоня потеряла след. Дело закрыто не без последствий.",
+      "dp_case_1001_objective_cleanup_external": "Смерть настигла виновного без участия Генри. Следов не осталось.",
+      "dp_ca_direction_belongings": "Корчмарь сказал, что сундук с вещами Войтеха остался на сеновале за корчмой. Возможно, там найдётся то, чего не пожелал искать рихтарж.",
+      "dp_ca_direction_witness": "Войтех написал, что одна из служанок видела его разговор с убийцей. Возможно, она сможет опознать этого человека."
+    },
+    "en": {
+      "dp_case_1001_objective_search_name": "Learn the truth of Vojtech's death",
+      "dp_case_1001_objective_search_active": "Someone in the marked area remembers more about Vojtech's death than they are willing to say.",
+      "dp_case_1001_objective_investigation_name": "Prove that Vojtech was murdered",
+      "dp_case_1001_objective_target_name": "Hunt down Vojtech's killer",
+      "dp_case_1001_objective_target_active": "Vojtech's death was no accident. Find the guilty man and carry out the sentence.",
+      "dp_case_1001_objective_target_done": "Vojtech's killer is dead. Now no trace can be left behind.",
+      "dp_case_1001_objective_cleanup_name": "Leave no trace",
+      "dp_case_1001_objective_cleanup_active": "The killing is done. Make certain no one can connect it to Henry.",
+      "dp_case_1001_objective_cleanup_witnessed": "Someone saw too much. Witnesses may lead the guards to the truth.",
+      "dp_case_1001_objective_cleanup_clean": "No alarm was raised. The case can be closed.",
+      "dp_case_1001_objective_cleanup_controlled": "Every dangerous witness is gone. The case can be closed.",
+      "dp_case_1001_objective_cleanup_noisy": "The alarm was raised, but the pursuit lost the trail. The case is closed, though not without consequence.",
+      "dp_case_1001_objective_cleanup_external": "The guilty man died without Henry's hand. No trail remains.",
+      "dp_ca_direction_belongings": "The innkeeper said Vojtech's chest remains in the hayloft behind the inn. It may hold what the bailiff chose not to find.",
+      "dp_ca_direction_witness": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man."
+    }
+  }
+}

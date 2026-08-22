@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 2,
+  "id": "innkeeper-rumor",
+  "scenePreset": "standing-conversation",
+  "media": {
+    "voice": "native",
+    "lipSync": true
+  },
+  "variants": [
+    {
+      "id": "default",
+      "presentationId": "letter-unknown",
+      "promptAsset": "dialogue.rumor.prompt",
+      "turns": [
+        {"speaker": "henry", "asset": "dialogue.rumor.henryUnease"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperFear"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryWhy"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperVojtech"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryThreat"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperRefusal"},
+        {"speaker": "henry", "asset": "dialogue.rumor.henryWhatToSeek"},
+        {"speaker": "source", "asset": "dialogue.rumor.innkeeperBelongings"}
+      ]
+    }
+  ],
+  "localizationKeys": [
+    "dialogue.rumor.root",
+    "dialogue.rumor.prompt",
+    "dialogue.rumor.henryUnease",
+    "dialogue.rumor.innkeeperFear",
+    "dialogue.rumor.henryWhy",
+    "dialogue.rumor.innkeeperVojtech",
+    "dialogue.rumor.henryThreat",
+    "dialogue.rumor.innkeeperRefusal",
+    "dialogue.rumor.henryWhatToSeek",
+    "dialogue.rumor.innkeeperBelongings"
+  ]
+}

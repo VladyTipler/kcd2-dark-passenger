@@ -41,10 +41,12 @@ function DarkPassengerSatisfaction.Add()
     local soul = PlayerSoul()
     if soul == nil then return false end
 
-    if DarkPassengerSatisfaction.buffHandle ~= nil then
+    if HasBuff(soul) then
         Log("add skipped: satisfaction already active")
         return true
     end
+
+    DarkPassengerSatisfaction.buffHandle = nil
 
     local cleanupOk, cleanupErr = pcall(function()
         soul:RemoveAllBuffsByGuid(DarkPassengerSatisfaction.BUFF_GUID)

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "id": "composed-case-probe",
+  "status": "active",
+  "archetypes": ["paper-trail", "witness-web"],
+  "truth": {
+    "innocentVictim": {"id": "missing-traveler"},
+    "crime": {"id": "murder"},
+    "motive": {"id": "greed"},
+    "coverStory": {"id": "false-departure"},
+    "escapedJustice": {"id": "no-body"}
+  },
+  "facts": [
+    {"id": "traveler_missing", "category": "crime"},
+    {"id": "letter_links_target", "category": "corroboration"},
+    {"id": "target_identified", "category": "identity", "hardIdentity": true},
+    {"id": "area_rumor_heard", "category": "corroboration"}
+  ],
+  "reveal": {
+    "confidence": 70,
+    "requiredFacts": ["target_identified"]
+  },
+  "storyIdentities": [
+    {
+      "id": "culprit",
+      "bindingSlot": "target",
+      "revealFact": "target_identified",
+      "localized": {
+        "ru": {
+          "name": "Микулаш",
+          "displayTemplate": "{{occupation}} Микулаш"
+        },
+        "en": {
+          "name": "Mikulas",
+          "displayTemplate": "Mikulas, {{occupation}}"
+        }
+      }
+    }
+  ],
+  "journal": {
+    "objectives": {
+      "search": {
+        "nameAsset": "objective.search.name",
+        "states": {"active": "objective.search.active"}
+      },
+      "investigation": {
+        "nameAsset": "objective.investigation.name"
+      },
+      "target": {
+        "nameAsset": "objective.target.name",
+        "states": {
+          "active": "objective.target.active",
+          "done": "objective.target.done"
+        }
+      },
+      "cleanup": {
+        "nameAsset": "objective.cleanup.name",
+        "states": {
+          "active": "objective.cleanup.active",
+          "witnessed": "objective.cleanup.witnessed",
+          "clean": "objective.cleanup.clean",
+          "controlled": "objective.cleanup.controlled",
+          "noisy": "objective.cleanup.noisy",
+          "external": "objective.cleanup.external"
+        }
+      }
+    }
+  }
+}

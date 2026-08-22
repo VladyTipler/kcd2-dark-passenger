@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="us-ascii"?>
+<database xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="barbora" xsi:noNamespaceSchemaLocation="../database.xsd">
+	<buff_classs version="1">
+		<buff_class buff_class_id="2301" buff_class_name="DarkPassengerHunger" />
+	</buff_classs>
+</database>

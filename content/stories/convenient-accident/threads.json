@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 2,
+  "storyId": "convenient-accident",
+  "threads": [
+    {
+      "id": "paper-trail",
+      "archetypeId": "paper-trail-witness",
+      "lead": {
+        "mode": "case_start",
+        "requiresFacts": [],
+        "directionAsset": "direction.belongings"
+      },
+      "entryStepIds": ["ask-innkeeper", "read-letter"],
+      "steps": [
+        {
+          "id": "ask-innkeeper",
+          "kind": "lead",
+          "action": {
+            "evidenceModule": "source-dialogue",
+            "bindings": {"source": "rumorSource"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "letter-unknown",
+              "when": {"allKnown": [], "allUnknown": ["vojtech_witnessed_murder"]},
+              "content": {
+                "prompt": "dialogue.rumor.prompt",
+                "responses": ["dialogue.rumor.innkeeperBelongings"],
+                "journal": "journal.rumor"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["vojtech_death_suspicious", "vojtech_belongings_location"],
+            "nextStepIds": ["read-letter"],
+            "unlockThreadIds": []
+          }
+        },
+        {
+          "id": "read-letter",
+          "kind": "search",
+          "action": {
+            "evidenceModule": "document-in-container",
+            "bindings": {"container": "evidenceContainer"},
+            "placement": {"mode": "world-container"},
+            "item": {"classification": "quest", "retention": "case"}
+          },
+          "requiresFacts": [],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "name": "document.letter.name",
+                "info": "document.letter.info",
+                "body": "document.letter.body",
+                "journal": "journal.letter"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["vojtech_witnessed_murder", "tavern_witness_identity"],
+            "nextStepIds": [],
+            "unlockThreadIds": ["witness-web"]
+          }
+        }
+      ]
+    },
+    {
+      "id": "witness-web",
+      "archetypeId": "paper-trail-witness",
+      "lead": {
+        "mode": "fact",
+        "requiresFacts": ["tavern_witness_identity"],
+        "directionAsset": "direction.witness"
+      },
+      "entryStepIds": ["question-witness"],
+      "steps": [
+        {
+          "id": "question-witness",
+          "kind": "communication",
+          "action": {
+            "evidenceModule": "witness-dialogue",
+            "bindings": {"witness": "witness"}
+          },
+          "requiresFacts": ["tavern_witness_identity"],
+          "presentations": [
+            {
+              "id": "default",
+              "when": {"allKnown": [], "allUnknown": []},
+              "content": {
+                "prompt": "dialogue.witness.prompt",
+                "responses": ["dialogue.witness.maidLocation"],
+                "journal": "journal.witness"
+              }
+            }
+          ],
+          "result": {
+            "revealsFacts": ["suspect_identified"],
+            "nextStepIds": [],
+            "unlockThreadIds": []
+          }
+        }
+      ]
+    }
+  ]
+}

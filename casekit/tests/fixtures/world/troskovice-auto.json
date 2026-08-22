@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "candidates": [],
+  "actors": [
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "troskovice",
+      "entityName": "ttkc_inkeeper",
+      "entityGuid": "00000000-0000-0000-0000-000000000401",
+      "soulGuid": "00000000-0000-0000-0000-000000000501",
+      "factionName": "trosecko_settlements_troskovice_commonFolk_tavern",
+      "characterName": "char_HOSPODSKA_ALZBETA",
+      "position": {"x": 2338.195, "y": 2064.755, "z": 110.7623},
+      "editorLayer": "Main/ttkc_troskovice/village/2_tavern/_script/npc/inkeeper",
+      "homeLinks": [],
+      "workLinks": [
+        {"name": "_@servicesVillage_work", "targetId": "20467", "targetGuid": "00000000-0000-0000"}
+      ]
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "troskovice",
+      "entityName": "ttkc_woman_2",
+      "entityGuid": "00000000-0000-0000-0000-000000000402",
+      "soulGuid": "00000000-0000-0000-0000-000000000502",
+      "factionName": "trosecko_settlements_troskovice_commonFolk_tavern",
+      "characterName": "char_DEVECKA_Z_TROSKOVICKE_HOSPODY",
+      "position": {"x": 2337.7, "y": 2066.125, "z": 110.7098},
+      "editorLayer": "Main/ttkc_troskovice/village/2_tavern/_script/npc/other",
+      "homeLinks": [
+        {"name": "_!home", "targetId": "20468", "targetGuid": "00000000-0000-0000"}
+      ],
+      "workLinks": [
+        {"name": "_@servicesVillage_work", "targetId": "20467", "targetGuid": "00000000-0000-0000"}
+      ]
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "troskovice",
+      "entityName": "ttkc_man_10",
+      "entityGuid": "00000000-0000-0000-0000-000000000403",
+      "soulGuid": "00000000-0000-0000-0000-000000000503",
+      "factionName": "trosecko_settlements_troskovice_commonFolk_tavern",
+      "characterName": "char_GENERIC_MAN_COMMONER_20",
+      "position": {"x": 2338.723, "y": 2065.8, "z": 110.7126},
+      "editorLayer": "Main/ttkc_troskovice/village/2_tavern/_script/npc/other",
+      "homeLinks": [
+        {"name": "_!home", "targetId": "20468", "targetGuid": "00000000-0000-0000"}
+      ],
+      "workLinks": [
+        {"name": "_@servicesVillage_work", "targetId": "20465", "targetGuid": "00000000-0000-0000"}
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "troskovice",
+      "entityName": "stash[Chest.chest25_test]",
+      "entityGuid": "00000000-0000-0000-0000-000000000601",
+      "entityId": "601",
+      "entityClass": "Stash",
+      "shopStash": false,
+      "position": {"x": 2333.892, "y": 2074.268, "z": 112.5615},
+      "editorLayer": "Main/ttkc_troskovice/village/2_tavern/_common"
+    },
+    {
+      "gameRegion": "trosecko",
+      "settlementHint": "troskovice",
+      "entityName": "stash[Shop.test]",
+      "entityGuid": "00000000-0000-0000-0000-000000000602",
+      "entityId": "602",
+      "entityClass": "Stash",
+      "shopStash": true,
+      "position": {"x": 2334.0, "y": 2074.0, "z": 112.5},
+      "editorLayer": "Main/ttkc_troskovice/village/2_tavern/_common"
+    }
+  ]
+}

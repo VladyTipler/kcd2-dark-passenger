@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 2,
+  "id": "innkeeper",
+  "scenePreset": "standing-conversation",
+  "media": {
+    "voice": "native",
+    "lipSync": true
+  },
+  "localizationKeys": [
+    "dialogue.innkeeper.prompt",
+    "dialogue.innkeeper.response"
+  ]
+}

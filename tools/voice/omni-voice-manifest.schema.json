@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://darkpassenger.local/schemas/omni-voice-manifest.schema.json",
+  "title": "Dark Passenger OmniVoice batch manifest",
+  "type": "object",
+  "required": ["version", "serverUrl", "outputRoot", "defaults", "voices", "lines"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "serverUrl": {"type": "string", "format": "uri"},
+    "outputRoot": {"type": "string", "minLength": 1},
+    "defaults": {
+      "type": "object",
+      "required": ["language", "inferenceSteps", "guidanceScale", "denoise", "speed", "preprocessPrompt", "postprocessOutput"],
+      "additionalProperties": false,
+      "properties": {
+        "language": {"type": "string", "minLength": 1},
+        "inferenceSteps": {"type": "number", "minimum": 1},
+        "guidanceScale": {"type": "number", "minimum": 0},
+        "denoise": {"type": "boolean"},
+        "speed": {"type": "number", "exclusiveMinimum": 0},
+        "preprocessPrompt": {"type": "boolean"},
+        "postprocessOutput": {"type": "boolean"}
+      }
+    },
+    "voices": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["outputPrefix", "referenceAudio", "referenceText", "instruct"],
+        "additionalProperties": false,
+        "properties": {
+          "outputPrefix": {"type": "string", "pattern": "^[a-z0-9]+$"},
+          "referenceAudio": {"type": "string", "minLength": 1},
+          "referenceText": {"type": "string"},
+          "instruct": {"type": "string"}
+        }
+      }
+    },
+    "lines": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["lineId", "speaker", "text", "durationSeconds"],
+        "additionalProperties": false,
+        "properties": {
+          "lineId": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$"},
+          "speaker": {"type": "string", "minLength": 1},
+          "text": {"type": "string", "minLength": 1},
+          "durationSeconds": {"type": "number", "exclusiveMinimum": 0}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "areas": [
+    {
+      "region": "kutnohorsko",
+      "name": "kpri_publicEnemiesRepulsionZoneVillageArea_1",
+      "guid": "d0fa0ece-6af5-19f6",
+      "editorLayer": "Main/kpri_pritoky/village/_script/crime_publicEnemiesRepulsionZone",
+      "label": "crime_publicEnemiesRepulsionZone",
+      "surfaceArea": 51208.71265287255,
+      "polygon": [
+        { "x": 2298.979, "y": 1694.99 },
+        { "x": 2376.8787421539996, "y": 1707.547614615572 },
+        { "x": 2430.38164378956, "y": 1779.94149402064 },
+        { "x": 2438.1994464916197, "y": 1894.1088282005 },
+        { "x": 2362.15870730799, "y": 1935.51694900078 },
+        { "x": 2271.3548958897477, "y": 1960.71914725786 },
+        { "x": 2214.28677137666, "y": 1904.76693838634 },
+        { "x": 2194.8454035330997, "y": 1824.8455934832 },
+        { "x": 2190.6707968592, "y": 1756.530249074824 },
+        { "x": 2230.3111747742596, "y": 1701.1407055095772 }
+      ]
+    },
+    {
+      "region": "kutnohorsko",
+      "name": "kpri_publicEnemiesRepulsionZoneVillageInnArea_1",
+      "guid": "d2fc29a3-6787-141c",
+      "editorLayer": "Main/kpri_pritoky/inn/_script/crime_publicEnemiesRepulsionZone_minor",
+      "label": "crime_publicEnemiesRepulsionZone_minor",
+      "surfaceArea": 35445.63079141197,
+      "polygon": [
+        { "x": 2181.564, "y": 1385.582 },
+        { "x": 2271.7285449404144, "y": 1473.773189752555 },
+        { "x": 2214.750600214387, "y": 1599.437184589718 },
+        { "x": 2090.8297214870777, "y": 1611.3263944690627 },
+        { "x": 2038.8637830790756, "y": 1495.042965418844 },
+        { "x": 2089.2349249808617, "y": 1418.8556350306455 }
+      ]
+    },
+    {
+      "region": "kutnohorsko",
+      "name": "kradeneZasilky_banditCamp_TaborDezerteru_area",
+      "guid": "1b6b6d4e-905c-4f9e",
+      "editorLayer": "Main/_quest/activity/legacyOfTheForge/kradeneZasilky/genericVariants/camp_TaborDezerteru",
+      "label": "",
+      "surfaceArea": 49394.42241788306,
+      "polygon": [
+        { "x": 2301.627, "y": 2030.668 },
+        { "x": 2342.9892999999997, "y": 2082.767 },
+        { "x": 2370.26201, "y": 2149.8803 },
+        { "x": 2360.05327, "y": 2177.0785 },
+        { "x": 2331.8779799999998, "y": 2192.4831 },
+        { "x": 2287.01958, "y": 2207.2074 },
+        { "x": 2250.55473, "y": 2192.4547 },
+        { "x": 2203.8069299999997, "y": 2157.2646 },
+        { "x": 2140.1202, "y": 2129.62882 },
+        { "x": 2079.532, "y": 2080.49405 },
+        { "x": 2073.1946, "y": 2029.9606024999998 },
+        { "x": 2109.1711999999998, "y": 1968.19913 },
+        { "x": 2168.095, "y": 1941.1485899999998 },
+        { "x": 2223.73393, "y": 1933.6211199999998 },
+        { "x": 2252.56426, "y": 1954.51138 },
+        { "x": 2267.16264, "y": 1993.6073299999998 }
+      ]
+    }
+  ]
+}

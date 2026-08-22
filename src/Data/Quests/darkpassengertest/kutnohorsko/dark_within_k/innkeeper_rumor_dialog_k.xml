@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Database xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" Name="brambora">
+  <Skald>
+    <FaderDialog Name="innkeeper_rumor_dialog_k">
+      <Ports>
+        <Port Name="available" Direction="In" Type="bool">
+          <DesignName Text="Rumor available" />
+        </Port>
+        <Port Name="heard" Direction="Out" Type="trigger">
+          <DesignName Text="Rumor heard" />
+        </Port>
+      </Ports>
+      <Text StringName="dp_evidence_dialog_root" />
+      <Dialogue TechnicalStatus="Enabled" AllowFarewell="false" AllowGreeting="false">
+        <Decision Name="rumor_root" Priority="General">
+          <Sequences>
+            <Sequence EndType="EndDialogue" EntryCondition="Port('available')" Name="convenient_accident_rumor">
+              <UiPrompt StringName="dp_evidence_ask_unease" />
+              <Triggers>
+                <Port Name="heard" />
+              </Triggers>
+              <Elements>
+                <Response Role="HENRY">
+                  <Text StringName="dp_rumor_henry_unease" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_INNKEEPER_RUMOR">
+                  <Text StringName="dp_rumor_innkeeper_fear" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_rumor_henry_why" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_INNKEEPER_RUMOR">
+                  <Text StringName="dp_rumor_innkeeper_vojtech" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_rumor_henry_threat" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_INNKEEPER_RUMOR">
+                  <Text StringName="dp_rumor_innkeeper_refusal" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="HENRY">
+                  <Text StringName="dp_rumor_henry_what_to_seek" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+                <Response Role="DP_INNKEEPER_RUMOR">
+                  <Text StringName="dp_rumor_innkeeper_belongings" />
+                  <Commands><CameraCommand CameraType="CloseUp" /></Commands>
+                </Response>
+              </Elements>
+            </Sequence>
+          </Sequences>
+        </Decision>
+      </Dialogue>
+    </FaderDialog>
+  </Skald>
+</Database>
+

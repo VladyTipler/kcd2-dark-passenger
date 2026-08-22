@@ -4,10 +4,88 @@
 	<Row><Cell>dark_within_t</Cell><Cell>Тьма внутри…</Cell></Row>
 	<Row><Cell>dark_within_description_k</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
 	<Row><Cell>dark_within_description_t</Cell><Cell>Я научился держать эту тьму в узде. Давать ей правила и выбирать лишь тех, чья вина не оставляет сомнений. Но голод вернулся, и долго сдерживать его я не смогу.</Cell></Row>
-	<Row><Cell>dark_within_obj_name</Cell><Cell>Найти того, кто заслуживает смерти</Cell></Row>
-	<Row><Cell>dark_within_obj</Cell><Cell>Голод снова требует своего. Мне нужна жертва — виновный, чья смерть сделает мир хоть немного чище.</Cell></Row>
+	<Row><Cell>dark_within_obj_name</Cell><Cell>Найти того, кто заслуживает приговора</Cell></Row>
+	<Row><Cell>dark_within_obj</Cell><Cell>Пассажир не даёт мне покоя. Прежде чем вершить приговор, нужно найти того, чья вина не оставляет сомнений.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bohounovice</Cell><Cell>След ведёт сюда: Богуновице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_bylansko</Cell><Cell>След ведёт сюда: Биланы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_certovka</Cell><Cell>След ведёт сюда: «Чертово место». Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_grunta</Cell><Cell>След ведёт сюда: Грунта. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_horansko</Cell><Cell>След ведёт сюда: Горжаны. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kuklicko</Cell><Cell>След ведёт сюда: Куклице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_kutnahora</Cell><Cell>След ведёт сюда: Кутна-Гора. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_lorec</Cell><Cell>След ведёт сюда: Лорец. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_malesov</Cell><Cell>След ведёт сюда: Малешов. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_mezholezsko</Cell><Cell>След ведёт сюда: Межолезы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_miskovicko</Cell><Cell>След ведёт сюда: Мышковицы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_nabylance</Cell><Cell>След ведёт сюда: долина Биланки. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_opatovicko</Cell><Cell>След ведёт сюда: Опатовицы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_pritoky</Cell><Cell>След ведёт сюда: Пржитоки. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_rabstejnsko</Cell><Cell>След ведёт сюда: Рабштейн. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_ratboricko</Cell><Cell>След ведёт сюда: Ратборж. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sedlcko</Cell><Cell>След ведёт сюда: Седлец. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_starakutna</Cell><Cell>След ведёт сюда: Стара-Кутна. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_suchdol</Cell><Cell>След ведёт сюда: Сухдол. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_sukov</Cell><Cell>След ведёт сюда: Суков. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vlcihory</Cell><Cell>След ведёт сюда: Волчьи горы. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vrchlicko</Cell><Cell>След ведёт сюда: Врхлица. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_kutnohorsko_vysoka</Cell><Cell>След ведёт сюда: Висока. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_bukovina</Cell><Cell>След ведёт сюда: Буковина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_kopanina</Cell><Cell>След ведёт сюда: Копанина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_krcak</Cell><Cell>След ведёт сюда: Керчакский пруд. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_nebakov</Cell><Cell>След ведёт сюда: Небаков. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_podseminsko</Cell><Cell>След ведёт сюда: регион Нижнего Семина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_semin</Cell><Cell>След ведёт сюда: Семин. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_slatejov</Cell><Cell>След ведёт сюда: Слатейово. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_tachov</Cell><Cell>След ведёт сюда: Тахов. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_troskovice</Cell><Cell>След ведёт сюда: Тросковице. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vezicko</Cell><Cell>След ведёт сюда: Вежицкие земли. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_vidlak</Cell><Cell>След ведёт сюда: Видлакский пруд. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zdar</Cell><Cell>След ведёт сюда: Ждярская долина. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
+	<Row><Cell>dark_within_search_trosecko_zelejov</Cell><Cell>След ведёт сюда: Желеев. Где-то здесь есть тот, чья вина может заслуживать приговора. Нужно слушать, наблюдать и убедиться.</Cell></Row>
 	<Row><Cell>dark_within_target_name</Cell><Cell>Настигнуть избранную жертву</Cell></Row>
-	<Row><Cell>dark_within_target</Cell><Cell>Тёмный пассажир сделал свой выбор. Осталось настигнуть жертву и привести приговор в исполнение.</Cell></Row>
+	<Row><Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell></Row>
+	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
+	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Расспросить о местных слухах</Cell></Row>
+	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Тревога в округе</Cell></Row>
+	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Расспросить о тревоге в округе</Cell></Row>
+	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>Люди здесь будто чего-то опасаются. Стряслось что?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_fear</Cell><Cell>Боятся? Здесь каждый кого-нибудь боится: один сборщика податей, другой собственной жены. Но есть кое-кто, при ком даже пьяные говорят тише.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_why</Cell><Cell>Почему?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_vojtech</Cell><Cell>С месяц назад у ручья нашли батрака Войтеха. Рихтарж решил, что тот свалился с откоса по пьяни. Удобное объяснение - мёртвые ведь не спорят.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_threat</Cell><Cell>А кто ему угрожал?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_refusal</Cell><Cell>Кое-кто из здешних. Имени от меня не жди - не хочу однажды тоже свалиться с откоса по пьяни.</Cell></Row>
+	<Row><Cell>dp_rumor_henry_what_to_seek</Cell><Cell>Тогда что мне искать?</Cell></Row>
+	<Row><Cell>dp_rumor_innkeeper_belongings</Cell><Cell>Войтех ночевал на сеновале за корчмой. Его сундук до сих пор там. Рихтарж даже не потрудился заглянуть внутрь. Если парень понимал, что ему грозит, может, что-нибудь оставил. Поспеши, пока мыши не научились читать.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_name</Cell><Cell>Неотправленное письмо Войтеха</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_info</Cell><Cell>Сложенный лист, спрятанный среди вещей погибшего батрака.</Cell></Row>
+	<Row><Cell>dp_vojtech_letter_content</Cell><Cell>&lt;p&gt;Марта,&lt;/p&gt;&lt;p&gt;ты спрашивала, отчего я больше не сплю. Я солгал тебе. Дело не в выпивке.&lt;/p&gt;&lt;p&gt;Три ночи назад у старого брода я видел того человека с купеческим подмастерьем. Парень стоял на коленях и просил отпустить его. Тот затащил его в воду и прижал лицом ко дну. Дважды позволил ему поднять голову и вдохнуть — только затем, чтобы снова погрузить. На третий раз руки мальчишки перестали скрести камни.&lt;/p&gt;&lt;p&gt;Я прятался за ивами. Я мог позвать людей. Мог броситься на него. Но я лежал в грязи, зажав себе рот, и ждал, пока всё закончится.&lt;/p&gt;&lt;p&gt;Вчера он нашёл меня в корчме. Сел рядом, заказал две кружки и сказал, что с пьяными батраками постоянно случаются несчастья: один упадёт с откоса, другой захлебнётся в ручье. Потом улыбнулся и заплатил за моё пиво.&lt;/p&gt;&lt;p&gt;Он знает, что я видел.&lt;/p&gt;&lt;p&gt;На рассвете я уйду. Если не доберусь до тебя, отдай это письмо тому, кто не побоится произнести его имя. Женщина, убиравшая столы после заката, видела нас вместе. Возможно, она слышала достаточно.&lt;/p&gt;&lt;p&gt;Прости меня. Когда закрываю глаза, я всё ещё слышу, как тот мальчик скребёт ногтями по камням.&lt;/p&gt;&lt;p&gt;Войтех&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_witness_dialog_root</Cell><Cell>Свидетельница в корчме</Cell></Row>
+	<Row><Cell>dp_witness_ask_vojtech</Cell><Cell>Спросить о Войтехе</Cell></Row>
+	<Row><Cell>dp_witness_henry_working</Cell><Cell>Ты работала здесь в тот вечер, когда к Войтеху подсел один человек.</Cell></Row>
+	<Row><Cell>dp_witness_maid_many_nights</Cell><Cell>Я много вечеров здесь работаю. И много кто подсаживается к пьяным батракам.</Cell></Row>
+	<Row><Cell>dp_witness_henry_letter</Cell><Cell>Войтех оставил письмо. Написал, что ты видела их вместе.</Cell></Row>
+	<Row><Cell>dp_witness_maid_fool</Cell><Cell>Дурак… Я велела ему молчать.</Cell></Row>
+	<Row><Cell>dp_witness_henry_dead</Cell><Cell>Теперь он мёртв.</Cell></Row>
+	<Row><Cell>dp_witness_maid_stream</Cell><Cell>Думаешь, я не знаю? После того вечера я каждое утро смотрела на ручей и боялась увидеть там ещё кого-нибудь.</Cell></Row>
+	<Row><Cell>dp_witness_henry_heard</Cell><Cell>Что ты слышала?</Cell></Row>
+	<Row><Cell>dp_witness_maid_threat</Cell><Cell>Тот человек заказал две кружки. Войтех к своей даже не притронулся. Он наклонился к нему и сказал: «У воды ноги скользят даже у трезвых». Потом оставил монету и ушёл.</Cell></Row>
+	<Row><Cell>dp_witness_henry_who</Cell><Cell>Кто это был?</Cell></Row>
+	<Row><Cell>dp_witness_maid_name</Cell><Cell>Не заставляй меня произносить его имя здесь.</Cell></Row>
+	<Row><Cell>dp_witness_henry_where</Cell><Cell>Тогда скажи, где его искать.</Cell></Row>
+	<Row><Cell>dp_witness_maid_location</Cell><Cell>Я расскажу, как он выглядит и где его найти. Но если он спросит — мы никогда не разговаривали.</Cell></Row>
+	<Row><Cell>dark_within_witness_name</Cell><Cell>Расспросить работников корчмы</Cell></Row>
+	<Row><Cell>dark_within_witness_active</Cell><Cell>Войтех написал, что одна из служанок видела его разговор с убийцей. Возможно, она сможет опознать этого человека.</Cell></Row>
+	<Row><Cell>dark_within_witness_done</Cell><Cell>Служанка подтвердила, что Войтеху угрожали, и опознала подозреваемого.</Cell></Row>
+	<Row><Cell>dark_within_evidence_name</Cell><Cell>Собрать доказательства вины</Cell></Row>
+	<Row><Cell>dark_within_guidance</Cell><Cell>Проверить отмеченную зацепку.</Cell></Row>
+	<Row><Cell>dark_within_evidence_first_lead</Cell><Cell>Корчмарь слышит больше, чем говорит. Его слух подтвердил: здесь есть человек, чьи деяния заслуживают внимания. Нужны другие доказательства.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_name</Cell><Cell>Не оставить следов</Cell></Row>
+	<Row><Cell>dark_within_cleanup</Cell><Cell>Приговор исполнен. Теперь нужно уйти чисто и убедиться, что никто не свяжет эту смерть со мной.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_witnessed</Cell><Cell>Кто-то видел слишком много.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_clean</Cell><Cell>Всё стихло. Никто ничего не заметил. Пассажир доволен, а мир стал немного чище.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_controlled</Cell><Cell>Остались лишние нити, но я их оборвал. Этого достаточно, чтобы Пассажир замолчал.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_noisy</Cell><Cell>Чистоты не вышло. Я оставил за собой слишком много шума. Голод утолён, но цена будет расти.</Cell></Row>
+	<Row><Cell>dark_within_cleanup_external</Cell><Cell>Смерть настигла избранного без меня. Дело закрыто, но Пассажир не получил желаемого.</Cell></Row>
 	<Row><Cell>dark_within_toast</Cell><Cell>Тьма внутри пробудилась…</Cell></Row>
 	<Row><Cell>dp_sated_obj_name</Cell><Cell>Тьма дремлет</Cell></Row>
 	<Row><Cell>dp_sated_obj</Cell><Cell>Голод утолён. Пока что.</Cell></Row>
@@ -23,4 +101,27 @@
 	<Row><Cell>dp_hunger_80_desc</Cell><Cell>&lt;p&gt;Потребность гложет без передышки. Каждое виновное лицо начинает казаться приглашением.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -2, ловкость -2, живучесть -1, меткость -2, скрытность -2, воровство -2, красноречие -2, харизма -3.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_90_desc</Cell><Cell>&lt;p&gt;Пассажир больше не просит. Его требование заглушает и осторожность, и милосердие.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -2, ловкость -2, живучесть -2, меткость -3, скрытность -3, воровство -3, красноречие -3, харизма -4.&lt;/p&gt;</Cell></Row>
 	<Row><Cell>dp_hunger_100_desc</Cell><Cell>&lt;p&gt;Тишины больше нет. Остались лишь Пассажир, голод и уверенность в том, что кто-то должен умереть.&lt;/p&gt;&lt;p&gt;Эффекты: Сила -3, ловкость -3, живучесть -3, меткость -4, скрытность -4, воровство -3, красноречие -4, харизма -5.&lt;/p&gt;</Cell></Row>
+	<Row><Cell>dp_burial_action</Cell><Cell>Закопать тело</Cell></Row>
+	<Row><Cell>dp_burial_no_shovel</Cell><Cell>Нужна лопата.</Cell></Row>
+	<Row><Cell>dp_burial_bad_ground</Cell><Cell>Здесь не получится выкопать могилу.</Cell></Row>
+	<Row><Cell>dp_burial_quest_item</Cell><Cell>На теле осталось что-то важное.</Cell></Row>
+	<Row><Cell>dp_burial_trophy_pending</Cell><Cell>Я ещё не взял то, за чем пришёл.</Cell></Row>
+	<Row><Cell>dp_burial_busy</Cell><Cell>Ты уже закапываешь тело.</Cell></Row>
+	<Row><Cell>dp_burial_in_combat</Cell><Cell>Нельзя закапывать тело в бою.</Cell></Row>
+	<Row><Cell>dp_burial_skiptime</Cell><Cell>Земля умеет хранить тайны...</Cell></Row>
+	<Row><Cell>dp_pose_probe_root</Cell><Cell>Проверка сцены</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_check</Cell><Cell>Ты меня слышишь?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_reply</Cell><Cell>Где я?.. Что тебе нужно?</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_motive</Cell><Cell>Зачем ты это сделал?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_motive</Cell><Cell>Зачем ты это сделал?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_motive</Cell><Cell>Потому что иначе ничего бы не изменилось. Я сделал то, на что у других не хватило духу.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_truth</Cell><Cell>Ты хоть понимаешь, что натворил?</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_truth</Cell><Cell>Ты хоть понимаешь, что натворил?</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_truth</Cell><Cell>Понимаю лучше тебя. Не притворяйся судьёй — тобой движет та же жажда.</Cell></Row>
+	<Row><Cell>dp_pose_probe_question_finish</Cell><Cell>Я услышал достаточно.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_finish</Cell><Cell>Я услышал достаточно.</Cell></Row>
+	<Row><Cell>dp_pose_probe_victim_finish</Cell><Cell>Значит, ты уже всё решил.</Cell></Row>
+	<Row><Cell>dp_pose_probe_henry_end</Cell><Cell>Да.</Cell></Row>
+	<Row><Cell>dp_confession_wake_action</Cell><Cell>Привести в чувство</Cell></Row>
+	<Row><Cell>dp_confession_requires_cockerel</Cell><Cell>Требуется «Петушок»</Cell></Row>
 </Table>

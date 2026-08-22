@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 2,
+  "id": "convenient-accident",
+  "status": "active",
+  "archetypes": ["paper-trail-witness"],
+  "truth": {
+    "innocentVictim": {"id": "vojtech"},
+    "crime": {"id": "murder"},
+    "motive": {"id": "silence-witness"},
+    "coverStory": {"id": "drunken-accident"},
+    "escapedJustice": {"id": "bailiff-dismissed-death"}
+  },
+  "facts": [
+    {"id": "vojtech_death_suspicious", "category": "crime"},
+    {"id": "vojtech_belongings_location", "category": "location"},
+    {"id": "vojtech_witnessed_murder", "category": "crime"},
+    {"id": "tavern_witness_identity", "category": "corroboration"},
+    {"id": "suspect_identified", "category": "identity", "hardIdentity": true}
+  ],
+  "reveal": {
+    "confidence": 70,
+    "requiredFacts": ["suspect_identified"]
+  },
+  "journal": {
+    "objectives": {
+      "search": {
+        "nameAsset": "objective.search.name",
+        "states": {"active": "objective.search.active"}
+      },
+      "investigation": {
+        "nameAsset": "objective.investigation.name"
+      },
+      "target": {
+        "nameAsset": "objective.target.name",
+        "states": {
+          "active": "objective.target.active",
+          "done": "objective.target.done"
+        }
+      },
+      "cleanup": {
+        "nameAsset": "objective.cleanup.name",
+        "states": {
+          "active": "objective.cleanup.active",
+          "witnessed": "objective.cleanup.witnessed",
+          "clean": "objective.cleanup.clean",
+          "controlled": "objective.cleanup.controlled",
+          "noisy": "objective.cleanup.noisy",
+          "external": "objective.cleanup.external"
+        }
+      }
+    }
+  },
+  "trophyDefinition": {
+    "preset": "bird-feather",
+    "descriptionAsset": "trophy.description",
+    "item": {
+      "classification": "loot",
+      "retention": "permanent",
+      "weight": 0
+    }
+  }
+}

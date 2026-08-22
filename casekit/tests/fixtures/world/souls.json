@@ -1,0 +1,14 @@
+{
+  "00000000-0000-0000-0000-000000000501": {
+    "soul_id": "00000000-0000-0000-0000-000000000501",
+    "soul_name": "fixture_actor",
+    "faction_name": "kutnohorsko_settlements_fixture_commonFolk_inn_staff",
+    "character_name": "char_GENERIC_WOMAN_VILLAGER_01"
+  },
+  "00000000-0000-0000-0000-000000000502": {
+    "soul_id": "00000000-0000-0000-0000-000000000502",
+    "soul_name": "fixture_woman",
+    "faction_name": "kutnohorsko_settlements_fixture_commonFolk_inn_staff",
+    "character_name": "char_GENERIC_WOMAN_VILLAGER_02"
+  }
+}

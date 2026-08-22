@@ -8,6 +8,7 @@
 # Runtime evidence and deployment state
 /evidence/*
 !/evidence/.gitkeep
+!/evidence/*-case-bindings.md
 /deployment-backups/
 /_deployment-backups/
 *.log
@@ -26,3 +27,6 @@ Thumbs.db
 .idea/
 .vscode/
 
+# Runtime artifacts
+luac.out
+$out/
