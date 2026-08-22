@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Replace the Henry/Beta pilot assignment with a reusable offline pipeline that prepares voice and lip-sync for every NPC voice eligible for a CaseKit dialogue role and lets the runtime-selected actor use its own media automatically.
+**Goal:** Replace the Henry/Beta pilot assignment with a reusable offline pipeline that prepares voice and lip-sync for every local NPC voice eligible for a CaseKit dialogue role across all supported settlements and lets the runtime-selected actor use its own media automatically.
 
 **Architecture:** CaseKit owns the bounded actor pool and expands authored dialogue lines only across distinct eligible voice profiles for their speaker role. DialogueMediaKit discovers references, builds cached audio/facials and publishes verified PAKs plus a complete results manifest. Dark Passenger consumes only complete matching results; runtime performs no synthesis.
 
@@ -75,7 +75,7 @@
 5. Emit structured exclusions for unresolved actors and return the eligible pool to CaseKit.
 6. Commit actor-pool generation.
 
-### Task 5: Troskovice and Zhelejov acceptance
+### Task 5: Troskovice, Zhelejov and global settlement coverage
 
 **Files:**
 - Modify: `H:\KCD2Mod\DarkPassenger\tools\Build-Mod.ps1`
@@ -86,8 +86,9 @@
 2. Verify the six-line post-ledger branch in retail and recheck `Esc`/`T` after dialogue.
 3. Compile Zhelejov without a hand-authored voice assignment.
 4. Start a case, record the randomly selected actor and prove that actor speaks with its own generated prefix and lip-sync.
-5. Run focused unit, feature, real-boundary and archive integrity tests.
-6. Run `/simplify` over feature commits, update the LLM Wiki and commit documentation.
+5. Assert every supported settlement binding has media coverage for every eligible local role voice; Zhelejov is only the first runtime sample.
+6. Run focused unit, feature, real-boundary and archive integrity tests.
+7. Run `/simplify` over feature commits, update the LLM Wiki and commit documentation.
 
 ## Unresolved questions
 

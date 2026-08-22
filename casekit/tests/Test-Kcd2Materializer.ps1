@@ -75,6 +75,15 @@ Add-Result (
     @($compiled.stories).Count -eq 1 -and
     @($compiled.variants).Count -eq 2
 ) 'shared story data is emitted once for two concrete variants'
+Add-Result (
+    @($compiled.eligibleActorPools).Count -gt 0 -and
+    @($compiled.eligibleActorPools | Where-Object {
+        [string]$_.storyId -eq 'composed-case-probe' -and
+        [string]$_.settlement -eq 'testville' -and
+        [string]$_.slotName -eq 'rumorSource' -and
+        @($_.candidates).Count -eq 2
+    }).Count -eq 1
+) 'materializer preserves the full eligible actor pool outside variants'
 
 $story = $compiled.stories[0]
 Add-Result (
@@ -84,12 +93,11 @@ Add-Result (
 ) 'stable case identity comes from the separate registry'
 Add-Result (
     (@($story.evidence | ForEach-Object { [int]$_.code }) -join ',') -eq
-        '9101,9102,9103,9104,9105'
+        '9101,9102,9103,9104'
 ) 'stable evidence codes follow deterministic thread order'
 Add-Result (
     (@($story.evidence.legacyId) -join ',') -eq
-        'probe_innkeeper,probe_letter,probe_witness,' +
-        'probe_overheard_proximity,probe_overheard_interaction'
+        'probe_innkeeper,probe_letter,probe_witness,probe_area_listening'
 ) 'stable runtime evidence IDs come from the separate registry'
 $physicalEvidence = @($story.evidence | Where-Object {
     $_.qualifiedId -eq 'paper-trail/read-letter'
@@ -103,17 +111,14 @@ Add-Result (
 ) 'materializer preserves authored evidence placement policy'
 Add-Result (
     (@($story.evidence | ForEach-Object { [int]$_.confidence }) -join ',') -eq
-        '20,30,25,10,10'
+        '20,30,25,10'
 ) 'evidence confidence is materialized from composed archetypes'
 Add-Result (
-    @($story.overheardScenes).Count -eq 2 -and
-    $story.overheardScenes[0].qualifiedId -eq
-        'courtyard-gossip/overhear-proximity' -and
-    $story.overheardScenes[0].activation.mode -eq 'proximity' -and
-    $story.overheardScenes[1].qualifiedId -eq
-        'courtyard-gossip/overhear-interaction' -and
-    $story.overheardScenes[1].activation.mode -eq 'interaction'
-) 'materializer emits a stable collection of finite overheard scenes'
+    @($story.timedAreaActions).Count -eq 1 -and
+    $story.timedAreaActions[0].qualifiedId -eq
+        'courtyard-gossip/listen-for-rumors' -and
+    $story.timedAreaActions[0].activation.mode -eq 'timed-area-action'
+) 'materializer emits one finite timed area action'
 Add-Result (
     @($story.dialogues).Count -eq 3 -and
     @($story.documents).Count -eq 1
@@ -152,7 +157,7 @@ Add-Result (
         'Question the Testville innkeeper or search the records.'
 ) 'variant carries rendered localized assets'
 Add-Result (
-    @($variant.guidanceBindings).Count -eq 6 -and
+    @($variant.guidanceBindings).Count -eq 7 -and
     @($variant.guidanceBindings | Where-Object {
         $_.qualifiedId -eq 'paper-trail/ask-innkeeper/settlement-search' -and
         $_.targetKind -eq 'area' -and $_.binding.kind -eq 'settlement'
@@ -171,13 +176,10 @@ Add-Result (
     }).Count -eq 1
 ) 'materializer preserves guidance objective presentation beside its binding'
 Add-Result (
-    @($variant.overheardScenes).Count -eq 2 -and
-    $variant.overheardScenes[0].speakers.speakerA.entityName -eq
-        $variant.bindings.gossipSourceA.entityName -and
-    $variant.overheardScenes[0].speakers.speakerB.entityName -eq
-        $variant.bindings.gossipSourceB.entityName -and
-    $variant.overheardScenes[1].activation.mode -eq 'interaction'
-) 'variant binds every overheard scene to concrete speakers'
+    @($variant.timedAreaActions).Count -eq 1 -and
+    $variant.timedAreaActions[0].qualifiedId -eq
+        'courtyard-gossip/listen-for-rumors'
+) 'variant carries the timed area action without speaker bindings'
 
 $sharedJson = $story | ConvertTo-Json -Depth 100 -Compress
 Add-Result (

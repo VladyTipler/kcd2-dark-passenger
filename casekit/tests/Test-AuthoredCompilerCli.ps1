@@ -79,11 +79,11 @@ try {
             $zelejov.bindings.witness.entityName -eq 'tzel_bretislav'
         ) 'Zhelejov profile resolves its reviewed dialogue actors'
         Add-Result (
-            $zelejovTemplate.renderedAssets.ru.'direction.paper' -match
+            $zelejovTemplate.bindings.settlement.localized.ru.displayName -match
                 'Желе' -and
-            $zelejovTemplate.renderedAssets.en.'direction.paper' -match
+            $zelejovTemplate.bindings.settlement.localized.en.displayName -match
                 'Zhelejov'
-        ) 'settlement profiles provide bilingual display names to templates'
+        ) 'settlement profiles provide bilingual display names'
 
         $troskovice = @($compiled.variants | Where-Object {
             $_.settlement -eq 'troskovice' -and
@@ -96,13 +96,11 @@ try {
             $troskovice.bindings.witness.entityName -ne ''
         ) 'real authored CLI compiles Troskovice without a manual profile'
         Add-Result (
-            $troskovice.renderedAssets.ru.'case.description' -match
+            $troskovice.bindings.settlement.localized.ru.displayName -match
                 'Тросковице' -and
-            $troskovice.renderedAssets.en.'case.description' -match
-                'Troskowitz' -and
-            $troskovice.renderedAssets.ru.'case.description' -notmatch
-                'Желе'
-        ) 'portable StoryPack renders the selected settlement instead of Zhelejov'
+            $troskovice.bindings.settlement.localized.en.displayName -match
+                'Troskowitz'
+        ) 'portable StoryPack resolves the selected settlement instead of Zhelejov'
 
         $crossRegionConvenientAccident = @($compiled.variants | Where-Object {
             $_.storyId -eq 'convenient-accident' -and

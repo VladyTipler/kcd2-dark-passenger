@@ -75,6 +75,8 @@ foreach ($token in
     'dp_case_content_case_code',
     'dp_case_content_opener_code',
     'dp_case_content_variant_code',
+    'dp_case_content_innkeeper_actor_code',
+    'dp_case_content_witness_actor_code',
     'case_activation_buff_guid',
     'PrepareVariant',
     'source_stance',
@@ -132,6 +134,16 @@ Add-Result (
     $caseRuntime.Contains('selected.variant.case_activation_buff_guid') -and
     $caseRuntime.Contains('actor.soul:AddBuff(buffGuid)')
 ) 'selected StoryPack activates its native case gate before materialization'
+Add-Result (
+    $caseRuntime.Contains('ApplyActorSelection(selected)') -and
+    $caseRuntime.Contains('System.GetEntityByName(actorBinding.entity_name)') -and
+    $caseRuntime.Contains('entity.soul:RemoveAllBuffsByGuid(buffGuid)') -and
+    $caseRuntime.Contains('entity.soul:AddBuff(buffGuid)')
+) 'runtime materializes exactly one selected actor per generated dialogue slot'
+Add-Result (
+    $caseRuntime.IndexOf('ApplyActorSelection(selected)') -lt
+        $caseRuntime.IndexOf('DarkPassengerCaseSnapshot.Capture(')
+) 'actor selection is materialized before immutable snapshot and scene seeding'
 Add-Result (
     $caseRuntime -match (
         '(?s)local function ApplyCaseActivation\(selected\).*?' +

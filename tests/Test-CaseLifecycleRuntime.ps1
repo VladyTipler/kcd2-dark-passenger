@@ -11,6 +11,8 @@ $hungerPath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dphunger.lua'
 $sceneDirectorPath = Join-Path $repoRoot `
     'src\Data\Scripts\mods\dpcasescenedirector.lua'
+$caseContentPath = Join-Path $repoRoot `
+    'src\Data\Scripts\mods\dpcasecontent.lua'
 
 $script:checks = 0
 $script:failures = [System.Collections.Generic.List[string]]::new()
@@ -37,6 +39,7 @@ $main = Read-OptionalText $mainPath
 $evidence = Read-OptionalText $evidencePath
 $hunger = Read-OptionalText $hungerPath
 $sceneDirector = Read-OptionalText $sceneDirectorPath
+$caseContent = Read-OptionalText $caseContentPath
 
 Add-Result (Test-Path -LiteralPath $lifecyclePath -PathType Leaf) `
     'case lifecycle runtime exists'
@@ -93,21 +96,30 @@ Add-Result (
     $lifecycle.Contains('ACTIVATION_DELAY_MS = 2000')
 ) 'lifecycle waits beyond the native one-second quest activation timer'
 Add-Result (
-    $lifecycle.Contains(
-        'local function RemoveSignalBuffs(manifest, preservedBuffGuid)'
+    $lifecycle.Contains('local function RemoveSignalBuffs(manifest)') -and
+    -not $lifecycle.Contains('preservedBuffGuid') -and
+    $lifecycle -match (
+        '(?s)function DarkPassengerCaseLifecycle\.PrepareCaseGeneration' +
+        '.*?ClearPresentation\(generation, manifest\)' +
+        '.*?ScheduleActivation\('
+    )
+) 'prepare creates a real all-signals-off barrier before scheduling activation'
+Add-Result (
+    $caseContent.Contains(
+        'DarkPassengerCaseContent.ApplyCaseActivation = ApplyCaseActivation'
     ) -and
-    $lifecycle.Contains(
-        'tostring(buffGuid) ~= tostring(preservedBuffGuid)'
+    $lifecycle -match (
+        '(?s)function DarkPassengerCaseLifecycle\.ActivatePreparedGeneration' +
+        '.*?DarkPassengerCaseContent\.ApplyCaseActivation\(selected\)' +
+        '.*?DarkPassengerLeadPlanner\.Apply\(generation\)'
     )
-) 'prepare cleanup can preserve the selected case activation buff'
+) 'delayed activation rearms the selected case before publishing new settlement presentation'
 Add-Result (
     $lifecycle.Contains(
-        'ClearPresentation(generation, manifest, activationBuffGuid)'
-    )
-) 'prepare passes the selected case activation buff through cleanup'
-Add-Result (
-    $lifecycle.Contains('ClearPresentation(generation, manifest)')
-) 'final case cleanup still removes every presentation buff'
+        'DarkPassengerCaseContent.ClearActorSelection(generation)'
+    ) -and
+    $lifecycle.Contains('actorSelectionCleared')
+) 'final case cleanup removes generated actor-selection tags'
 Add-Result (
     $lifecycle.Contains(
         'DarkPassengerCaseLifecycle.activatedGeneration == generation and'

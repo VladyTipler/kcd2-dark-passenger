@@ -59,9 +59,9 @@ $requiredCommands = @(
     'Get-DpDialogueVariants',
     'ConvertTo-DpDialogueVariantTagXml',
     'ConvertTo-DpDialogueVariantBuffXml',
-    'ConvertTo-DpOverheardDialogueXml',
-    'ConvertTo-DpOverheardTagXml',
-    'ConvertTo-DpOverheardBuffXml',
+    'Get-DpActorSelectionSignals',
+    'ConvertTo-DpActorSelectionTagXml',
+    'ConvertTo-DpActorSelectionBuffXml',
     'ConvertTo-DpStormRoleXml',
     'ConvertTo-DpDialogueRoleTableXml',
     'ConvertTo-DpScriptContextXml',
@@ -198,6 +198,55 @@ if ((Test-Path -LiteralPath $modulePath) -and
         $unmaterializedRegistryRoles.Count -eq 0
     ) 'RPG role table materializes the complete dialogue-role registry'
 
+    $crossRegionBindings = [pscustomobject]@{
+        settlements = @(
+            [pscustomobject]@{
+                caseCode = 1001
+                region = 'kutnohorsko'
+                settlement = 'pritoky'
+                roles = [pscustomobject]@{
+                    innkeeper = [pscustomobject]@{
+                        entityName = 'kpri_innkeeper'
+                        dialogueRole = 'DP_TEST_KUTNO_INNKEEPER'
+                    }
+                }
+                actorPools = [pscustomobject]@{
+                    innkeeper = @([pscustomobject]@{
+                        entityName = 'kpri_innkeeper'
+                    })
+                }
+            },
+            [pscustomobject]@{
+                caseCode = 1001
+                region = 'trosecko'
+                settlement = 'zelejov'
+                roles = [pscustomobject]@{
+                    innkeeper = [pscustomobject]@{
+                        entityName = 'tzel_vavrinec'
+                        dialogueRole = 'DP_TEST_TROSECKO_INNKEEPER'
+                    }
+                }
+                actorPools = [pscustomobject]@{
+                    innkeeper = @([pscustomobject]@{
+                        entityName = 'tzel_vavrinec'
+                    })
+                }
+            }
+        )
+    }
+    $crossRegionStormXml = ConvertTo-DpStormRoleXml `
+        -BaseXml "<storm>`n  <rules>`n  </rules>`n</storm>`n" `
+        -CaseSpecs @($case) `
+        -Bindings $crossRegionBindings
+    Add-Result (
+        $crossRegionStormXml.Contains(
+            '<addRole name="DP_TEST_KUTNO_INNKEEPER" />'
+        ) -and
+        $crossRegionStormXml.Contains(
+            '<addRole name="DP_TEST_TROSECKO_INNKEEPER" />'
+        )
+    ) 'Storm transform assigns one StoryPack across every explicit region binding'
+
     $registryRole = @($bindings.dialogueRoles | Where-Object {
         [string]$_.name -eq 'DP_INNKEEPER_RUMOR'
     })[0]
@@ -282,6 +331,33 @@ if ((Test-Path -LiteralPath $modulePath) -and
     ) 'unsupported settlement is rejected'
 
     $missingTraveler = Read-DpCaseSpec -LiteralPath $missingTravelerPath
+    $actorSelectionSignals = @(Get-DpActorSelectionSignals `
+        -CaseSpecs @($missingTraveler) -StartSignalTag 151)
+    Add-Result (
+        $actorSelectionSignals.Count -eq 2 -and
+        (@($actorSelectionSignals.semantic_role) -join ',') -eq
+            'innkeeper,witness' -and
+        (@($actorSelectionSignals.signal_tag) -join ',') -eq '151,152' -and
+        @($actorSelectionSignals | Where-Object {
+            [string]::IsNullOrWhiteSpace([string]$_.buff_guid)
+        }).Count -eq 0
+    ) 'actor selection allocates one hidden signal per dynamic dialogue slot'
+    $actorSelectionTagXml = ConvertTo-DpActorSelectionTagXml `
+        -BaseXml "<database>`n`t<buff_ai_tags>`n`t</buff_ai_tags>`n</database>`n" `
+        -Signals $actorSelectionSignals
+    $actorSelectionBuffXml = ConvertTo-DpActorSelectionBuffXml `
+        -BaseXml "<database>`n`t<buffs>`n`t</buffs>`n</database>`n" `
+        -Signals $actorSelectionSignals
+    Add-Result (
+        $actorSelectionTagXml.Contains('buff_ai_tag_id="151"') -and
+        $actorSelectionTagXml.Contains(
+            'buff_ai_tag_name="dp_actor_selected_2001_innkeeper"'
+        ) -and
+        $actorSelectionBuffXml.Contains(
+            'buff_name="dp_actor_selected_2001_witness"'
+        ) -and
+        $actorSelectionBuffXml.Contains('is_persistent="false"')
+    ) 'actor selection emits non-persistent native buff tags and buffs'
     Add-Result (
         @($missingTraveler.identityRequirement.allOf).Count -eq 1 -and
         $missingTraveler.identityRequirement.allOf[0] -eq

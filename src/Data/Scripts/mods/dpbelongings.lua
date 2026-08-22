@@ -394,10 +394,6 @@ local function AwardReadEvidence(generation)
             generation
         )
     end
-    if DarkPassengerLeadPlanner ~= nil and
-       DarkPassengerLeadPlanner.Apply ~= nil then
-        DarkPassengerLeadPlanner.Apply(generation)
-    end
     Log(
         "document read generation=" .. tostring(generation) ..
         " confidence=" .. tostring(result.current) ..

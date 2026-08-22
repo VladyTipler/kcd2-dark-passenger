@@ -346,6 +346,17 @@ function DarkPassengerEvidenceRegistry.MarkPlaced(generation, evidenceCode)
     return result
 end
 
+local function ScheduleEvidencePresentation(generation, evidenceCode)
+    if DarkPassengerLeadPlanner == nil or
+       DarkPassengerLeadPlanner.ScheduleEvidenceTransition == nil then
+        return
+    end
+    DarkPassengerLeadPlanner.ScheduleEvidenceTransition(
+        generation,
+        evidenceCode
+    )
+end
+
 function DarkPassengerEvidenceRegistry.Discover(
     generation,
     evidenceCode,
@@ -365,7 +376,12 @@ function DarkPassengerEvidenceRegistry.Discover(
             context = context,
         }
     )
-    if not result.accepted then return result end
+    if not result.accepted then
+        if result.reason == "already_discovered" then
+            ScheduleEvidencePresentation(generation, evidenceCode)
+        end
+        return result
+    end
     if not PersistState(nextState) then
         result.accepted = false
         result.reason = "persistence_failed"
@@ -389,6 +405,7 @@ function DarkPassengerEvidenceRegistry.Discover(
         " evidence=" .. tostring(evidenceCode) ..
         " confidence=" .. tostring(nextState.confidence)
     )
+    ScheduleEvidencePresentation(generation, evidenceCode)
     return result
 end
 

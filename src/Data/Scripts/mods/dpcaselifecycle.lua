@@ -108,32 +108,20 @@ local function DisableAvailability(generation, manifest)
             pcall(function()
                 DarkPassengerWitnessLead.ApplyAvailability(generation, false)
             end)
-        elseif role == "overheard" and
-               DarkPassengerOverheardEvidence ~= nil and
-               DarkPassengerOverheardEvidence.ApplyAvailability ~= nil then
-            pcall(function()
-                DarkPassengerOverheardEvidence.ApplyAvailability(
-                    generation,
-                    false
-                )
-            end)
         end
     end
 end
 
-local function RemoveSignalBuffs(manifest, preservedBuffGuid)
+local function RemoveSignalBuffs(manifest)
     local actor = PlayerEntity()
     local soul = actor ~= nil and actor.soul or nil
     if soul == nil or soul.RemoveAllBuffsByGuid == nil then return false end
     local succeeded = true
     for _, buffGuid in ipairs(manifest.signal_buff_guids or {}) do
-        if preservedBuffGuid == nil or
-           tostring(buffGuid) ~= tostring(preservedBuffGuid) then
-            local ok = pcall(function()
-                soul:RemoveAllBuffsByGuid(buffGuid)
-            end)
-            succeeded = succeeded and ok
-        end
+        local ok = pcall(function()
+            soul:RemoveAllBuffsByGuid(buffGuid)
+        end)
+        succeeded = succeeded and ok
     end
     return succeeded
 end
@@ -182,9 +170,9 @@ local function RemoveCaseItems(manifest)
     return succeeded
 end
 
-local function ClearPresentation(generation, manifest, preservedBuffGuid)
+local function ClearPresentation(generation, manifest)
     DisableAvailability(generation, manifest)
-    return RemoveSignalBuffs(manifest, preservedBuffGuid)
+    return RemoveSignalBuffs(manifest)
 end
 
 local function PersistClearedGeneration(generation)
@@ -218,15 +206,21 @@ function DarkPassengerCaseLifecycle.ClearCaseArtifacts(generation, reason)
 
     local presentationCleared = ClearPresentation(generation, manifest)
     local itemsCleared = RemoveCaseItems(manifest)
+    local actorSelectionCleared =
+        DarkPassengerCaseContent ~= nil and
+        DarkPassengerCaseContent.ClearActorSelection ~= nil and
+        DarkPassengerCaseContent.ClearActorSelection(generation)
     if DarkPassengerSceneDirector ~= nil and
        DarkPassengerSceneDirector.materializedGenerations ~= nil then
         DarkPassengerSceneDirector.materializedGenerations[generation] = nil
     end
-    if not presentationCleared or not itemsCleared then
+    if not presentationCleared or not itemsCleared or
+       not actorSelectionCleared then
         Log(
             "cleanup deferred generation=" .. tostring(generation) ..
             " presentation=" .. tostring(presentationCleared) ..
-            " items=" .. tostring(itemsCleared)
+            " items=" .. tostring(itemsCleared) ..
+            " actorSelection=" .. tostring(actorSelectionCleared)
         )
         return false, "cleanup_deferred"
     end
@@ -294,11 +288,7 @@ function DarkPassengerCaseLifecycle.PrepareCaseGeneration(generation)
     local manifest, manifestReason =
         DarkPassengerCaseLifecycle.ResolveManifest(generation)
     if manifest == nil then return false, manifestReason end
-    local selected = DarkPassengerCaseContent.GetSelected(generation)
-    local activationBuffGuid =
-        selected ~= nil and selected.variant ~= nil and
-        selected.variant.case_activation_buff_guid or nil
-    if not ClearPresentation(generation, manifest, activationBuffGuid) then
+    if not ClearPresentation(generation, manifest) then
         return false, "presentation_cleanup_deferred"
     end
     DarkPassengerCaseLifecycle.preparedGeneration = generation
@@ -343,6 +333,25 @@ function DarkPassengerCaseLifecycle.ActivatePreparedGeneration(payload)
         DarkPassengerInvestigation.GetState() or nil
     if investigation == nil or investigation.active ~= true or
        tonumber(investigation.generation) ~= generation then
+        return false
+    end
+    local selected =
+        DarkPassengerCaseContent ~= nil and
+        DarkPassengerCaseContent.GetSelected ~= nil and
+        DarkPassengerCaseContent.GetSelected(generation) or nil
+    local caseActivated =
+        selected ~= nil and
+        DarkPassengerCaseContent.ApplyCaseActivation ~= nil and
+        DarkPassengerCaseContent.ApplyCaseActivation(selected)
+    if not caseActivated then
+        if attempt < DarkPassengerCaseLifecycle.MAX_ACTIVATION_ATTEMPTS then
+            ScheduleActivation(generation, serial, attempt + 1)
+        end
+        Log(
+            "activation deferred generation=" .. tostring(generation) ..
+            " attempt=" .. tostring(attempt) ..
+            " reason=case_activation_failed"
+        )
         return false
     end
     local plan, reason = nil, "planner_unavailable"

@@ -46,7 +46,6 @@
 	<Row><Cell>dark_within_target</Cell><Cell>Все слухи и следы теперь ведут к одному человеку. Пассажир сделал свой выбор; осталось привести приговор в исполнение.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>Приговор исполнен. Теперь нельзя оставить следов.</Cell></Row>
 	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Расспросить о местных слухах</Cell></Row>
-	<Row><Cell>dp_overheard_listen_action</Cell><Cell>Прислушаться</Cell></Row>
 	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Тревога в округе</Cell></Row>
 	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Расспросить о тревоге в округе</Cell></Row>
 	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>Люди здесь будто чего-то опасаются. Стряслось что?</Cell></Row>

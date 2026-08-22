@@ -8,6 +8,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $scriptRoot = Join-Path $repoRoot 'src\Data\Scripts\mods'
 $interactionPath = Join-Path $scriptRoot 'dpinteractions.lua'
 $evidencePath = Join-Path $scriptRoot 'dpevidence.lua'
+$registryPath = Join-Path $scriptRoot 'dpevidenceregistry.lua'
 $burialPath = Join-Path $scriptRoot 'dpburial.lua'
 $runtimePath = Join-Path $scriptRoot 'darkpassengertest.lua'
 $investigationPath = Join-Path $scriptRoot 'dpinvestigation.lua'
@@ -45,6 +46,7 @@ function Add-Result {
 
 $interaction = Read-OptionalText $interactionPath
 $evidence = Read-OptionalText $evidencePath
+$registry = Read-OptionalText $registryPath
 $burial = Read-OptionalText $burialPath
 $runtime = Read-OptionalText $runtimePath
 $investigation = Read-OptionalText $investigationPath
@@ -109,9 +111,11 @@ Add-Result (
     -not $evidence.Contains('DarkPassengerInvestigation.AddEvidence(')
 ) 'registry discovery is persisted before the journal signal is dispatched'
 Add-Result (
-    $evidence.Contains('DarkPassengerLeadPlanner.Apply(') -and
+    $registry.Contains(
+        'DarkPassengerLeadPlanner.ScheduleEvidenceTransition('
+    ) -and
     $planner.Contains('function DarkPassengerLeadPlanner.Evaluate')
-) 'rumor discovery reevaluates finite parallel leads'
+) 'registry owns deferred reevaluation after rumor discovery'
 Add-Result (
     $evidence.Contains('Game.ShowNotification(selectedRumor.notification)') -and
     $evidence.Contains('DarkPassengerInteractions.RegisterProvider(')
@@ -181,7 +185,7 @@ Add-Result (
     -not $questTemplate.Contains('<Edge From="firstLeadTrigger.OnAdded" To="SetFirstLead" />')
 ) 'quest template no longer hardcodes one linear first-lead transition'
 Add-Result (
-    $questTemplate.Contains('<Edge From="revealTagTrigger.OnAdded" To="SetDone" />')
+    $questTemplate.Contains('{{DP_EVIDENCE_DONE_EDGE}}')
 ) 'victim reveal completes evidence gathering without replacing area tracking'
 
 foreach ($key in

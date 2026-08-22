@@ -232,10 +232,11 @@ The first acceptance case is the existing 16-line Troskovice dialogue:
 Static tests and archive inspection do not replace the final cold retail proof.
 
 The second acceptance case is Zhelejov and must not add a hand-authored actor
-assignment. CaseKit supplies the settlement's eligible actor pool,
-DialogueMediaKit discovers and prepares each distinct voice, and whichever NPC
-the runtime case selects must speak with that NPC's native voice prefix and
-matching lip-sync.
+assignment. It is only the first proof of the global rule: CaseKit supplies the
+eligible local actor pool for every supported settlement, DialogueMediaKit
+discovers and prepares each distinct voice, and whichever NPC the runtime case
+selects in the nearest compatible settlement must speak with that NPC's native
+voice prefix and matching lip-sync.
 
 ## Non-goals
 

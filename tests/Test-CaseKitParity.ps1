@@ -179,7 +179,12 @@ try {
         $buildScript.Contains('-SettlementProfileRoot $settlementProfileRoot') -and
         $buildScript.Contains('-StableIdRegistryPath $stableIdRegistryPath') -and
         $buildScript.Contains('-Kcd2AdapterPath $kcd2AdapterPath') -and
-        $buildScript.Contains('-CaseVariantRoot $caseVariantRoot') -and
+        $buildScript.Contains(
+            'CaseVariantRoot = $caseVariantRoot'
+        ) -and
+        $buildScript.Contains(
+            '& $caseCompilerPath @caseCompilerParameters'
+        ) -and
         -not $buildScript.Contains('-LegacyCaseRoot') -and
         -not $buildScript.Contains('-LegacyBindingPath')
     ) 'Build-Mod routes native generation from authored CaseKit sources'

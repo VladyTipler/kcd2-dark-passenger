@@ -8,8 +8,6 @@ $caseRoot = Join-Path $repoRoot 'content\migration\legacy-cases'
 $casePath = Join-Path $caseRoot 'convenient-accident.case.json'
 $bindingPath = Join-Path $repoRoot `
     'content\migration\legacy-case-settlement-bindings.json'
-$goldenDialogRoot = Join-Path $repoRoot `
-    'src\Data\Quests\darkpassengertest\kutnohorsko\dark_within_k'
 $testRoot = Join-Path $repoRoot (
     'build\tests\case-native-wiring-' + [guid]::NewGuid().ToString('N')
 )
@@ -26,12 +24,6 @@ function Add-Result {
     }
     $script:failures.Add($Label)
     Write-Host "FAIL: $Label"
-}
-
-function Get-CanonicalXml([string]$LiteralPath) {
-    if (-not (Test-Path -LiteralPath $LiteralPath)) { return '' }
-    [xml]$document = [System.IO.File]::ReadAllText($LiteralPath)
-    return $document.OuterXml
 }
 
 try {
@@ -76,10 +68,10 @@ try {
         $null -ne $regionRecord -and
         $regionRecord.questName -eq 'dark_within_k' -and
         ([string]$regionRecord.dialogDefinitions).Contains(
-            'innkeeper_rumor_dialog_k.xml'
+            'dpcase1001_kutnohorsko_pritoky_innkeeper_rumor_dialog_k.xml'
         ) -and
         ([string]$regionRecord.dialogDefinitions).Contains(
-            'tavern_witness_dialog_k.xml'
+            'dpcase1001_kutnohorsko_pritoky_tavern_witness_dialog_k.xml'
         )
     ) 'native manifest declares both dialogue definitions'
     Add-Result (
@@ -95,17 +87,21 @@ try {
     ) 'native manifest preserves live signal tags and contexts'
     Add-Result (
         $null -ne $regionRecord -and
-        @($regionRecord.journalStates).Count -eq 4 -and
+        @($regionRecord.journalStates).Count -eq 3 -and
         ([string]$regionRecord.evidenceStateNodes).Contains('Value="37"') -and
-        ([string]$regionRecord.evidenceStateNodes).Contains('Value="40"') -and
-        ([string]$regionRecord.evidenceType).Contains('Directions1102_1103') -and
+        ([string]$regionRecord.evidenceStateNodes).Contains('Value="39"') -and
+        ([string]$regionRecord.evidenceType).Contains('Evidence1102Default') -and
+        ([string]$regionRecord.evidenceType).Contains('Evidence1103Default') -and
         ([string]$regionRecord.evidenceLogs).Contains(
             '<EnumLog Type="None" Name="DirectionsNone" />'
         ) -and
-        ([string]$regionRecord.evidenceLogs).Contains('Directions1102') -and
-        ([string]$regionRecord.evidenceLogs).Contains('Directions1103') -and
-        ([string]$regionRecord.evidenceLogs).Contains('Directions1102_1103')
-    ) 'compiler emits every finite umbrella journal knowledge state'
+        ([string]$regionRecord.evidenceLogs).Contains(
+            'Name="Evidence1102Default"'
+        ) -and
+        ([string]$regionRecord.evidenceLogs).Contains(
+            'Name="Evidence1103Default"'
+        )
+    ) 'compiler emits one authored journal state per evidence presentation'
     Add-Result (
         [string]::IsNullOrWhiteSpace(
             [string]$regionRecord.witnessObjective
@@ -115,18 +111,46 @@ try {
         )
     ) 'separate witness objective is removed from generated wiring'
 
-    foreach ($fileName in @(
-        'innkeeper_rumor_dialog_k.xml',
-        'tavern_witness_dialog_k.xml'
-    )) {
-        $goldenPath = Join-Path $goldenDialogRoot $fileName
+    $dialogueContracts = @(
+        [pscustomobject]@{
+            fileName =
+                'dpcase1001_kutnohorsko_pritoky_innkeeper_rumor_dialog_k.xml'
+            promptKey = 'dp_evidence_ask_unease'
+            responseKey = 'dp_rumor_innkeeper_belongings'
+        },
+        [pscustomobject]@{
+            fileName =
+                'dpcase1001_kutnohorsko_pritoky_tavern_witness_dialog_k.xml'
+            promptKey = 'dp_witness_ask_vojtech'
+            responseKey = 'dp_witness_maid_location'
+        }
+    )
+    foreach ($contract in $dialogueContracts) {
+        $fileName = [string]$contract.fileName
         $generatedPath = Join-Path $generatedDialogRoot $fileName
         Add-Result (Test-Path -LiteralPath $generatedPath) `
             "compiler emits $fileName"
+        $dialogueXml = if (Test-Path -LiteralPath $generatedPath) {
+            [System.IO.File]::ReadAllText($generatedPath)
+        }
+        else { '' }
+        $graphName = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
         Add-Result (
-            (Get-CanonicalXml $generatedPath) -eq
-            (Get-CanonicalXml $goldenPath)
-        ) "$fileName is semantically identical to live-proven XML"
+            $dialogueXml.Contains("<FaderDialog Name=`"$graphName`">") -and
+            $dialogueXml.Contains(
+                '<Port Name="actor_selected" Direction="In" Type="bool">'
+            ) -and
+            $dialogueXml.Contains(
+                "StringName=`"$([string]$contract.promptKey)`""
+            ) -and
+            $dialogueXml.Contains(
+                "StringName=`"$([string]$contract.responseKey)`""
+            ) -and
+            $dialogueXml.Contains(
+                "EntryCondition=`"Port('available') AND " +
+                "Port('actor_selected')`""
+            )
+        ) "$fileName keeps authored dialogue semantics and actor gating"
     }
 }
 finally {

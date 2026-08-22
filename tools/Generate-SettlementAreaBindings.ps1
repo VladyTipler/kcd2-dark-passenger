@@ -163,7 +163,8 @@ function Add-EvidenceStash {
         [Parameter(Mandatory)][string]$Region,
         [Parameter(Mandatory)][string]$Settlement,
         [Parameter(Mandatory)][string]$ContainerGuid,
-        [Parameter(Mandatory)][string]$Source
+        [Parameter(Mandatory)][string]$Source,
+        [switch]$Override
     )
 
     if ($ContainerGuid -notmatch
@@ -174,6 +175,16 @@ function Add-EvidenceStash {
         -Region $Region -Settlement $Settlement
     if ($evidenceStashTargets.ContainsKey($alias)) {
         if ([string]$evidenceStashTargets[$alias] -ne $ContainerGuid) {
+            if ($Override) {
+                $existing = @($evidenceStashesByRegion[$Region] |
+                    Where-Object { [string]$_.alias -eq $alias })[0]
+                if ($null -eq $existing) {
+                    throw "Evidence stash alias '$alias' has no stored binding."
+                }
+                $existing.containerGuid = $ContainerGuid
+                $evidenceStashTargets[$alias] = $ContainerGuid
+                return
+            }
             throw (
                 "Evidence stash alias '$alias' resolves to multiple containers: " +
                 "'$($evidenceStashTargets[$alias])' and '$ContainerGuid'."
@@ -225,7 +236,8 @@ if (-not [string]::IsNullOrWhiteSpace($SettlementBindingsPath)) {
             -Region ([string]$binding.region) `
             -Settlement ([string]$binding.settlement) `
             -ContainerGuid ([string]$document.Value.containerGuid) `
-            -Source "Case binding '$([int]$binding.caseCode)/$([string]$binding.settlement)'"
+            -Source "Case binding '$([int]$binding.caseCode)/$([string]$binding.settlement)'" `
+            -Override
     }
 }
 

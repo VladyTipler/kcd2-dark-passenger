@@ -34,20 +34,6 @@
       "capabilities": ["role.tavern_worker", "interaction.dialogue"],
       "identityModes": ["named", "titled", "anonymous"],
       "templateFields": ["displayLabel", "directionLabel", "name"]
-    },
-    "gossipSourceA": {
-      "entityType": "actor",
-      "required": false,
-      "capabilities": ["interaction.overheard"],
-      "identityModes": ["named", "titled", "anonymous"],
-      "templateFields": ["displayLabel", "directionLabel", "name"]
-    },
-    "gossipSourceB": {
-      "entityType": "actor",
-      "required": false,
-      "capabilities": ["interaction.overheard"],
-      "identityModes": ["named", "titled", "anonymous"],
-      "templateFields": ["displayLabel", "directionLabel", "name"]
     }
   },
   "threadRules": {
@@ -63,6 +49,6 @@
     "source-dialogue": {"confidence": 20, "minimum": 1, "maximum": 2},
     "document-in-container": {"confidence": 30, "minimum": 1, "maximum": 2},
     "witness-dialogue": {"confidence": 20, "minimum": 1, "maximum": 2},
-    "overheard-dialogue": {"confidence": 15, "minimum": 0, "maximum": 2}
+    "timed-area-listening": {"confidence": 15, "minimum": 0, "maximum": 2}
   }
 }

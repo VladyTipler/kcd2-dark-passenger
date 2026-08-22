@@ -697,8 +697,20 @@ if ($enabledPritokyCandidates.Count -eq 37) {
         ) "tag 24 selects internal $slotName without exposing its marker"
         Add-Result (
             $questText.Contains("<MakeArray Name=`"$($slotNode)Souls`"") -and
-            $questText.Contains("<Function Name=`"$($slotNode)TagCheck`"") -and
+            $questText.Contains("<BuffTagTrigger Name=`"$($slotNode)TagTrigger`"") -and
+            $questText.Contains(
+                "<State Name=`"$($slotNode)TagState`" TypeT=`"bool`">"
+            ) -and
+            $questText.Contains(
+                "<Edge From=`"$($slotNode)TagTrigger.OnAdded`" To=`"SetTrue`" />"
+            ) -and
+            $questText.Contains(
+                "<Edge From=`"$($slotNode)TagTrigger.OnRemoved`" To=`"SetFalse`" />"
+            ) -and
             $questText.Contains("<If Name=`"$($slotNode)Tagged`"") -and
+            $questText.Contains(
+                "<Edge From=`"$($slotNode)TagState.State`" To=`"Condition`" />"
+            ) -and
             $questText.Contains("<Function Name=`"$($slotNode)RevealCheck`"") -and
             $questText.Contains("<If Name=`"$($slotNode)Revealed`"")
         ) "generated quest has hidden selection and reveal checks for $slotName"
@@ -1452,7 +1464,7 @@ Add-Result (
 Add-Result (
     $questText -match (
         '(?s)<Timer Name="targetSlot\d+ValidationDelay">.*?' +
-        '<Edge From="targetTagTrigger.OnAdded" To="SetRunning" />.*?' +
+        '<Edge From="targetSlot\d+TagTrigger.OnAdded" To="SetRunning" />.*?' +
         '<Edge From="questProgress.OnActive" To="SetRunning" />.*?' +
         '</Timer>'
     )
@@ -1906,6 +1918,13 @@ Add-Result (
 ) 'successful target selection opens investigation after slot persistence'
 Add-Result (
     $runtimeLuaText -match (
+        '(?s)DarkPassengerInvestigation\.Open\(selectedCandidate, selected\).*?' +
+        'DarkPassengerTarget\.BeginRestoreCycle\("target_select"\).*?' +
+        'ScheduleRestoredTargetPresentationRearm\(selectedCandidate, selected\)'
+    )
+) 'fresh target selection rearms its target tag after the quest graph is awake'
+Add-Result (
+    $runtimeLuaText -match (
         '(?s)local function BindRecoveredTarget\(candidate, entity\).*?' +
         'DarkPassengerInvestigation\.Restore\(candidate, entity\).*?' +
         'end'
@@ -1921,6 +1940,29 @@ Add-Result (
         'end\s+local function OrderedSettlements'
     )
 ) 'every recovered target restores investigation through one binding path'
+Add-Result (
+    $runtimeLuaText -match (
+        '(?s)local function RestoreCaseInstanceIfNeeded\(candidate, entity\).*?' +
+        'DarkPassengerCaseContent\.GetSelected\(generation\).*?' +
+        'if selected ~= nil then return true end.*?' +
+        'DarkPassengerInvestigation\.Restore\(candidate, entity\).*?' +
+        'end\s+function DarkPassengerTarget\.RestoreExisting'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'if IsRecoveredTargetBound\(persistedCandidate, persistedEntity\) then.*?' +
+        'RestoreCaseInstanceIfNeeded\(\s*' +
+            'persistedCandidate,\s*persistedEntity\s*\).*?' +
+        'ScheduleRestoredTargetPresentationRearm'
+    ) -and
+    $runtimeLuaText -match (
+        '(?s)function DarkPassengerTarget\.RestoreExisting\(gameRegion\).*?' +
+        'if IsRecoveredTargetBound\(runtimeCandidate, runtimeEntity\) then.*?' +
+        'RestoreCaseInstanceIfNeeded\(\s*' +
+            'runtimeCandidate,\s*runtimeEntity\s*\).*?' +
+        'ScheduleRestoredTargetPresentationRearm'
+    )
+) 'already-bound target migrates saved CaseInstance before presentation republish'
 Add-Result (
     $runtimeLuaText -match (
         '(?s)function DarkPassengerTarget\.OnTargetDeath.*?' +

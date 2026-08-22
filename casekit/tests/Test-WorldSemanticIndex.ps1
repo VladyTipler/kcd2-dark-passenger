@@ -125,11 +125,11 @@ try {
     Add-Result (
         'role.tavern_worker' -in @($autoWorker.capabilities) -and
         'interaction.dialogue' -in @($autoWorker.capabilities) -and
-        'interaction.overheard' -in @($autoWorker.capabilities)
+        'interaction.overheard' -notin @($autoWorker.capabilities)
     ) 'native Troskovice metadata infers an interactive tavern worker'
     Add-Result (
-        'interaction.overheard' -in @($autoGossip.capabilities)
-    ) 'native tavern residents are eligible for an overheard pair'
+        'interaction.overheard' -notin @($autoGossip.capabilities)
+    ) 'native tavern residents do not expose obsolete overheard capability'
     Add-Result (
         'container.evidence' -in @($autoEvidence.capabilities) -and
         'container.evidence' -notin @($autoTrade.capabilities)

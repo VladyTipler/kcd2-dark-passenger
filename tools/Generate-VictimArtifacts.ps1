@@ -215,8 +215,6 @@ function New-RegionalQuest {
     $rumorDialogDefinition = ''
     $rumorDialogNodes = ''
     $witnessNodes = ''
-    $overheardNodes = ''
-    $overheardAssets = ''
     $evidenceStateNodes = ''
     $evidenceStateEdges = ''
     $evidenceType = ''
@@ -238,6 +236,8 @@ function New-RegionalQuest {
     $storyModules = @()
     $primaryStoryModule = $null
     $primaryCaseActiveState = ''
+    $primaryCaseActiveTrigger = ''
+    $primarySearchCrossCaseResetEdges = ''
     $caseActivationRevalidationEdges = @()
 
     if ($null -ne $NativeWiring) {
@@ -246,20 +246,31 @@ function New-RegionalQuest {
             $primaryStoryModule = $storyModules[0]
             $primaryCaseActiveState = 'case{0}Active.State' -f
                 [int]$primaryStoryModule.caseCode
+            $primaryCaseActiveTrigger = 'case{0}ActiveTrigger' -f
+                [int]$primaryStoryModule.caseCode
+            $primaryCaseCode = [int]$primaryStoryModule.caseCode
+            $primarySearchCrossCaseResetEdges = @(
+                $storyModules |
+                    Where-Object { [int]$_.caseCode -ne $primaryCaseCode } |
+                    Sort-Object { [int]$_.caseCode } |
+                    ForEach-Object {
+                        '          <Edge From="case{0}ActiveTrigger.OnAdded" To="SetNone" />' -f
+                            [int]$_.caseCode
+                    }
+            ) -join "`n"
             $caseActivationRevalidationEdges = @(
                 $storyModules |
                     Sort-Object { [int]$_.caseCode } |
                     ForEach-Object {
-                        '          <Edge From="case{0}ActiveTrigger.OnAdded" To="SetRunning" />' -f
-                            [int]$_.caseCode
+                        $caseCode = [int]$_.caseCode
+                        '          <Edge From="case{0}ActiveTrigger.OnAdded" To="SetRunning" />' -f $caseCode
+                        '          <Edge From="case{0}ActivePhaseGate.True" To="SetRunning" />' -f $caseCode
                     }
             )
         }
         $rumorDialogDefinition = [string]$NativeWiring.dialogDefinitions
         $rumorDialogNodes = [string]$NativeWiring.rumorNodes
         $witnessNodes = [string]$NativeWiring.witnessNodes
-        $overheardNodes = [string]$NativeWiring.overheardNodes
-        $overheardAssets = [string]$NativeWiring.overheardAssets
         $evidenceStateNodes = [string]$NativeWiring.evidenceStateNodes
         $evidenceStateEdges = [string]$NativeWiring.evidenceStateEdges
         $questItemPlacementNodes = [string]$NativeWiring.questItemPlacementNodes
@@ -608,21 +619,26 @@ function New-RegionalQuest {
         $detectionNodes.Add("        <MakeArray Name=`"$($slotNode)Souls`" TypeT=`"wh::rpgmodule::Souls`">")
         $detectionNodes.Add("          <Asset Name=`"A`" Alias=`"$($candidate.alias)`" />")
         $detectionNodes.Add('        </MakeArray>')
-        $detectionNodes.Add("        <Function Name=`"$($slotNode)TagCheck`" MethodName=`"wh::rpgmodule::BuffTagCheck`" DeclaringType=`"wh::rpgmodule`">")
-        $detectionNodes.Add('          <Constant Name="BuffTag" Value="24" />')
-        $detectionNodes.Add("          <Edge From=`"$($slotNode)Souls.Array`" To=`"Souls`" />")
-        $detectionNodes.Add('        </Function>')
+        $detectionNodes.Add("        <BuffTagTrigger Name=`"$($slotNode)TagTrigger`">")
+        $detectionNodes.Add("          <Asset Name=`"Souls`" Alias=`"$($candidate.alias)`" />")
+        $detectionNodes.Add('          <Edge From="targetTags.Array" To="BuffTags" />')
+        $detectionNodes.Add('          <Edge From="watcherActive.State" To="IsActive" />')
+        $detectionNodes.Add('        </BuffTagTrigger>')
+        $detectionNodes.Add("        <State Name=`"$($slotNode)TagState`" TypeT=`"bool`">")
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)TagTrigger.OnAdded`" To=`"SetTrue`" />")
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)TagTrigger.OnRemoved`" To=`"SetFalse`" />")
+        $detectionNodes.Add('        </State>')
         $detectionNodes.Add("        <Timer Name=`"$($slotNode)ValidationDelay`">")
         $detectionNodes.Add('          <Constant Name="Duration" Value="1s" />')
         $detectionNodes.Add('          <Constant Name="TimeType" Value="GameTime" />')
-        $detectionNodes.Add('          <Edge From="targetTagTrigger.OnAdded" To="SetRunning" />')
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)TagTrigger.OnAdded`" To=`"SetRunning`" />")
         $detectionNodes.Add('          <Edge From="questProgress.OnActive" To="SetRunning" />')
         foreach ($caseActivationEdge in $caseActivationRevalidationEdges) {
             $detectionNodes.Add($caseActivationEdge)
         }
         $detectionNodes.Add('        </Timer>')
         $detectionNodes.Add("        <If Name=`"$($slotNode)Tagged`">")
-        $detectionNodes.Add("          <Edge From=`"$($slotNode)TagCheck.HaveBuffTag`" To=`"Condition`" />")
+        $detectionNodes.Add("          <Edge From=`"$($slotNode)TagState.State`" To=`"Condition`" />")
         $detectionNodes.Add("          <Edge From=`"$($slotNode)ValidationDelay.OnFinished`" To=`"Exec`" />")
         $detectionNodes.Add('        </If>')
         $detectionNodes.Add("        <Function Name=`"$($slotNode)RevealCheck`" MethodName=`"wh::rpgmodule::BuffTagCheck`" DeclaringType=`"wh::rpgmodule`">")
@@ -695,6 +711,36 @@ function New-RegionalQuest {
             $result.Add(
                 "          <Edge From=`"$gateName.True`" To=`"$($match.Groups[2].Value)`" />"
             )
+            $targetTagMatch = [regex]::Match(
+                [string]$match.Groups[1].Value,
+                '^(targetSlot\d{3})Tagged\.True$'
+            )
+            $caseMatch = [regex]::Match(
+                $CaseActiveState,
+                '^case(?<code>\d+)Active\.State$'
+            )
+            if ($targetTagMatch.Success -and $caseMatch.Success) {
+                $phaseGateName = '{0}PhaseGate{1:D4}' -f
+                    $Stem, $gateState.Index
+                $slotNode = [string]$targetTagMatch.Groups[1].Value
+                $caseCode = [string]$caseMatch.Groups['code'].Value
+                $casePresentationGateNodes.Add(
+                    "        <If Name=`"$phaseGateName`">"
+                )
+                $casePresentationGateNodes.Add(
+                    "          <Edge From=`"$($slotNode)TagState.State`" To=`"Condition`" />"
+                )
+                $casePresentationGateNodes.Add(
+                    "          <Edge From=`"case${caseCode}ActiveTrigger.OnAdded`" To=`"Exec`" />"
+                )
+                $casePresentationGateNodes.Add(
+                    "          <Edge From=`"case${caseCode}ActivePhaseGate.True`" To=`"Exec`" />"
+                )
+                $casePresentationGateNodes.Add('        </If>')
+                $result.Add(
+                    "          <Edge From=`"$phaseGateName.True`" To=`"$($match.Groups[2].Value)`" />"
+                )
+            }
         }
         return $result.ToArray()
     }
@@ -766,6 +812,15 @@ function New-RegionalQuest {
             throw "Case '$caseCode' requires one initial evidence state."
         }
         $resetPort = 'Set' + [string]$initialState[0].state_name
+        $storySearchCrossCaseResetEdges = @(
+            $storyModules |
+                Where-Object { [int]$_.caseCode -ne $caseCode } |
+                Sort-Object { [int]$_.caseCode } |
+                ForEach-Object {
+                    '          <Edge From="case{0}ActiveTrigger.OnAdded" To="SetNone" />' -f
+                        [int]$_.caseCode
+                }
+        )
         $storySearchEdges = @(& $gateEdges $baseSearchStateEdges `
             $caseActiveState "${casePrefix}Search")
         $storyRevealEdges = @(& $gateEdges $baseSearchRevealEdges `
@@ -788,7 +843,8 @@ function New-RegionalQuest {
         $additionalStoryNodes.Add(@"
         <State Name="${casePrefix}SearchProgress" TypeT="$searchType">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
-          <Edge From="questProgress.OnActive" To="SetNone" />
+          <Edge From="${casePrefix}ActiveTrigger.OnRemoved" To="SetNone" />
+$($storySearchCrossCaseResetEdges -join "`n")
 $($storySearchEdges -join "`n")
 $($storyRevealEdges -join "`n")
         </State>
@@ -797,6 +853,7 @@ $($storyRevealEdges -join "`n")
         </$searchObjective>
         <State Name="${casePrefix}EvidenceProgress" TypeT="$evidenceProgressType">
           <Edge From="satisfactionTrigger.OnRemoved" To="$resetPort" />
+          <Edge From="${casePrefix}ActiveTrigger.OnRemoved" To="$resetPort" />
 $([string]$story.evidenceStateEdges)
 $($storyEvidenceDone -join "`n")
         </State>
@@ -805,6 +862,7 @@ $($storyEvidenceDone -join "`n")
         </$evidenceObjective>
         <State Name="${casePrefix}TargetProgress" TypeT="$targetType">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="${casePrefix}ActiveTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 $($storyTargetEdges -join "`n")
         </State>
@@ -813,6 +871,7 @@ $($storyTargetEdges -join "`n")
         </$targetObjective>
         <State Name="${casePrefix}CleanupProgress" TypeT="$cleanupType">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="${casePrefix}ActiveTrigger.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 $($storyCleanupEdges -join "`n")
 $($storyCleanupResults -join "`n")
@@ -916,6 +975,9 @@ $([string]$story.evidenceLogs)
     $replacements = [ordered]@{
         '{{DP_QUEST_NAME}}' = $QuestName
         '{{DP_REGION_ID}}' = $RegionId
+        '{{DP_PRIMARY_CASE_ACTIVE_TRIGGER}}' = $primaryCaseActiveTrigger
+        '{{DP_SEARCH_CROSS_CASE_RESET_EDGES}}' =
+            $primarySearchCrossCaseResetEdges
         '{{DP_SEARCH_PROGRESS_TYPE}}' = $SearchProgressTypeName
         '{{DP_EVIDENCE_PROGRESS_TYPE}}' = $EvidenceProgressTypeName
         '{{DP_CLEANUP_PROGRESS_TYPE}}' = $CleanupProgressTypeName
@@ -928,7 +990,6 @@ $([string]$story.evidenceLogs)
         '{{DP_CONFESSION_PROBE_DEFINITION}}' = $confessionProbeDefinition
         '{{DP_RUMOR_DIALOG_NODES}}' = $rumorDialogNodes.TrimEnd()
         '{{DP_WITNESS_NODES}}' = $witnessNodes.TrimEnd()
-        '{{DP_OVERHEARD_NODES}}' = $overheardNodes.TrimEnd()
         '{{DP_EVIDENCE_STATE_NODES}}' = $evidenceStateNodes.TrimEnd()
         '{{DP_CONFESSION_PROBE_NODES}}' = $confessionProbeNodes.TrimEnd()
         '{{DP_QUEST_ITEM_PLACEMENT_NODES}}' = $questItemPlacementNodes.TrimEnd()
@@ -1018,7 +1079,6 @@ $([string]$story.evidenceLogs)
         '{{DP_ADDITIONAL_STORY_OBJECTIVES}}' =
             $additionalStoryObjectives -join "`n"
         '{{DP_TARGET_ASSETS}}' = $assets -join "`n"
-        '{{DP_OVERHEARD_ASSETS}}' = $overheardAssets.TrimEnd()
         '{{DP_CONFESSION_PROBE_ASSETS}}' = $confessionProbeAssets.TrimEnd()
         '{{DP_TARGET_LOGS}}' = $logs -join "`n"
     }

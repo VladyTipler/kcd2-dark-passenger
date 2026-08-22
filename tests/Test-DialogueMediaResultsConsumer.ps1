@@ -193,98 +193,40 @@ try {
         -StageRoot (Join-Path $tempRoot 'coverage-stage')) `
         'stale job coverage fails closed'
 
-    $pilotVoiceManifestPath = Join-Path $repoRoot `
-        'build\generated\voice\dialogue-voice-manifest.json'
-    $pilotVoicePak = Join-Path $repoRoot `
-        'build\mod\Localization\english.pak'
-    $pilotFacialPak = Join-Path (Split-Path -Parent $repoRoot) `
-        '_work\custom-facial-16-2026-08-16\darkpassenger_facials_english_16.pak'
-    $pilotAvailable =
-        (Test-Path -LiteralPath $pilotVoiceManifestPath -PathType Leaf) -and
-        (Test-Path -LiteralPath $pilotVoicePak -PathType Leaf) -and
-        (Test-Path -LiteralPath $pilotFacialPak -PathType Leaf)
-    Add-Result $pilotAvailable 'verified 16-line pilot packages are available'
-    if ($pilotAvailable) {
-        $pilotVoiceManifest = [System.IO.File]::ReadAllText(
-            $pilotVoiceManifestPath
-        ) | ConvertFrom-Json -Depth 100
-        $pilotJobs = @($pilotVoiceManifest.assets | ForEach-Object {
-            $fileName = [System.IO.Path]::GetFileNameWithoutExtension(
-                ([string]$_.destination).Replace('/', '\')
-            )
-            $prefix = $fileName.Substring(0, $fileName.IndexOf('_'))
-            [ordered]@{
-                jobId = @(
-                    [string]$_.storyId,
-                    [string]$_.settlement,
-                    [string]$_.stringName,
-                    $prefix
-                ) -join '.'
-                storyId = [string]$_.storyId
-                dialogueGraph = [string]$_.dialogueGraph
-                stringName = [string]$_.stringName
-                text = [string]$_.stringName
-                voiceProfile = [string]$_.voiceProfile
-                assetPrefix = $prefix
-                rig = if ($prefix -ceq 'tmck') {
-                    'human_male'
-                } else { 'human_female' }
-                audioFolder = [string]$_.audioFolder
-                media = [ordered]@{ voice = 'native'; lipSync = $true }
-            }
-        })
-        $pilotJobsPath = Join-Path $tempRoot 'pilot-jobs.json'
-        Write-JsonFile $pilotJobsPath ([ordered]@{
-            schemaVersion = 1
-            game = 'kcd2'
-            packageLanguage = 'english'
-            jobs = $pilotJobs
-        })
-        $pilotResultsPath = Join-Path $tempRoot 'pilot-results.json'
-        Write-JsonFile $pilotResultsPath ([ordered]@{
-            schemaVersion = 1
-            status = 'complete'
-            jobs = @($pilotJobs | ForEach-Object {
-                $basename = "$($_.assetPrefix)_$($_.stringName)"
-                [ordered]@{
-                    jobId = [string]$_.jobId
-                    status = 'cached'
-                    audio = "dialog/$($_.audioFolder)/$basename.ogg"
-                    facial = (
-                        'animations/humans/facials/dialog/' +
-                        "$($_.audioFolder)/$basename.caf"
-                    )
-                    durationSeconds = 1
-                }
-            })
-            packages = [ordered]@{
-                voice = [ordered]@{
-                    path = $pilotVoicePak
-                    sha256 = (Get-FileHash $pilotVoicePak `
-                        -Algorithm SHA256).Hash.ToLowerInvariant()
-                }
-                facial = [ordered]@{
-                    path = $pilotFacialPak
-                    sha256 = (Get-FileHash $pilotFacialPak `
-                        -Algorithm SHA256).Hash.ToLowerInvariant()
-                }
-            }
-            diagnostics = @()
-        })
-        $pilotStage = Join-Path $tempRoot 'pilot-stage'
-        & $consumer `
-            -JobsManifestPath $pilotJobsPath `
-            -ResultsManifestPath $pilotResultsPath `
-            -OutputModRoot $pilotStage
+    $resolvedJobsPath = Join-Path $repoRoot `
+        'build\generated\voice\dialogue-media-jobs-resolved.json'
+    $mediaResultsPath = Join-Path $repoRoot `
+        'build\generated\voice\dialogue-media-results.json'
+    $mediaAvailable =
+        (Test-Path -LiteralPath $resolvedJobsPath -PathType Leaf) -and
+        (Test-Path -LiteralPath $mediaResultsPath -PathType Leaf)
+    Add-Result $mediaAvailable 'verified dynamic actor media packages are available'
+    if ($mediaAvailable) {
+        $resolvedJobs = [System.IO.File]::ReadAllText($resolvedJobsPath) |
+            ConvertFrom-Json -Depth 100
+        $mediaResults = [System.IO.File]::ReadAllText($mediaResultsPath) |
+            ConvertFrom-Json -Depth 100
+        $resolvedJobCount = @($resolvedJobs.jobs).Count
         Add-Result (
-            (Get-FileHash (Join-Path $pilotStage `
+            $resolvedJobCount -gt 0 -and
+            @($mediaResults.jobs).Count -eq $resolvedJobCount
+        ) 'real generated package covers every physical actor asset'
+        $dynamicStage = Join-Path $tempRoot 'dynamic-stage'
+        & $consumer `
+            -JobsManifestPath $resolvedJobsPath `
+            -ResultsManifestPath $mediaResultsPath `
+            -OutputModRoot $dynamicStage
+        $voiceSource = [string]$mediaResults.packages.voice.path
+        $facialSource = [string]$mediaResults.packages.facial.path
+        Add-Result (
+            (Get-FileHash (Join-Path $dynamicStage `
                 'Localization\english.pak') -Algorithm SHA256).Hash -eq
-            (Get-FileHash $pilotVoicePak -Algorithm SHA256).Hash -and
-            (Get-FileHash (Join-Path $pilotStage `
+            (Get-FileHash $voiceSource -Algorithm SHA256).Hash -and
+            (Get-FileHash (Join-Path $dynamicStage `
                 'Data\darkpassenger_facials_english.pak') `
                 -Algorithm SHA256).Hash -eq
-            (Get-FileHash $pilotFacialPak -Algorithm SHA256).Hash
-        ) 'real 16-line voice and facial PAKs cross the consumer boundary'
+            (Get-FileHash $facialSource -Algorithm SHA256).Hash
+        ) 'real voice and facial PAKs cross the consumer boundary'
     }
 }
 finally {

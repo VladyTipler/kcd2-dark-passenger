@@ -81,32 +81,9 @@ Add-Result (
     $binding.roles.document.documentGuid -match `
         '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 ) 'binding selects the locked upper-floor inn chest and a full item GUID'
-Add-Result (
-    $null -ne $binding -and
-    @($binding.roles.overheard.pairs).Count -eq 2 -and
-    $binding.roles.overheard.pairs[0].id -eq 'inn_yard_primary' -and
-    $binding.roles.overheard.pairs[1].id -eq 'inn_yard_fallback'
-) 'binding carries one primary and one finite overheard speaker pair'
-Add-Result (
-    @($binding.roles.overheard.pairs | ForEach-Object { $_.speakers } |
-        Where-Object entityName -eq 'tzel_man_12').Count -eq 1 -and
-    @($binding.roles.overheard.pairs | ForEach-Object { $_.speakers } |
-        Where-Object entityName -eq 'tzel_woman_9').Count -eq 1 -and
-    @($binding.roles.overheard.pairs | ForEach-Object { $_.speakers } |
-        Where-Object entityName -eq 'tzel_man_13').Count -eq 1 -and
-    @($binding.roles.overheard.pairs | ForEach-Object { $_.speakers } |
-        Where-Object entityName -eq 'tzel_woman_11').Count -eq 1
-) 'binding selects the live-probed ordinary Zhelejov locals'
-
 $soulRows = @($souls.Values)
 $innkeeperSoul = @($soulRows | Where-Object soul_name -eq 'tzel_vavrinec')
 $witnessSoul = @($soulRows | Where-Object soul_name -eq 'tzel_bretislav')
-$overheardSouls = @($soulRows | Where-Object soul_name -in @(
-    'tzel_man_12',
-    'tzel_woman_9',
-    'tzel_man_13',
-    'tzel_woman_11'
-))
 Add-Result (
     $innkeeperSoul.Count -eq 1 -and
     $innkeeperSoul[0].character_name -eq 'char_HOSPODSKY_VAVRINEC_TICHOTA' -and
@@ -119,9 +96,6 @@ Add-Result (
     $witnessSoul[0].faction_name -eq `
         'trosecko_settlements_zelejov_commonFolk_tavern_staff'
 ) 'native soul registry confirms Bretislav is Zhelejov tavern staff'
-Add-Result ($overheardSouls.Count -eq 4) `
-    'native soul registry confirms all four overheard speakers'
-
 Add-Result (
     $mission -match `
         '<Entity Name="tzel_vavrinec"[^>]+EditorLayer="Main/tzel_zelejov/inn/_script/npc/vavrinec"'
@@ -130,16 +104,6 @@ Add-Result (
     $mission -match `
         '<Entity Name="tzel_bretislav"[^>]+EditorLayer="Main/tzel_zelejov/inn/_script/npc/bretislav"'
 ) 'world export places Bretislav in the Zhelejov inn layer'
-foreach ($speakerName in @(
-    'tzel_man_12',
-    'tzel_woman_9',
-    'tzel_man_13',
-    'tzel_woman_11'
-)) {
-    Add-Result (
-        $mission -match ('<Entity Name="' + $speakerName + '"[^>]+EditorLayer="Main/tzel_zelejov/')
-    ) "world export places $speakerName in the Zhelejov layer"
-}
 Add-Result (
     $mission -match (
         '<Entity[^>]+Pos="1657\.628,2145\.149,38\.70087"[^>]+' +

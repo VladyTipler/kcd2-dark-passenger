@@ -34,7 +34,7 @@ Script.ReloadScript("Scripts/mods/dptrophy.lua")
 Script.ReloadScript("Scripts/mods/dpcasescenedirector.lua")
 Script.ReloadScript("Scripts/mods/dpcaseevidence.lua")
 Script.ReloadScript("Scripts/mods/dpevidenceregistry.lua")
-Script.ReloadScript("Scripts/mods/dpoverheardevidence.lua")
+Script.ReloadScript("Scripts/mods/dptimedareaaction.lua")
 Script.ReloadScript("Scripts/mods/dpleadplanner.lua")
 Script.ReloadScript("Scripts/mods/dpevidencereaction.lua")
 Script.ReloadScript("Scripts/mods/dpwitnesslead.lua")
@@ -631,6 +631,23 @@ local function BindRecoveredTarget(candidate, entity)
     return true
 end
 
+local function RestoreCaseInstanceIfNeeded(candidate, entity)
+    local investigationState =
+        DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.GetState ~= nil and
+        DarkPassengerInvestigation.GetState() or nil
+    local generation = investigationState ~= nil and
+        tonumber(investigationState.generation) or nil
+    local selected = generation ~= nil and
+        DarkPassengerCaseContent ~= nil and
+        DarkPassengerCaseContent.GetSelected ~= nil and
+        DarkPassengerCaseContent.GetSelected(generation) or nil
+    if selected ~= nil then return true end
+    return DarkPassengerInvestigation ~= nil and
+        DarkPassengerInvestigation.Restore ~= nil and
+        DarkPassengerInvestigation.Restore(candidate, entity) == true
+end
+
 function DarkPassengerTarget.RestoreExisting(gameRegion)
     local persistedCandidate =
         FindCandidateBySlot(ReadPersistedTargetSlot())
@@ -639,6 +656,13 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
         local persistedEntity =
             System.GetEntityByName(persistedCandidate.entityName)
         if IsRecoveredTargetBound(persistedCandidate, persistedEntity) then
+            -- Runtime binding alone does not prove that the persisted
+            -- CaseInstance still resolves against the current generated
+            -- catalog. Migrate it once before zones/objectives republish.
+            RestoreCaseInstanceIfNeeded(
+                persistedCandidate,
+                persistedEntity
+            )
             local migrationScheduled = ScheduleQuestSelectionMigration(
                 persistedCandidate,
                 persistedEntity
@@ -667,6 +691,10 @@ function DarkPassengerTarget.RestoreExisting(gameRegion)
         local runtimeEntity =
             System.GetEntityByName(runtimeCandidate.entityName)
         if IsRecoveredTargetBound(runtimeCandidate, runtimeEntity) then
+            RestoreCaseInstanceIfNeeded(
+                runtimeCandidate,
+                runtimeEntity
+            )
             local migrationScheduled = ScheduleQuestSelectionMigration(
                 runtimeCandidate,
                 runtimeEntity
@@ -972,6 +1000,8 @@ function DarkPassengerTarget.Select(gameRegion, settlement)
         DarkPassengerTarget.ResetCase(gameRegion)
         return false, "investigation_open_failed"
     end
+    DarkPassengerTarget.BeginRestoreCycle("target_select")
+    ScheduleRestoredTargetPresentationRearm(selectedCandidate, selected)
     if CaseReady() then
         DarkPassengerCase.Open(selected.id, displayName, settlement)
     end
@@ -1565,7 +1595,6 @@ DarkPassengerQuestBridge.REQUESTS = {
         deathContext = "dp_target_dead_trosecko",
         rumorContext = "dp_rumor_heard_trosecko",
         witnessContext = "dp_witness_heard_trosecko",
-        overheardContext = "dp_overheard_clue_spoken_trosecko",
     },
 }
 DarkPassengerQuestBridge.KILL_CONTEXT = "dp_ordinary_human_kill"
@@ -1634,7 +1663,6 @@ function DarkPassengerQuestBridge.StartPolling(reason)
     DarkPassengerQuestBridge.lastKillState = nil
     DarkPassengerQuestBridge.lastRumorStates = {}
     DarkPassengerQuestBridge.lastWitnessStates = {}
-    DarkPassengerQuestBridge.lastOverheardStates = {}
     DarkPassengerQuestBridge.lastDocumentReadStates = {}
     TargetLog(
         "quest-context polling started reason=" .. tostring(reason) ..
@@ -1939,74 +1967,9 @@ function DarkPassengerQuestBridge.PollSelectionRequest(userData, timerId)
             DarkPassengerWitnessLead.OnDialogueCompleted(request.region)
         end
 
-        local contextRequests = {}
-        if DarkPassengerOverheardEvidence ~= nil and
-           DarkPassengerOverheardEvidence.GetContextRequests ~= nil then
-            local ok, requestsOrError = pcall(function()
-                return DarkPassengerOverheardEvidence.GetContextRequests(request.region)
-            end)
-            if ok and type(requestsOrError) == "table" then
-                contextRequests = requestsOrError
-            elseif not ok then
-                TargetLog(
-                    "overheard request lookup failed region=" ..
-                    tostring(request.region) ..
-                    " error=" .. tostring(requestsOrError)
-                )
-            end
-        end
-        if #contextRequests == 0 and request.overheardContext ~= nil then
-            contextRequests[1] = {
-                sceneId = nil,
-                context = request.overheardContext,
-                generation = 0,
-            }
-        end
-        for _, contextRequest in ipairs(contextRequests) do
-            local hasOverheardRequest = false
-            if contextRequest.context ~= nil and
-               playerEntity ~= nil and
-               playerEntity.soul ~= nil and
-               playerEntity.soul.HasScriptContext ~= nil then
-                local ok, contextOrError = pcall(function()
-                    return playerEntity.soul:HasScriptContext(
-                        contextRequest.context
-                    )
-                end)
-                if ok then
-                    hasOverheardRequest =
-                        contextOrError == true or contextOrError == 1
-                else
-                    TargetLog(
-                        "overheard context check failed region=" ..
-                        tostring(request.region) ..
-                        " scene=" .. tostring(contextRequest.sceneId) ..
-                        " error=" .. tostring(contextOrError)
-                    )
-                end
-            end
-            local stateKey = request.region .. "|" ..
-                tostring(contextRequest.sceneId or "legacy") .. "|" ..
-                tostring(contextRequest.generation or 0)
-            local previousOverheardState =
-                DarkPassengerQuestBridge.lastOverheardStates[stateKey]
-            local overheardRequestBecameActive =
-                hasOverheardRequest and previousOverheardState ~= true
-            if previousOverheardState ~= hasOverheardRequest then
-                DarkPassengerQuestBridge.lastOverheardStates[stateKey] =
-                    hasOverheardRequest
-                TargetLog(
-                    "overheard context region=" ..
-                    tostring(request.region) ..
-                    " scene=" .. tostring(contextRequest.sceneId) ..
-                    " active=" .. tostring(hasOverheardRequest)
-                )
-            end
-            if overheardRequestBecameActive and
-               DarkPassengerOverheardEvidence ~= nil and
-               DarkPassengerOverheardEvidence.OnClueSpoken ~= nil then
-                DarkPassengerOverheardEvidence.OnClueSpoken(request.region, contextRequest.sceneId)
-            end
+        if DarkPassengerTimedAreaAction ~= nil and
+           DarkPassengerTimedAreaAction.RefreshPrompt ~= nil then
+            DarkPassengerTimedAreaAction.RefreshPrompt()
         end
     end
 
@@ -3195,6 +3158,10 @@ function DarkPassengerTest.OnPlayerReload(...)
        DarkPassengerAftermath.ScheduleRestore ~= nil then
         DarkPassengerAftermath.ScheduleRestore("player_reload")
     end
+    if DarkPassengerTimedAreaAction ~= nil and
+       DarkPassengerTimedAreaAction.OnReload ~= nil then
+        DarkPassengerTimedAreaAction.OnReload()
+    end
     return DarkPassengerQuestBridge.StartPolling("player_reload")
 end
 
@@ -3214,6 +3181,10 @@ function DarkPassengerTest.OnPlayerInit(...)
     if DarkPassengerAftermath ~= nil and
        DarkPassengerAftermath.ScheduleRestore ~= nil then
         DarkPassengerAftermath.ScheduleRestore("player_init")
+    end
+    if DarkPassengerTimedAreaAction ~= nil and
+       DarkPassengerTimedAreaAction.OnReload ~= nil then
+        DarkPassengerTimedAreaAction.OnReload()
     end
     return DarkPassengerQuestBridge.StartPolling("player_init")
 end
@@ -3240,6 +3211,10 @@ if PlayerEventDispatcher ~= nil then
             if DarkPassengerAftermath ~= nil and
                DarkPassengerAftermath.EnsureRestoreFromPlayerAction ~= nil then
                 DarkPassengerAftermath.EnsureRestoreFromPlayerAction(...)
+            end
+            if DarkPassengerTimedAreaAction ~= nil and
+               DarkPassengerTimedAreaAction.OnActionEvent ~= nil then
+                DarkPassengerTimedAreaAction.OnActionEvent(...)
             end
             return DarkPassengerQuestBridge.EnsurePollingFromPlayerAction(...)
         end)

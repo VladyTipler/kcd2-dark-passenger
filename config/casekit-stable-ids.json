@@ -21,7 +21,7 @@
         {"threadId": "paper-trail", "stepId": "ask-innkeeper", "legacyId": "zelejov_innkeeper_missing_traveler", "code": 2101},
         {"threadId": "paper-trail", "stepId": "read-ledger", "legacyId": "matej_guest_ledger", "code": 2102},
         {"threadId": "horse-witness", "stepId": "question-witness", "legacyId": "zelejov_stablehand_witness", "code": 2103},
-        {"threadId": "courtyard-gossip", "stepId": "overhear-argument", "legacyId": "zelejov_inn_yard_whisper", "code": 2104}
+        {"threadId": "courtyard-gossip", "stepId": "listen-for-rumors", "legacyId": "zelejov_inn_yard_whisper", "code": 2104}
       ]
     }
   ]

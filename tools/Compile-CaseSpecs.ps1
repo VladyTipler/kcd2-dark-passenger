@@ -3,6 +3,9 @@ param(
     [string]$CaseRoot,
     [string]$BindingPath,
     [string]$LocalizationRoot,
+    [string]$DialogueVoiceRegistryPath,
+    [string]$DialogueMediaResolvedJobsPath,
+    [string]$DialogueMediaResultsPath,
     [string]$BuildRoot
 )
 
@@ -47,9 +50,27 @@ if ([string]::IsNullOrWhiteSpace($BuildRoot)) {
 if ([string]::IsNullOrWhiteSpace($LocalizationRoot)) {
     $LocalizationRoot = Join-Path $repoRoot 'localization'
 }
+if ([string]::IsNullOrWhiteSpace($DialogueVoiceRegistryPath)) {
+    $DialogueVoiceRegistryPath = Join-Path $repoRoot `
+        'config\dialogue-voice-registry.json'
+}
 
 $modulePath = Join-Path $PSScriptRoot 'CaseSpecCompiler.psm1'
 Import-Module $modulePath -Force
+$dialogueVoiceRegistry = Read-DpDialogueVoiceRegistry `
+    -LiteralPath $DialogueVoiceRegistryPath
+$dialogueMediaReferenceLengths = $null
+if (-not [string]::IsNullOrWhiteSpace($DialogueMediaResolvedJobsPath) -or
+    -not [string]::IsNullOrWhiteSpace($DialogueMediaResultsPath)) {
+    if ([string]::IsNullOrWhiteSpace($DialogueMediaResolvedJobsPath) -or
+        [string]::IsNullOrWhiteSpace($DialogueMediaResultsPath)) {
+        throw 'Dialogue media jobs and results paths must be provided together.'
+    }
+    $dialogueMediaReferenceLengths =
+        Read-DpDialogueMediaReferenceLengths `
+            -JobsManifestPath $DialogueMediaResolvedJobsPath `
+            -ResultsManifestPath $DialogueMediaResultsPath
+}
 
 $cases = @(Get-DpValidatedCaseSpecs `
     -CaseRoot $CaseRoot `
@@ -98,6 +119,7 @@ else {
 $candidateConfigPath = Join-Path $repoRoot 'config\victim-candidates.json'
 $candidateConfig = [System.IO.File]::ReadAllText($candidateConfigPath) |
     ConvertFrom-Json -Depth 100
+$maxNativeSignalTag = 179
 $caseActivationSignals = @(Get-DpCaseActivationSignals -CaseSpecs $cases)
 $questItemSignalStart = [Math]::Max(
     130,
@@ -125,12 +147,31 @@ $guidanceSignals = @(Get-DpGuidanceSignals `
     -CompiledDefinitions $compiledDefinitions `
     -AreaManifest $areaManifest `
     -AreaInventory $areaInventory `
-    -StartSignalTag ($questItemSignalStart + $questItemPlacementSignals.Count))
+    -StartSignalTag ($questItemSignalStart + $questItemPlacementSignals.Count) `
+    -MaxSignalTag $maxNativeSignalTag)
+$nativeGuidanceSignals = @(
+    Get-DpUniqueGuidanceNativeSignals -Signals $guidanceSignals
+)
+$highestAllocatedSignalTag = @(
+    $caseActivationSignals +
+    $questItemPlacementSignals +
+    $nativeGuidanceSignals
+) | ForEach-Object { [int]$_.signal_tag } |
+    Measure-Object -Maximum
+$actorSelectionSignalStart = [Math]::Max(
+    151,
+    [int]$highestAllocatedSignalTag.Maximum + 1
+)
+$actorSelectionSignals = @(Get-DpActorSelectionSignals `
+    -CaseSpecs $cases `
+    -StartSignalTag $actorSelectionSignalStart `
+    -MaxSignalTag $maxNativeSignalTag)
 $signalTagEntries = @(
     foreach ($signal in @(
         $caseActivationSignals +
         $questItemPlacementSignals +
-        $guidanceSignals
+        $nativeGuidanceSignals +
+        $actorSelectionSignals
     )) {
         $tag = if ($signal -is [System.Collections.IDictionary]) {
             $signal['signal_tag']
@@ -154,7 +195,8 @@ $variantCatalog = ConvertTo-DpCaseVariantCatalogLua `
     -Bindings $bindings `
     -QuestItemPlacementSignals $questItemPlacementSignals `
     -GuidanceSignals $guidanceSignals `
-    -CaseActivationSignals $caseActivationSignals
+    -CaseActivationSignals $caseActivationSignals `
+    -ActorSelectionSignals $actorSelectionSignals
 $questItemPlacementCatalog = ConvertTo-DpQuestItemPlacementCatalogLua `
     -Signals $questItemPlacementSignals
 $baseQuestItemCatalog = if (
@@ -204,7 +246,12 @@ foreach ($case in $cases) {
             -Bindings $scopedBindings `
             -Region $region `
             -NativeRegion $nativeRegion `
-            -CaseActivationSignal $activationSignal
+            -CaseActivationSignal $activationSignal `
+            -ActorSelectionSignals @($actorSelectionSignals | Where-Object {
+                [int]$_.case_code -eq [int]$case.code
+            }) `
+            -VoiceRegistry $dialogueVoiceRegistry `
+            -MediaReferenceLengths $dialogueMediaReferenceLengths
         if (-not $nativeModulesByRegion.ContainsKey($region)) {
             $nativeModulesByRegion[$region] =
                 [System.Collections.Generic.List[object]]::new()
@@ -216,6 +263,37 @@ $nativeRegions = @($nativeModulesByRegion.Keys | Sort-Object | ForEach-Object {
     ConvertTo-DpNativeRegionBundle `
         -Modules $nativeModulesByRegion[$_].ToArray()
 })
+$mediaDemands = @(
+    foreach ($case in @($cases | Sort-Object code, id)) {
+        $nativeRegionNames = if (
+            $null -ne $case.native.PSObject.Properties['regions']
+        ) {
+            @($case.native.regions.PSObject.Properties.Name)
+        }
+        else { @([string]$case.constraints.region) }
+        foreach ($region in @($nativeRegionNames | Sort-Object -Unique)) {
+            $scopedBindings = @(Get-DpScopedCaseSettlementBindings `
+                -Bindings $bindings -CaseSpec $case -Region $region)
+            foreach ($binding in @($scopedBindings | Sort-Object settlement)) {
+                foreach ($dialogue in @($case.native.dialogues | Where-Object {
+                    $null -ne $_.PSObject.Properties['media']
+                } | Sort-Object kind, graphName)) {
+                    @(Get-DpDialogueMediaDemands `
+                        -CaseSpec $case -Region $region `
+                        -Settlement ([string]$binding.settlement) `
+                        -Dialogue $dialogue -Binding $binding)
+                }
+            }
+        }
+    }
+)
+$duplicateMediaDemand = $mediaDemands | Group-Object {
+    [string]$_.demandId
+} | Where-Object { $_.Count -gt 1 } | Select-Object -First 1
+if ($null -ne $duplicateMediaDemand) {
+    throw "Dialogue media demand is duplicated: " +
+        [string]$duplicateMediaDemand.Name
+}
 foreach ($wiring in $nativeRegions) {
     $dialogRoot = Join-Path $BuildRoot (
         'mod\Data\Quests\darkpassengertest\' +
@@ -230,12 +308,91 @@ foreach ($wiring in $nativeRegions) {
         )
     }
 }
+$voiceAssets = @($nativeRegions | ForEach-Object {
+    @($_.dialogues) | ForEach-Object { @($_.voiceAssets) }
+})
+$facialAssets = @($nativeRegions | ForEach-Object {
+    @($_.dialogues) | ForEach-Object { @($_.facialAssets) }
+})
+$mediaJobs = @($nativeRegions | ForEach-Object {
+    @($_.dialogues) | ForEach-Object { @($_.mediaJobs) }
+})
+$duplicateVoiceDestination = $voiceAssets | Group-Object {
+    [string]$_.destination
+} | Where-Object { $_.Count -gt 1 } | Select-Object -First 1
+if ($null -ne $duplicateVoiceDestination) {
+    throw "Dialogue voice destination is duplicated: " +
+        [string]$duplicateVoiceDestination.Name
+}
+$duplicateFacialDestination = $facialAssets | Group-Object {
+    [string]$_.destination
+} | Where-Object { $_.Count -gt 1 } | Select-Object -First 1
+if ($null -ne $duplicateFacialDestination) {
+    throw "Dialogue facial destination is duplicated: " +
+        [string]$duplicateFacialDestination.Name
+}
+$voiceManifestPath = Join-Path $BuildRoot `
+    'generated\voice\dialogue-voice-manifest.json'
+New-Item -ItemType Directory -Path (
+    Split-Path -Parent $voiceManifestPath
+) -Force | Out-Null
+$voiceManifest = [ordered]@{
+    schemaVersion = 1
+    assets = @($voiceAssets | Sort-Object destination)
+    facialAssets = @($facialAssets | Sort-Object destination)
+}
+[System.IO.File]::WriteAllText(
+    $voiceManifestPath,
+    ($voiceManifest | ConvertTo-Json -Depth 100) + "`n",
+    $utf8NoBom
+)
+$duplicateMediaJob = $mediaJobs | Group-Object {
+    [string]$_.jobId
+} | Where-Object { $_.Count -gt 1 } | Select-Object -First 1
+if ($null -ne $duplicateMediaJob) {
+    throw "Dialogue media job is duplicated: " +
+        [string]$duplicateMediaJob.Name
+}
+$duplicateMediaBasename = $mediaJobs | Group-Object {
+    [string]$_.assetPrefix + '_' + [string]$_.stringName
+} | Where-Object { $_.Count -gt 1 } | Select-Object -First 1
+if ($null -ne $duplicateMediaBasename) {
+    throw "Dialogue media asset basename is duplicated: " +
+        [string]$duplicateMediaBasename.Name
+}
+$mediaJobsPath = Join-Path $BuildRoot `
+    'generated\voice\dialogue-media-jobs.json'
+$mediaJobsManifest = [ordered]@{
+    schemaVersion = 1
+    game = 'kcd2'
+    packageLanguage = 'english'
+    jobs = @($mediaJobs | Sort-Object jobId)
+}
+[System.IO.File]::WriteAllText(
+    $mediaJobsPath,
+    ($mediaJobsManifest | ConvertTo-Json -Depth 100) + "`n",
+    $utf8NoBom
+)
+$mediaDemandsPath = Join-Path $BuildRoot `
+    'generated\voice\dialogue-media-demands.json'
+$mediaDemandsManifest = [ordered]@{
+    schemaVersion = 1
+    game = 'kcd2'
+    packageLanguage = 'english'
+    demands = @($mediaDemands | Sort-Object demandId)
+}
+[System.IO.File]::WriteAllText(
+    $mediaDemandsPath,
+    ($mediaDemandsManifest | ConvertTo-Json -Depth 100) + "`n",
+    $utf8NoBom
+)
 $nativeManifest = [ordered]@{
     schemaVersion = 1
     regions = @($nativeRegions | ForEach-Object {
         $guidanceWiring = ConvertTo-DpGuidanceNativeWiring `
             -Signals $guidanceSignals `
-            -Region ([string]$_.region)
+            -Region ([string]$_.region) `
+            -CaseActivationSignals @($_.caseActivationSignals)
         [ordered]@{
             caseIds = @($_.caseIds)
             region = $_.region
@@ -245,8 +402,6 @@ $nativeManifest = [ordered]@{
             dialogDefinitions = $_.dialogDefinitions
             rumorNodes = $_.rumorNodes
             witnessNodes = $_.witnessNodes
-            overheardNodes = $_.overheardNodes
-            overheardAssets = $_.overheardAssets
             evidenceStateNodes = $_.evidenceStateNodes
             evidenceStateEdges = $_.evidenceStateEdges
             evidenceType = $_.evidenceType
@@ -329,7 +484,8 @@ $stageTransforms = @(
             ConvertTo-DpScriptContextXml `
                 -BaseXml $xml `
                 -CaseSpecs $cases `
-                -Signals $questItemPlacementSignals
+                -Signals $questItemPlacementSignals `
+                -GuidanceSignals $guidanceSignals
         }
     },
     @{
@@ -376,12 +532,32 @@ $stageTransforms = @(
     },
     @{
         Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpActorSelectionTagXml `
+                -BaseXml $xml `
+                -Signals $actorSelectionSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
             'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
         Transform = {
             param($xml)
             ConvertTo-DpCaseActivationBuffXml `
                 -BaseXml $xml `
                 -Signals $caseActivationSignals
+        }
+    },
+    @{
+        Path = Join-Path $BuildRoot `
+            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
+        Transform = {
+            param($xml)
+            ConvertTo-DpActorSelectionBuffXml `
+                -BaseXml $xml `
+                -Signals $actorSelectionSignals
         }
     },
     @{
@@ -400,26 +576,6 @@ $stageTransforms = @(
         Transform = {
             param($xml)
             ConvertTo-DpDialogueVariantBuffXml `
-                -BaseXml $xml `
-                -CaseSpecs $cases
-        }
-    },
-    @{
-        Path = Join-Path $BuildRoot `
-            'mod\Data\Libs\Tables\rpg\buff_ai_tag__darkpassengertest.xml'
-        Transform = {
-            param($xml)
-            ConvertTo-DpOverheardTagXml `
-                -BaseXml $xml `
-                -CaseSpecs $cases
-        }
-    },
-    @{
-        Path = Join-Path $BuildRoot `
-            'mod\Data\Libs\Tables\rpg\buff__darkpassengertest.xml'
-        Transform = {
-            param($xml)
-            ConvertTo-DpOverheardBuffXml `
                 -BaseXml $xml `
                 -CaseSpecs $cases
         }
@@ -506,3 +662,6 @@ Write-Host "Quest-item protection catalog: $questItemCatalogPath"
 Write-Host "Compatibility report: $reportPath"
 Write-Host "Native wiring: $nativeManifestPath"
 Write-Host "Generated localization: $generatedLocalizationRoot"
+Write-Host "Dialogue voices: $voiceManifestPath"
+Write-Host "Dialogue media jobs: $mediaJobsPath"
+Write-Host "Dialogue media demands: $mediaDemandsPath"

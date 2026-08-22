@@ -2,6 +2,10 @@
   "schemaVersion": 2,
   "id": "innkeeper-rumor",
   "scenePreset": "standing-conversation",
+  "media": {
+    "voice": "native",
+    "lipSync": true
+  },
   "variants": [
     {
       "id": "unread-ledger",

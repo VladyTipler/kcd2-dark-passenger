@@ -46,7 +46,6 @@
 	<Row><Cell>dark_within_target</Cell><Cell>Every whisper and trace now points to one person. The Passenger has chosen; all that remains is to carry out the sentence.</Cell></Row>
 	<Row><Cell>dark_within_target_done</Cell><Cell>The sentence has been carried out. Now I must leave no trace.</Cell></Row>
 	<Row><Cell>dp_evidence_ask_rumors</Cell><Cell>Ask about local rumors</Cell></Row>
-	<Row><Cell>dp_overheard_listen_action</Cell><Cell>Listen in</Cell></Row>
 	<Row><Cell>dp_evidence_dialog_root</Cell><Cell>Unease in the area</Cell></Row>
 	<Row><Cell>dp_evidence_ask_unease</Cell><Cell>Ask about the unease in the area</Cell></Row>
 	<Row><Cell>dp_rumor_henry_unease</Cell><Cell>People here seem afraid of something. Has something happened?</Cell></Row>

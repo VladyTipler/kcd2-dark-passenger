@@ -72,7 +72,7 @@ and several connected `InvestigationThread` chains. Each thread combines a
 lead with one or more evidence actions and explicit results: revealed facts,
 next steps, unlocked threads and journal feedback. EvidenceModules implement
 reusable in-game actions such as source dialogue, document search, witness
-testimony and overheard dialogue.
+testimony and timed actions inside quest areas.
 
 The first deck contains `paper-trail-witness`, `missing-traveler` and four core
 EvidenceModules. The loader validates module ports, semantic slot bindings,
@@ -80,18 +80,21 @@ fact and thread references, one-shot confidence, a reachable reveal threshold,
 out-of-order presentation variants, typed `{{slot.field}}` templates and exact
 Russian/English asset-key parity. Anonymous-capable slots cannot use `.name`.
 
-`overheard-dialogue` steps require an explicit activation contract:
+`timed-area-listening` steps require an explicit activation contract:
 
 ```json
-"activation": {"mode": "interaction"}
+"activation": {
+  "mode": "timed-area-action",
+  "availableFromHour": 10,
+  "availableUntilHour": 22,
+  "durationHours": 2
+}
 ```
 
-`interaction` exposes **Listen in** on either living bound speaker; `proximity`
-keeps the directed ambient-scene behavior. One StoryPack may compile several
-independent overheard scenes. Every scene owns its dialogue graph, bound pair,
-signal tag/buff, ScriptContext, one-shot evidence state and cleanup entry. The
-runtime rejects stale generations, discovered evidence, target collisions,
-missing or dead speakers, combat, active dialogue and excessive distance.
+The step owns one area guidance target and no speaker bindings. Entering the
+compiled quest area exposes an aimless **F** action. The runtime yields to any
+vanilla usable object, rejects combat/dialogue and out-of-hours attempts, then
+opens the native time-skip flow and grants the configured one-shot evidence.
 
 Schema v2 lets one StoryPack compose several InvestigationArchetypes while
 preserving one canonical truth. Its connected fact graph must reach the

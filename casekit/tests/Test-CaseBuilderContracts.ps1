@@ -242,6 +242,17 @@ try {
                 'objective.guidance.search.active'
         ) 'v2 StoryPack preserves reusable objective presentation assets'
         Add-Result (
+            @($storyV2.storyIdentities).Count -eq 1 -and
+            [string]$storyV2.storyIdentities[0].id -eq 'culprit' -and
+            [string]$storyV2.storyIdentities[0].bindingSlot -eq 'target' -and
+            [string]$storyV2.storyIdentities[0].revealFact -eq
+                'target_identified' -and
+            [string]$storyV2.storyIdentities[0].localized.ru.name -eq
+                'Микулаш' -and
+            [string]$storyV2.storyIdentities[0].localized.en.name -eq
+                'Mikulas'
+        ) 'v2 StoryPack preserves one fixed authored story identity'
+        Add-Result (
             $witnessStep.guidance[1].target.slot -eq 'target' -and
             $witnessStep.guidance[1].visibility.mode -eq 'target-revealed' -and
             $witnessStep.guidance[1].lifetime -eq 'case'
@@ -250,11 +261,18 @@ try {
             @($storyV2.dialogues.scenePreset) -contains `
                 'lying-interrogation'
         ) 'v2 StoryPack preserves semantic scene presets'
+        $voicedDialogue = @($storyV2.dialogues | Where-Object {
+            [string]$_.id -eq 'innkeeper'
+        })[0]
+        Add-Result (
+            [string]$voicedDialogue.media.voice -eq 'native' -and
+            [bool]$voicedDialogue.media.lipSync
+        ) 'v2 StoryPack preserves native dialogue media intent'
         $validationV2 = @($deckV2.validation.stories | Where-Object {
             $_.storyId -eq 'composed-case-probe'
         })[0]
         Add-Result (
-            [int]$validationV2.maximumReachableConfidence -eq 95
+            [int]$validationV2.maximumReachableConfidence -eq 85
         ) 'composed archetypes contribute reachable confidence'
         Add-Result (
             $validationV2.requiredHardFactsSatisfied -eq $true
@@ -278,8 +296,10 @@ try {
             'v2 StoryPack preserves explicit evidence placement semantics',
             'v2 StoryPack normalizes semantic GuidanceTarget defaults',
             'v2 StoryPack preserves reusable objective presentation assets',
+            'v2 StoryPack preserves one fixed authored story identity',
             'v2 StoryPack preserves gated target guidance',
             'v2 StoryPack preserves semantic scene presets',
+            'v2 StoryPack preserves native dialogue media intent',
             'composed archetypes contribute reachable confidence',
             'reveal route reaches the required hard identity fact',
             'v2 StoryPack normalization is byte-deterministic in memory'
@@ -462,6 +482,77 @@ foreach ($invalidIdentityCase in $invalidIdentityCases) {
 }
 
 $invalidV2Cases = @(
+    [pscustomobject]@{
+        name = 'duplicate-story-identity-id'
+        pattern = "*Duplicate story identity 'culprit'*case.json*"
+        label = 'v2 loader rejects duplicate story identity ids'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.storyIdentities = @(
+                $case.storyIdentities[0],
+                $case.storyIdentities[0]
+            )
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'duplicate-story-identity-slot'
+        pattern = "*Story identities 'culprit' and 'accomplice' both bind slot 'target'*case.json*"
+        label = 'v2 loader rejects multiple identities for one binding slot'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $second = $case.storyIdentities[0].Clone()
+            $second.id = 'accomplice'
+            $case.storyIdentities = @($case.storyIdentities[0], $second)
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-story-identity-slot'
+        pattern = "*Story identity 'culprit' references unknown binding slot 'merchant'*case.json*"
+        label = 'v2 loader rejects unknown story identity binding slots'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.storyIdentities[0].bindingSlot = 'merchant'
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'unknown-story-identity-fact'
+        pattern = "*Story identity 'culprit' references unknown reveal fact 'missing_identity'*case.json*"
+        label = 'v2 loader rejects unknown story identity reveal facts'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.storyIdentities[0].revealFact = 'missing_identity'
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'soft-story-identity-fact'
+        pattern = "*Story identity 'culprit' reveal fact 'letter_links_target' is not a hard identity fact*case.json*"
+        label = 'v2 loader requires a hard story identity reveal fact'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.storyIdentities[0].revealFact = 'letter_links_target'
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
+    [pscustomobject]@{
+        name = 'missing-story-identity-language'
+        pattern = "*Story identity 'culprit' is missing 'en' localization*case.json*"
+        label = 'v2 loader requires bilingual story identities'
+        mutate = {
+            param($paths)
+            $case = Read-TestJson -LiteralPath $paths.casePath
+            $case.storyIdentities[0].localized.Remove('en')
+            Write-TestJson -LiteralPath $paths.casePath -Value $case
+        }
+    },
     [pscustomobject]@{
         name = 'guidance-unknown-slot'
         pattern = "*GuidanceTarget 'paper-trail/ask-innkeeper/find-source' references unknown slot 'missingActor'*threads.json*"
@@ -698,6 +789,22 @@ $invalidV2Cases = @(
             $dialogue = Read-TestJson -LiteralPath $paths.confessionPath
             $dialogue.scenePreset = 'cinematic-freecam'
             Write-TestJson -LiteralPath $paths.confessionPath -Value $dialogue
+        }
+    },
+    [pscustomobject]@{
+        name = 'invalid-dialogue-media'
+        pattern = "*Dialogue 'innkeeper' uses unsupported voice mode 'generic'*innkeeper.json*"
+        label = 'v2 loader rejects unsupported dialogue voice fallbacks'
+        mutate = {
+            param($paths)
+            $dialoguePath = Join-Path (Split-Path -Parent $paths.confessionPath) `
+                'innkeeper.json'
+            $dialogue = Read-TestJson -LiteralPath $dialoguePath
+            $dialogue.media = [ordered]@{
+                voice = 'generic'
+                lipSync = $true
+            }
+            Write-TestJson -LiteralPath $dialoguePath -Value $dialogue
         }
     },
     [pscustomobject]@{
@@ -939,24 +1046,27 @@ try {
     $missingTraveler = @($productionDeck.stories | Where-Object {
         $_.id -eq 'missing-traveler'
     })[0]
-    $overheardSteps = @($missingTraveler.threads.steps | ForEach-Object {
+    $timedAreaSteps = @($missingTraveler.threads.steps | ForEach-Object {
         @($_)
     } | Where-Object {
-        $_.action.evidenceModule -eq 'overheard-dialogue'
+        $_.action.evidenceModule -eq 'timed-area-listening'
     })
     Add-Result (
-        $overheardSteps.Count -eq 1 -and
-        $overheardSteps[0].action.activation.mode -eq 'interaction' -and
-        @($overheardSteps[0].guidance).Count -eq 1 -and
-        $overheardSteps[0].guidance[0].target.kind -eq 'area' -and
-        $overheardSteps[0].guidance[0].target.slot -eq 'settlement' -and
-        $overheardSteps[0].guidance[0].target.areaSelection -eq
+        $timedAreaSteps.Count -eq 1 -and
+        $timedAreaSteps[0].action.activation.mode -eq 'timed-area-action' -and
+        $timedAreaSteps[0].action.activation.availableFromHour -eq 10 -and
+        $timedAreaSteps[0].action.activation.availableUntilHour -eq 22 -and
+        $timedAreaSteps[0].action.activation.durationHours -eq 2 -and
+        @($timedAreaSteps[0].guidance).Count -eq 1 -and
+        $timedAreaSteps[0].guidance[0].target.kind -eq 'area' -and
+        $timedAreaSteps[0].guidance[0].target.slot -eq 'settlement' -and
+        $timedAreaSteps[0].guidance[0].target.areaSelection -eq
             'smallest-common' -and
-        (@($overheardSteps[0].guidance[0].target.anchorSlots) -join ',') -eq
-            'gossipSourceA,gossipSourceB' -and
-        $overheardSteps[0].guidance[0].visibility.mode -eq 'step-active' -and
-        $overheardSteps[0].guidance[0].lifetime -eq 'step'
-    ) 'production overheard step targets the selected speakers local area'
+        (@($timedAreaSteps[0].guidance[0].target.anchorSlots) -join ',') -eq
+            'rumorSource,witness' -and
+        $timedAreaSteps[0].guidance[0].visibility.mode -eq 'step-active' -and
+        $timedAreaSteps[0].guidance[0].lifetime -eq 'step'
+    ) 'production timed action targets one local inn area'
 }
 catch {
     Add-Result $false (
@@ -965,40 +1075,40 @@ catch {
     Add-Result $false 'production deck contains the first coherent StoryPack'
     Add-Result $false 'production StoryPack has a reachable reveal route'
     Add-Result $false `
-        'production overheard step uses interaction inside a quest area'
+        'production timed action targets one local inn area'
 }
 
 foreach ($activationCase in @(
     [pscustomobject]@{
-        name = 'missing-overheard-activation'
+        name = 'missing-timed-area-activation'
         pattern = '*requires explicit activation mode*'
-        label = 'v2 loader rejects overheard step without activation mode'
+        label = 'v2 loader rejects timed area step without activation mode'
         mutate = {
             param($threads)
             $thread = @($threads.threads | Where-Object {
                 @($_.steps.action.evidenceModule) -contains `
-                    'overheard-dialogue'
+                    'timed-area-listening'
             })[0]
             $stepIndex = 0
             while ($thread.steps[$stepIndex].action.evidenceModule -ne
-                'overheard-dialogue') {
+                'timed-area-listening') {
                 $stepIndex++
             }
             $thread.steps[$stepIndex].action = [ordered]@{
-                evidenceModule = 'overheard-dialogue'
+                evidenceModule = 'timed-area-listening'
                 bindings = $thread.steps[$stepIndex].action.bindings
             }
         }
     },
     [pscustomobject]@{
-        name = 'unknown-overheard-activation'
-        pattern = "*unsupported overheard activation mode 'manual'*"
-        label = 'v2 loader rejects unknown overheard activation mode'
+        name = 'unknown-timed-area-activation'
+        pattern = "*unsupported timed area activation mode 'manual'*"
+        label = 'v2 loader rejects unknown timed area activation mode'
         mutate = {
             param($threads)
             $step = @($threads.threads.steps | ForEach-Object { @($_) } |
                 Where-Object {
-                    $_.action.evidenceModule -eq 'overheard-dialogue'
+                    $_.action.evidenceModule -eq 'timed-area-listening'
                 })[0]
             $step.action.activation = @{
                 mode = 'manual'

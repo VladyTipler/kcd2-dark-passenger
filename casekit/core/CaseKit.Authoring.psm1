@@ -728,6 +728,34 @@ function Assert-CaseKitV2GuidanceTargets {
     }
 }
 
+function Assert-CaseKitV2DialogueMedia {
+    param(
+        [Parameter(Mandatory)]$Definition,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $mediaProperty = $Definition.PSObject.Properties['media']
+    if ($null -eq $mediaProperty) { return }
+    $media = $mediaProperty.Value
+    $voice = [string](Get-CaseKitProperty -Value $media -Name 'voice')
+    if ($voice -cne 'native') {
+        throw "Dialogue '$($Definition.id)' uses unsupported voice mode " +
+            "'$voice' in '$SourcePath'."
+    }
+    $lipSyncProperty = $media.PSObject.Properties['lipSync']
+    if ($null -eq $lipSyncProperty -or -not [bool]$lipSyncProperty.Value) {
+        throw "Dialogue '$($Definition.id)' native voice requires lipSync " +
+            "in '$SourcePath'."
+    }
+    $unknown = @($media.PSObject.Properties | Where-Object {
+        $_.Name -notin @('voice', 'lipSync')
+    } | Select-Object -First 1)
+    if ($unknown.Count -gt 0) {
+        throw "Dialogue '$($Definition.id)' uses unknown media field " +
+            "'$($unknown[0].Name)' in '$SourcePath'."
+    }
+}
+
 function Assert-CaseKitV2DefinitionAssets {
     param(
         [Parameter(Mandatory)][object[]]$Entries,
@@ -744,6 +772,8 @@ function Assert-CaseKitV2DefinitionAssets {
                 throw "Definition '$($definition.id)' uses unknown scene " +
                     "preset '$preset' in '$($entry.path)'."
             }
+            Assert-CaseKitV2DialogueMedia -Definition $definition `
+                -SourcePath $entry.path
         }
         foreach ($key in @($definition.localizationKeys)) {
             Assert-CaseKitAssetReference -AssetKey ([string]$key) `
@@ -893,6 +923,86 @@ function ConvertTo-CaseKitNormalizedThreads {
     return $Threads
 }
 
+function Assert-CaseKitV2StoryIdentities {
+    param(
+        [Parameter(Mandatory)]$Story,
+        [Parameter(Mandatory)]$Slots,
+        [Parameter(Mandatory)]$FactMap,
+        [Parameter(Mandatory)][string]$SourcePath
+    )
+
+    $identityIds = [ordered]@{}
+    $identitySlots = [ordered]@{}
+    foreach ($identity in @(Get-CaseKitProperty `
+        -Value $Story -Name 'storyIdentities')) {
+        if ($null -eq $identity) { continue }
+        $identityId = [string](Get-CaseKitProperty `
+            -Value $identity -Name 'id')
+        if ([string]::IsNullOrWhiteSpace($identityId)) {
+            throw "Story identity without id in '$SourcePath'."
+        }
+        if ($identityIds.Contains($identityId)) {
+            throw "Duplicate story identity '$identityId' in '$SourcePath'."
+        }
+        $identityIds[$identityId] = $true
+
+        $bindingSlot = [string](Get-CaseKitProperty `
+            -Value $identity -Name 'bindingSlot')
+        $slotProperty = $Slots.PSObject.Properties[$bindingSlot]
+        if ([string]::IsNullOrWhiteSpace($bindingSlot) -or
+            $null -eq $slotProperty) {
+            throw "Story identity '$identityId' references unknown binding " +
+                "slot '$bindingSlot' in '$SourcePath'."
+        }
+        if ([string]$slotProperty.Value.entityType -ne 'actor') {
+            throw "Story identity '$identityId' binding slot " +
+                "'$bindingSlot' is not an actor in '$SourcePath'."
+        }
+        if ($identitySlots.Contains($bindingSlot)) {
+            throw "Story identities '$($identitySlots[$bindingSlot])' and " +
+                "'$identityId' both bind slot '$bindingSlot' in " +
+                "'$SourcePath'."
+        }
+        $identitySlots[$bindingSlot] = $identityId
+
+        $revealFact = [string](Get-CaseKitProperty `
+            -Value $identity -Name 'revealFact')
+        if (-not $FactMap.Contains($revealFact)) {
+            throw "Story identity '$identityId' references unknown reveal " +
+                "fact '$revealFact' in '$SourcePath'."
+        }
+        if ((Get-CaseKitProperty -Value $FactMap[$revealFact] `
+            -Name 'hardIdentity') -ne $true) {
+            throw "Story identity '$identityId' reveal fact '$revealFact' " +
+                "is not a hard identity fact in '$SourcePath'."
+        }
+
+        $localized = Get-CaseKitProperty `
+            -Value $identity -Name 'localized'
+        foreach ($language in @('ru', 'en')) {
+            $languageProperty = if ($null -eq $localized) {
+                $null
+            }
+            else {
+                $localized.PSObject.Properties[$language]
+            }
+            if ($null -eq $languageProperty) {
+                throw "Story identity '$identityId' is missing '$language' " +
+                    "localization in '$SourcePath'."
+            }
+            $name = [string](Get-CaseKitProperty `
+                -Value $languageProperty.Value -Name 'name')
+            $displayTemplate = [string](Get-CaseKitProperty `
+                -Value $languageProperty.Value -Name 'displayTemplate')
+            if ([string]::IsNullOrWhiteSpace($name) -or
+                [string]::IsNullOrWhiteSpace($displayTemplate)) {
+                throw "Story identity '$identityId' has incomplete " +
+                    "'$language' localization in '$SourcePath'."
+            }
+        }
+    }
+}
+
 function Read-CaseKitV2StoryPackage {
     param([Parameter(Mandatory)][string]$CasePath)
 
@@ -955,6 +1065,9 @@ function Read-CaseKitV2StoryPackage {
         truth = $case.truth
         facts = @($case.facts)
         reveal = $reveal
+        storyIdentities = @(
+            Get-CaseKitProperty -Value $case -Name 'storyIdentities'
+        )
         journal = Get-CaseKitProperty -Value $case -Name 'journal'
         trophyDefinition = Get-CaseKitProperty `
             -Value $case -Name 'trophyDefinition'
@@ -1005,23 +1118,6 @@ function ConvertTo-CaseKitNormalizedStory {
         -NotePropertyValue $SourceSchemaVersion -Force
     $normalized | Add-Member -NotePropertyName archetypeCompositions `
         -NotePropertyValue $archetypeCompositions -Force
-    if ($SourceSchemaVersion -eq 1) {
-        foreach ($thread in @($normalized.threads)) {
-            foreach ($step in @($thread.steps)) {
-                if ([string]$step.action.evidenceModule -ne
-                    'overheard-dialogue') {
-                    continue
-                }
-                if ($null -eq $step.action.PSObject.Properties['activation']) {
-                    $step.action | Add-Member `
-                        -NotePropertyName activation `
-                        -NotePropertyValue ([pscustomobject][ordered]@{
-                            mode = 'proximity'
-                        })
-                }
-            }
-        }
-    }
     if ($null -eq $normalized.PSObject.Properties['dialogues']) {
         $normalized | Add-Member -NotePropertyName dialogues `
             -NotePropertyValue @()
@@ -1030,34 +1126,64 @@ function ConvertTo-CaseKitNormalizedStory {
         $normalized | Add-Member -NotePropertyName documents `
             -NotePropertyValue @()
     }
+    if ($null -eq $normalized.PSObject.Properties['storyIdentities']) {
+        $normalized | Add-Member -NotePropertyName storyIdentities `
+            -NotePropertyValue @()
+    }
     return $normalized
 }
 
-function Assert-CaseKitV2OverheardActivation {
+function Assert-CaseKitV2TimedAreaAction {
     param(
         [Parameter(Mandatory)]$Step,
         [Parameter(Mandatory)][string]$Context,
         [Parameter(Mandatory)][string]$SourcePath
     )
 
-    if ([string]$Step.action.evidenceModule -ne 'overheard-dialogue') {
+    if ([string]$Step.action.evidenceModule -ne 'timed-area-listening') {
         return
     }
     $activation = Get-CaseKitProperty `
         -Value $Step.action -Name 'activation'
     if ($null -eq $activation) {
         throw "$Context requires explicit activation mode for " +
-            "overheard-dialogue in '$SourcePath'."
+            "timed-area-listening in '$SourcePath'."
     }
     $mode = [string](Get-CaseKitProperty `
         -Value $activation -Name 'mode')
     if ([string]::IsNullOrWhiteSpace($mode)) {
         throw "$Context requires explicit activation mode for " +
-            "overheard-dialogue in '$SourcePath'."
+            "timed-area-listening in '$SourcePath'."
     }
-    if ($mode -notin @('interaction', 'proximity')) {
-        throw "$Context uses unsupported overheard activation mode " +
+    if ($mode -ne 'timed-area-action') {
+        throw "$Context uses unsupported timed area activation mode " +
             "'$mode' in '$SourcePath'."
+    }
+    $fromValue = Get-CaseKitProperty -Value $activation `
+        -Name 'availableFromHour'
+    $untilValue = Get-CaseKitProperty -Value $activation `
+        -Name 'availableUntilHour'
+    $durationValue = Get-CaseKitProperty -Value $activation `
+        -Name 'durationHours'
+    $from = if ($null -eq $fromValue) { -1 } else { [int]$fromValue }
+    $until = if ($null -eq $untilValue) { -1 } else { [int]$untilValue }
+    $duration = if ($null -eq $durationValue) { 0 } else { [int]$durationValue }
+    if ($from -lt 0 -or $from -gt 23 -or
+        $until -lt 1 -or $until -gt 24 -or $from -ge $until) {
+        throw "$Context has invalid timed area working hours " +
+            "'$from..$until' in '$SourcePath'."
+    }
+    if ($duration -lt 1 -or $duration -gt 24) {
+        throw "$Context has invalid timed area duration '$duration' in " +
+            "'$SourcePath'."
+    }
+    $areaGuidance = @($Step.guidance | Where-Object {
+        [string]$_.target.kind -eq 'area' -and
+        [string]$_.precision -eq 'area'
+    })
+    if ($areaGuidance.Count -ne 1) {
+        throw "$Context requires exactly one area GuidanceTarget in " +
+            "'$SourcePath'."
     }
 }
 
@@ -1257,6 +1383,8 @@ function Assert-CaseKitV2StoryContract {
 
     $mergedSlots = Merge-CaseKitV2ArchetypeSlots -Story $story `
         -ArchetypeMap $ArchetypeMap -SourcePath $casePath
+    Assert-CaseKitV2StoryIdentities -Story $story -Slots $mergedSlots `
+        -FactMap $factMap -SourcePath $casePath
     $templateArchetype = [pscustomobject]@{ slots = $mergedSlots }
     Assert-CaseKitTemplateContract -Story $story `
         -Archetype $templateArchetype -SourcePath $casePath
@@ -1334,7 +1462,7 @@ function Assert-CaseKitV2StoryContract {
                     "module '$moduleId' in '$threadsPath'."
             }
             $module = $ModuleMap[$moduleId].value
-            Assert-CaseKitV2OverheardActivation -Step $step `
+            Assert-CaseKitV2TimedAreaAction -Step $step `
                 -Context $context -SourcePath $threadsPath
             Assert-CaseKitV2PhysicalItem -Step $step -Module $module `
                 -Context $context -SourcePath $threadsPath

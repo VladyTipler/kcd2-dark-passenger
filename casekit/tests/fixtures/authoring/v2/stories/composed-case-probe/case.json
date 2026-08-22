@@ -14,13 +14,29 @@
     {"id": "traveler_missing", "category": "crime"},
     {"id": "letter_links_target", "category": "corroboration"},
     {"id": "target_identified", "category": "identity", "hardIdentity": true},
-    {"id": "proximity_rumor_heard", "category": "corroboration"},
-    {"id": "interaction_rumor_heard", "category": "corroboration"}
+    {"id": "area_rumor_heard", "category": "corroboration"}
   ],
   "reveal": {
     "confidence": 70,
     "requiredFacts": ["target_identified"]
   },
+  "storyIdentities": [
+    {
+      "id": "culprit",
+      "bindingSlot": "target",
+      "revealFact": "target_identified",
+      "localized": {
+        "ru": {
+          "name": "Микулаш",
+          "displayTemplate": "{{occupation}} Микулаш"
+        },
+        "en": {
+          "name": "Mikulas",
+          "displayTemplate": "Mikulas, {{occupation}}"
+        }
+      }
+    }
+  ],
   "journal": {
     "objectives": {
       "search": {

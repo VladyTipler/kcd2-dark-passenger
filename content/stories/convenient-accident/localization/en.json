@@ -46,8 +46,8 @@
   "objective.witness.name": "Question the inn workers",
   "objective.witness.active": "Vojtech wrote that one of the maids witnessed his conversation with the killer. She may be able to identify the man.",
   "objective.witness.done": "The maid confirmed that Vojtech had been threatened and identified the suspect.",
-  "journal.rumor": "Vojtech's death may not have been an accident. His belongings remain in the inn's hayloft.",
-  "journal.letter": "Vojtech witnessed a murder and was threatened. One of the inn maids saw his meeting with the killer.",
-  "journal.witness": "The maid confirmed the threat and identified the man Vojtech saw.",
+  "journal.rumor": "Vojtech's death may not have been an accident: he meant to leave, yet his belongings are still in the inn's hayloft. I should search them for whatever kept him from getting away.",
+  "journal.letter": "Vojtech witnessed a murder and was threatened by a man he recognized. His letter mentions an inn maid who saw them speaking. I should find her and ask whom she saw.",
+  "journal.witness": "The maid confirmed the threat and identified the man who came to see Vojtech. The accident was only a convenient cover. I should investigate the man she named.",
   "trophy.description": "A red feather taken from the killer's body. Vojtech and the drowned apprentice demand no more truth now — only remembrance."
 }

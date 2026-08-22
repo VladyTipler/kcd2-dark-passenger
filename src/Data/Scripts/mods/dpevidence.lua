@@ -533,10 +533,6 @@ local function AwardSelectedRumor(generation, showNotification)
     end
 
     SetRumorAvailability(false)
-    if DarkPassengerLeadPlanner ~= nil and
-       DarkPassengerLeadPlanner.Apply ~= nil then
-        DarkPassengerLeadPlanner.Apply(generation)
-    end
     DispatchJournalSignal(generation)
 
     if showNotification and Game ~= nil and Game.ShowNotification ~= nil then

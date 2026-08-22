@@ -45,6 +45,7 @@ $compiled = ConvertTo-CaseKitCompiledDefinitions -Deck $deck `
 $areaManifest = [pscustomobject]@{
     schemaVersion = 1
     regions = @([pscustomobject]@{
+        id = 'trosecko'
         gameRegion = 'trosecko'
         settlements = @([pscustomobject]@{
             id = 'testville'
@@ -53,18 +54,126 @@ $areaManifest = [pscustomobject]@{
         })
     })
 }
+$timedFixtureGuidance = @(
+    $compiled.variants[0].guidanceBindings | Where-Object {
+        $_.areaSelection -eq 'smallest-common'
+    }
+)[0]
+$timedFixtureGuidance.anchorBindings[0].position =
+    [pscustomobject]@{ x = 100; y = 100; z = 0 }
+$timedFixtureGuidance.anchorBindings[1].position =
+    [pscustomobject]@{ x = 108; y = 104; z = 0 }
+$timedFixtureAreaGuid = 'dddddddd-1111-2222'
+$timedFixtureAreaInventory = [pscustomobject]@{
+    schemaVersion = 1
+    areas = @([pscustomobject]@{
+        region = 'trosecko'
+        guid = $timedFixtureAreaGuid
+        fullGuid = $timedFixtureAreaGuid
+        entityId = 9001
+        name = 'testville_tavernExteriorInnArea_1'
+        editorLayer = 'Main/testville/inn/_script/crime'
+        label = ''
+        height = 4
+        polygon = @(
+            [pscustomobject]@{ x = 95; y = 95 }
+            [pscustomobject]@{ x = 115; y = 95 }
+            [pscustomobject]@{ x = 115; y = 110 }
+            [pscustomobject]@{ x = 95; y = 110 }
+        )
+        bounds = [pscustomobject]@{
+            minX = 95; minY = 95; maxX = 115; maxY = 110
+        }
+        surfaceArea = 300
+    })
+}
 
 $signals = @(Get-DpGuidanceSignals `
     -CompiledDefinitions $compiled `
     -AreaManifest $areaManifest `
+    -AreaInventory $timedFixtureAreaInventory `
     -StartSignalTag 200)
 
-Add-Result ($signals.Count -eq 6) `
+Add-Result ($signals.Count -eq 7) `
     'guidance compiler emits every native finite target'
 Add-Result (
-    (@($signals.signal_tag) -join ',') -eq '200,201,202,203,204,205' -and
+    (@($signals.signal_tag) -join ',') -eq
+        '200,201,202,203,203,204,205' -and
     @($signals.alias | Sort-Object -Unique).Count -eq 6
-) 'guidance compiler assigns deterministic unique signals and aliases'
+) 'guidance compiler assigns deterministic shared signals and aliases'
+
+$sharedCompiled = $compiled | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$sharedVariant = $sharedCompiled.variants[0] | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$sharedVariant.variantId = [string]$sharedVariant.variantId + '--duplicate'
+$sharedCompiled.variants = @($sharedCompiled.variants[0], $sharedVariant)
+$sharedSignals = @(Get-DpGuidanceSignals `
+    -CompiledDefinitions $sharedCompiled `
+    -AreaManifest $areaManifest `
+    -AreaInventory $timedFixtureAreaInventory `
+    -StartSignalTag 175 `
+    -MaxSignalTag 180)
+$sharedNativeGroups = @($sharedSignals | Group-Object signal_tag)
+Add-Result (
+    $sharedSignals.Count -eq 14 -and
+    $sharedNativeGroups.Count -eq 6 -and
+    @($sharedNativeGroups | Where-Object Count -lt 2).Count -eq 0 -and
+    [int](($sharedSignals.signal_tag | Measure-Object -Minimum).Minimum) -eq
+        175 -and
+    [int](($sharedSignals.signal_tag | Measure-Object -Maximum).Maximum) -eq
+        180
+) 'identical guidance targets reuse one safe native signal across variants'
+$sharedWiring = ConvertTo-DpGuidanceNativeWiring `
+    -Signals $sharedSignals -Region 'trosecko'
+$sharedTagXml = ConvertTo-DpGuidanceTagXml -BaseXml @'
+<database><buff_ai_tags>
+</buff_ai_tags></database>
+'@ -Signals $sharedSignals
+$sharedBuffXml = ConvertTo-DpGuidanceBuffXml -BaseXml @'
+<database><buffs>
+</buffs></database>
+'@ -Signals $sharedSignals
+Add-Result (
+    ([regex]::Matches(
+        $sharedWiring.nodes,
+        '<BuffTagTrigger Name="guidance'
+    )).Count -eq 6 -and
+    ([regex]::Matches($sharedWiring.objectives, '<Objective ')).Count -eq 6 -and
+    ([regex]::Matches($sharedTagXml, '<buff_ai_tag ')).Count -eq 6 -and
+    ([regex]::Matches($sharedBuffXml, '<buff ')).Count -eq 6
+) 'shared guidance emits each native graph and RPG artifact once'
+
+$overflowCompiled = $sharedCompiled | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$overflowVariant = $overflowCompiled.variants[1] | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$overflowVariant.variantId = [string]$overflowVariant.variantId + '--overflow'
+$overflowActorGuidance = @($overflowVariant.guidanceBindings | Where-Object {
+    $_.targetKind -eq 'actor'
+})[0]
+$overflowActorGuidance.binding.soulGuid =
+    'ffffffff-ffff-ffff-ffff-ffffffffffff'
+$overflowCompiled.variants = @(
+    $overflowCompiled.variants[0],
+    $overflowCompiled.variants[1],
+    $overflowVariant
+)
+$overflowRejected = $false
+try {
+    Get-DpGuidanceSignals `
+        -CompiledDefinitions $overflowCompiled `
+        -AreaManifest $areaManifest `
+        -AreaInventory $timedFixtureAreaInventory `
+        -StartSignalTag 175 `
+        -MaxSignalTag 180 | Out-Null
+}
+catch {
+    $overflowRejected = $_.Exception.Message -like
+        '*exhausted safe native signal range 175..180*'
+}
+Add-Result $overflowRejected `
+    'guidance compiler rejects unique native signals beyond the proven limit'
 Add-Result (
     @($signals | Where-Object {
         $_.asset_kind -eq 'SoulAsset' -and
@@ -97,13 +206,13 @@ $anchorPositionB = [pscustomobject]@{ x = 108; y = 104; z = 0 }
 $localGuidance | Add-Member -NotePropertyName anchorBindings `
     -NotePropertyValue @(
         [pscustomobject]@{
-            slot = 'gossipSourceA'
-            entityName = [string]$localVariant.bindings.gossipSourceA.entityName
+            slot = 'rumorSource'
+            entityName = [string]$localVariant.bindings.rumorSource.entityName
             position = $anchorPositionA
         }
         [pscustomobject]@{
-            slot = 'gossipSourceB'
-            entityName = [string]$localVariant.bindings.gossipSourceB.entityName
+            slot = 'witness'
+            entityName = [string]$localVariant.bindings.witness.entityName
             position = $anchorPositionB
         }
     ) -Force
@@ -185,6 +294,163 @@ Add-Result (
     $localAreaSignal.entity_guid -eq $localAreaGuid -and
     $localAreaSignal.area_selection -eq 'smallest-common'
 ) 'anchored area guidance selects one local vanilla area around every speaker'
+
+$localCompiled.stories[0].localization.ru | Add-Member `
+    -NotePropertyName 'action.listen.prompt' `
+    -NotePropertyValue '[F] Прислушаться' -Force
+$localCompiled.stories[0].localization.ru | Add-Member `
+    -NotePropertyName 'action.listen.progress' `
+    -NotePropertyValue 'Ты слушаешь разговоры…' -Force
+$localCompiled.stories[0].localization.ru | Add-Member `
+    -NotePropertyName 'action.listen.unavailable' `
+    -NotePropertyValue 'Сейчас здесь слишком тихо.' -Force
+$localCompiled.stories[0].localization.en | Add-Member `
+    -NotePropertyName 'action.listen.prompt' `
+    -NotePropertyValue '[F] Listen' -Force
+$localCompiled.stories[0].localization.en | Add-Member `
+    -NotePropertyName 'action.listen.progress' `
+    -NotePropertyValue 'You listen to the conversations…' -Force
+$localCompiled.stories[0].localization.en | Add-Member `
+    -NotePropertyName 'action.listen.unavailable' `
+    -NotePropertyValue 'It is too quiet here now.' -Force
+$localCompiled.stories[0] | Add-Member -NotePropertyName timedAreaActions `
+    -NotePropertyValue @([pscustomobject][ordered]@{
+        qualifiedId = 'courtyard-gossip/listen-for-rumors'
+        evidenceQualifiedId = 'courtyard-gossip/listen-for-rumors'
+        guidanceQualifiedId = [string]$localGuidance.qualifiedId
+        activation = [pscustomobject][ordered]@{
+            mode = 'timed-area-action'
+            availableFromHour = 10
+            availableUntilHour = 22
+            durationHours = 2
+        }
+        content = [pscustomobject][ordered]@{
+            prompt = 'action.listen.prompt'
+            progress = 'action.listen.progress'
+            unavailable = 'action.listen.unavailable'
+            journal = 'journal.overheard'
+        }
+    }) -Force
+$timedSignals = @(Get-DpGuidanceSignals `
+    -CompiledDefinitions $localCompiled `
+    -AreaManifest $areaManifest `
+    -AreaInventory $localAreaInventory `
+    -StartSignalTag 300)
+$timedSignal = @($timedSignals | Where-Object {
+    $_.qualified_id -eq [string]$localGuidance.qualifiedId
+})[0]
+Add-Result (
+    $timedSignal.timed_area_action.mode -eq 'timed-area-action' -and
+    $timedSignal.timed_area_action.available_from_hour -eq 10 -and
+    $timedSignal.timed_area_action.available_until_hour -eq 22 -and
+    $timedSignal.timed_area_action.duration_hours -eq 2 -and
+    $timedSignal.timed_area_action.area_context -match
+        '^dp_timed_area_[0-9a-f]{16}$'
+) 'guidance signal carries the authored timed area action'
+$scopedCompiled = $localCompiled | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$scopedBaseVariant = @($scopedCompiled.variants | Where-Object {
+    $_.variantId -eq [string]$localVariant.variantId
+})[0]
+$scopedOtherVariant = $scopedBaseVariant | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$scopedOtherVariant.variantId =
+    [string]$scopedOtherVariant.variantId + '--other-area'
+$scopedOtherGuidance = @(
+    $scopedOtherVariant.guidanceBindings | Where-Object {
+        $_.qualifiedId -eq [string]$localGuidance.qualifiedId
+    }
+)[0]
+$scopedOtherGuidance.anchorBindings[0].position =
+    [pscustomobject]@{ x = 300; y = 300; z = 0 }
+$scopedOtherGuidance.anchorBindings[1].position =
+    [pscustomobject]@{ x = 308; y = 304; z = 0 }
+$scopedCompiled.variants = @($scopedBaseVariant, $scopedOtherVariant)
+$scopedAreaInventory = $localAreaInventory | ConvertTo-Json -Depth 100 |
+    ConvertFrom-Json -Depth 100
+$scopedAreaInventory.areas = @($scopedAreaInventory.areas) + @(
+    [pscustomobject]@{
+        region = 'trosecko'
+        guid = 'dddddddd-1111-2222'
+        name = 'otherville_tavernExteriorInnArea_1'
+        editorLayer = 'Main/otherville/inn/_script/crime'
+        label = ''
+        polygon = @(
+            [pscustomobject]@{ x = 295; y = 295 }
+            [pscustomobject]@{ x = 315; y = 295 }
+            [pscustomobject]@{ x = 315; y = 310 }
+            [pscustomobject]@{ x = 295; y = 310 }
+        )
+        bounds = [pscustomobject]@{
+            minX = 295; minY = 295; maxX = 315; maxY = 310
+        }
+        surfaceArea = 300
+    }
+)
+$scopedSignals = @(Get-DpGuidanceSignals `
+    -CompiledDefinitions $scopedCompiled `
+    -AreaManifest $areaManifest `
+    -AreaInventory $scopedAreaInventory `
+    -StartSignalTag 300)
+$scopedTimedSignals = @($scopedSignals | Where-Object {
+    $null -ne $_.timed_area_action
+})
+Add-Result (
+    $scopedTimedSignals.Count -eq 2 -and
+    @($scopedTimedSignals.entity_guid | Sort-Object -Unique).Count -eq 2 -and
+    @(
+        $scopedTimedSignals.timed_area_action.area_context |
+            Sort-Object -Unique
+    ).Count -eq 2
+) 'timed area contexts are scoped to the resolved native area'
+$timedWiring = ConvertTo-DpGuidanceNativeWiring `
+    -Signals $timedSignals `
+    -Region 'trosecko' `
+    -CaseActivationSignals @(
+        [pscustomobject]@{ case_code = 1001 },
+        [pscustomobject]@{ case_code = 2001 }
+    )
+Add-Result (
+    $timedWiring.nodes.Contains('<AreaTrigger ') -and
+    $timedWiring.nodes.Contains('<SetEntityContext ') -and
+    $timedWiring.nodes.Contains(
+        "Value=`"$($timedSignal.timed_area_action.area_context)`""
+    )
+) 'native guidance wiring exposes exact enter and leave area context'
+Add-Result (
+    $timedWiring.nodes.Contains(
+        '<Edge From="case1001ActiveTrigger.OnAdded" To="SetNone" />'
+    ) -and
+    $timedWiring.nodes.Contains(
+        '<Edge From="case2001ActiveTrigger.OnAdded" To="SetNone" />'
+    ) -and
+    $timedWiring.nodes.Contains(
+        '<Edge From="case1001ActiveTrigger.OnAdded" To="SetFalse" />'
+    ) -and
+    $timedWiring.nodes.Contains(
+        '<Edge From="case2001ActiveTrigger.OnAdded" To="SetFalse" />'
+    )
+) 'every fresh case activation resets stale guidance progress and area state'
+$timedContextTable = ConvertTo-DpScriptContextXml `
+    -BaseXml '<database><ScriptContexts version="1"></ScriptContexts></database>' `
+    -CaseSpecs @([pscustomobject]@{
+        code = 9001
+        id = 'timed-area-context-probe'
+        native = [pscustomobject]@{
+            contexts = [pscustomobject]@{
+                rumorHeard = ''
+                witnessHeard = ''
+            }
+        }
+    }) `
+    -GuidanceSignals $timedSignals
+Add-Result (
+    $timedContextTable.Contains(
+        '<ScriptContextDatabaseNode Name="' +
+        [string]$timedSignal.timed_area_action.area_context +
+        '" Class="Entity" />'
+    )
+) 'timed area context crosses into the RPG ScriptContext registry'
 $localWiring = ConvertTo-DpGuidanceNativeWiring `
     -Signals $localSignals -Region 'trosecko'
 $localLinks = @(Get-DpGuidanceWaitingLinks `
@@ -242,6 +508,7 @@ try {
     Get-DpGuidanceSignals `
         -CompiledDefinitions $collisionCompiled `
         -AreaManifest $areaManifest `
+        -AreaInventory $timedFixtureAreaInventory `
         -StartSignalTag 350 | Out-Null
 }
 catch {
@@ -260,6 +527,7 @@ try {
     $nullObjectiveSignals = @(Get-DpGuidanceSignals `
         -CompiledDefinitions $nullObjectiveCompiled `
         -AreaManifest $areaManifest `
+        -AreaInventory $timedFixtureAreaInventory `
         -StartSignalTag 375)
 }
 catch {
@@ -281,6 +549,7 @@ $fallbackGuidance.fallback = 'journal-direction'
 $fallbackSignals = @(Get-DpGuidanceSignals `
     -CompiledDefinitions $fallbackCompiled `
     -AreaManifest $areaManifest `
+    -AreaInventory $timedFixtureAreaInventory `
     -StartSignalTag 400)
 $fallbackSignal = @($fallbackSignals | Where-Object {
     $_.qualified_id -eq [string]$fallbackGuidance.qualifiedId
@@ -450,8 +719,19 @@ Add-Result (
             $variantCatalog,
             [regex]::Escape([string]$_.buff_guid)
         )).Count -ge 2
-    }).Count -eq 6
+    }).Count -eq 7
 ) 'runtime variant catalog carries guidance and cleanup ownership'
+$timedVariantCatalog = ConvertTo-DpCaseVariantCatalogLua `
+    -CompiledDefinitions $localCompiled `
+    -CaseSpecs @($runtimeCase) `
+    -Candidates $runtimeCandidates `
+    -Bindings $runtimeBindings `
+    -GuidanceSignals $timedSignals
+Add-Result (
+    $timedVariantCatalog -match
+        '(?s)timed_area_actions = \{\s*\{\s*id = "' +
+        [regex]::Escape('courtyard-gossip/listen-for-rumors')
+) 'runtime variant catalog preserves one timed area action as a Lua array'
 Add-Result (
     $variantCatalog -match
         'DarkPassengerCaseVariantCatalogRevision = [1-9][0-9]*' -and
@@ -489,7 +769,7 @@ Add-Result (
     $wiring.types.Contains('DP_GuidanceProgress_') -and
     $wiring.assets.Contains('<SoulAsset ') -and
     $wiring.assets.Contains('<InteractionTriggerAsset ') -and
-    -not $wiring.assets.Contains('<TriggerAreaAsset ') -and
+    $wiring.assets.Contains('<TriggerAreaAsset ') -and
     $wiring.objectives.Contains('Marker="DP_SearchArea_Trosecko_Testville"') -and
     $wiring.objectives.Contains('IsTracked="true" Marker=')
 ) 'guidance compiler crosses into native Skald wiring without redeclaring areas'
@@ -525,12 +805,17 @@ Add-Result (
     @($links | Where-Object {
         $_.targetGuid -eq '10000000-0000-0000-0000-000000000010' -and
         $_.linkDefinition -match "^asset\['DP_Guidance_[0-9a-f]{16}'\]$"
-    }).Count -eq 2
+    }).Count -eq 1 -and
+    @($links | Where-Object {
+        $_.targetGuid -eq $timedFixtureAreaGuid -and
+        $_.linkDefinition -match "^asset\['DP_Guidance_[0-9a-f]{16}'\]$"
+    }).Count -eq 1
 ) 'interaction guidance emits the required finite waiting links'
 
 $second = @(Get-DpGuidanceSignals `
     -CompiledDefinitions $compiled `
     -AreaManifest $areaManifest `
+    -AreaInventory $timedFixtureAreaInventory `
     -StartSignalTag 200)
 Add-Result (
     ($signals | ConvertTo-Json -Depth 100 -Compress) -ceq
@@ -555,7 +840,13 @@ $buildScript = [System.IO.File]::ReadAllText(
 )
 Add-Result (
     $compileScript.Contains('Get-DpGuidanceSignals') -and
+    $compileScript.Contains('$maxNativeSignalTag = 179') -and
+    $compileScript.Contains('-MaxSignalTag $maxNativeSignalTag') -and
     $compileScript.Contains('-GuidanceSignals $guidanceSignals') -and
+    $compileScript.Contains(
+        'ConvertTo-DpScriptContextXml') -and
+    $compileScript -match
+        '(?s)ConvertTo-DpScriptContextXml.*?-GuidanceSignals\s+\$guidanceSignals' -and
     $compileScript.Contains('ConvertTo-DpGuidanceTagXml') -and
     $compileScript.Contains('ConvertTo-DpGuidanceBuffXml') -and
     $compileScript.Contains('guidanceNodes') -and
@@ -583,6 +874,7 @@ $integrationRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
 )
 try {
     $compiledPath = Join-Path $integrationRoot 'compiled-definitions.json'
+    $inventoryPath = Join-Path $integrationRoot 'areas-inventory.json'
     $levelRoot = Join-Path $integrationRoot 'levels'
     $luaPath = Join-Path $integrationRoot 'dp_investigation_area_catalog.lua'
     [System.IO.Directory]::CreateDirectory($integrationRoot) | Out-Null
@@ -591,7 +883,20 @@ try {
         ($compiled | ConvertTo-Json -Depth 100) + "`n",
         [System.Text.UTF8Encoding]::new($false)
     )
+    $integrationInventory = [System.IO.File]::ReadAllText(
+        (Join-Path $repoRoot 'build\generated\vanilla-trigger-areas.json')
+    ) | ConvertFrom-Json -Depth 100
+    $integrationInventory.areas = @(
+        @($integrationInventory.areas) +
+        @($timedFixtureAreaInventory.areas)
+    )
+    [System.IO.File]::WriteAllText(
+        $inventoryPath,
+        ($integrationInventory | ConvertTo-Json -Depth 100) + "`n",
+        [System.Text.UTF8Encoding]::new($false)
+    )
     & (Join-Path $repoRoot 'tools\Generate-SettlementAreaBindings.ps1') `
+        -AreaInventoryPath $inventoryPath `
         -CompiledDefinitionsPath $compiledPath `
         -OutputRoot $levelRoot `
         -LuaOutputPath $luaPath
@@ -606,7 +911,11 @@ try {
         ([regex]::Matches(
             $waitingLinks,
             'TargetId="10000000-0000-0000-0000-000000000010"'
-        )).Count -eq 2
+        )).Count -eq 1 -and
+        ([regex]::Matches(
+            $waitingLinks,
+            "TargetId=`"$timedFixtureAreaGuid`""
+        )).Count -eq 1
     ) 'settlement binding generator crosses compiled guidance into level XML'
 }
 finally {

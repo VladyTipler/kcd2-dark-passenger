@@ -207,6 +207,26 @@ Add-Result (
     $planner.Contains('nextState.revision + 1')
 ) 'planner persists monotonic journal presentation revisions'
 Add-Result (
+    $registry.Contains(
+        'DarkPassengerLeadPlanner.ScheduleEvidenceTransition('
+    ) -and
+    $planner.Contains(
+        'function DarkPassengerLeadPlanner.ScheduleEvidenceTransition'
+    ) -and
+    $planner.Contains(
+        'function DarkPassengerLeadPlanner.OnEvidenceTransition'
+    ) -and
+    $planner.Contains('Script.SetTimerForFunction(') -and
+    $planner.Contains('evidenceCode = evidenceCode') -and
+    $planner.Contains('stale_generation')
+) 'evidence discovery crosses a generation-guarded deferred signal handshake'
+Add-Result (
+    $planner.Contains('function DarkPassengerLeadPlanner.SelectJournalEntry') -and
+    $planner.Contains('journal_entries') -and
+    $planner.Contains('all_known_facts') -and
+    $planner.Contains('all_unknown_facts')
+) 'lead planner selects the authored journal entry for the discovered evidence'
+Add-Result (
     $planner.Contains('direction_code') -and
     $planner.Contains('plan.stateCode') -and
     $planner.Contains('state.buff_guid') -and

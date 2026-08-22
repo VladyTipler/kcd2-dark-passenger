@@ -14,15 +14,11 @@
   },
   "dialogueRoles": [
     {"name": "DP_INNKEEPER_RUMOR", "roleId": "8fe584ca-7b9b-48b3-a5c0-fa10122c25c2", "metaRole": "NPC"},
-    {"name": "DP_TAVERN_WITNESS", "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b", "metaRole": "NPC"},
-    {"name": "DP_OVERHEARD_SPEAKER_A", "roleId": "3be31ccb-48be-4af2-adbb-686e5fb5c3df", "metaRole": "NPC"},
-    {"name": "DP_OVERHEARD_SPEAKER_B", "roleId": "50fc0e48-765a-4561-a5f0-5899135b559c", "metaRole": "NPC"}
+    {"name": "DP_TAVERN_WITNESS", "roleId": "5fa9523d-330b-42a1-8b04-1fd7fe5fb84b", "metaRole": "NPC"}
   ],
   "semanticDialogueRoles": {
     "innkeeper": "DP_INNKEEPER_RUMOR",
-    "witness": "DP_TAVERN_WITNESS",
-    "speakerA": "DP_OVERHEARD_SPEAKER_A",
-    "speakerB": "DP_OVERHEARD_SPEAKER_B"
+    "witness": "DP_TAVERN_WITNESS"
   },
   "stories": [
     {
@@ -178,40 +174,18 @@
         "objective.witness.active": "dp_mt_witness_objective_active",
         "objective.witness.done": "dp_mt_witness_objective_done",
         "direction.ledger": "dp_mt_direction_ledger",
-        "dialogue.overheard.root": "dp_mt_overheard_root",
-        "dialogue.overheard.matejArgument": "dp_mt_overheard_matej_argument",
-        "dialogue.overheard.widowMoney": "dp_mt_overheard_widow_money",
-        "dialogue.overheard.goneByDawn": "dp_mt_overheard_gone_by_dawn",
         "document.ledger.name": "dp_mt_ledger_name",
         "document.ledger.info": "dp_mt_ledger_info",
         "document.ledger.body": "dp_mt_ledger_content"
       },
       "emitLocalizationAssets": [
-        "dialogue.rumor.root", "dialogue.rumor.prompt", "dialogue.rumor.henryMissing", "dialogue.rumor.innkeeperLeft", "dialogue.rumor.henryHorse", "dialogue.rumor.innkeeperHorse", "dialogue.rumor.henryName", "dialogue.rumor.innkeeperMatej", "dialogue.rumor.henryLedger", "dialogue.rumor.innkeeperHand", "dialogue.rumor.henrySee", "dialogue.rumor.innkeeperChest", "dialogue.rumor.foundPrompt", "dialogue.rumor.foundHenryHand", "dialogue.rumor.foundInnkeeperChest", "dialogue.rumor.foundHenryNote", "dialogue.rumor.foundInnkeeperHorse", "dialogue.rumor.foundHenryWho", "dialogue.rumor.foundInnkeeperBoguslav", "dialogue.witness.root", "dialogue.witness.prompt", "dialogue.witness.henryHorse", "dialogue.witness.bretislavRemembers", "dialogue.witness.henryWithout", "dialogue.witness.bretislavReturned", "dialogue.witness.henryFace", "dialogue.witness.bretislavSaw", "dialogue.witness.henrySilent", "dialogue.witness.bretislavWarning", "dialogue.witness.henryMore", "dialogue.witness.bretislavFire", "dialogue.witness.henryPoint", "dialogue.witness.bretislavPoint", "objective.witness.name", "objective.witness.active", "objective.witness.done", "direction.ledger", "dialogue.overheard.root", "dialogue.overheard.matejArgument", "dialogue.overheard.widowMoney", "dialogue.overheard.goneByDawn", "document.ledger.name", "document.ledger.info", "document.ledger.body"
+        "dialogue.rumor.root", "dialogue.rumor.prompt", "dialogue.rumor.henryMissing", "dialogue.rumor.innkeeperLeft", "dialogue.rumor.henryHorse", "dialogue.rumor.innkeeperHorse", "dialogue.rumor.henryName", "dialogue.rumor.innkeeperMatej", "dialogue.rumor.henryLedger", "dialogue.rumor.innkeeperHand", "dialogue.rumor.henrySee", "dialogue.rumor.innkeeperChest", "dialogue.rumor.foundPrompt", "dialogue.rumor.foundHenryHand", "dialogue.rumor.foundInnkeeperChest", "dialogue.rumor.foundHenryNote", "dialogue.rumor.foundInnkeeperHorse", "dialogue.rumor.foundHenryWho", "dialogue.rumor.foundInnkeeperBoguslav", "dialogue.witness.root", "dialogue.witness.prompt", "dialogue.witness.henryHorse", "dialogue.witness.bretislavRemembers", "dialogue.witness.henryWithout", "dialogue.witness.bretislavReturned", "dialogue.witness.henryFace", "dialogue.witness.bretislavSaw", "dialogue.witness.henrySilent", "dialogue.witness.bretislavWarning", "dialogue.witness.henryMore", "dialogue.witness.bretislavFire", "dialogue.witness.henryPoint", "dialogue.witness.bretislavPoint", "objective.witness.name", "objective.witness.active", "objective.witness.done", "direction.ledger", "document.ledger.name", "document.ledger.info", "document.ledger.body"
       ],
       "native": {
         "questName": "dark_within_t",
         "dialogFolder": "dark_within_t",
         "signals": {"rumorAvailableTag": 32, "witnessAvailableTag": 36},
         "contexts": {"rumorHeard": "dp_rumor_heard_trosecko", "witnessHeard": "dp_witness_heard_trosecko"},
-        "overheardScenes": [
-          {
-            "qualifiedId": "courtyard-gossip/overhear-argument",
-            "dialogueId": "courtyard-gossip",
-            "graphName": "overheard_missing_traveler_dialog_t",
-            "fileName": "overheard_missing_traveler_dialog_t.xml",
-            "rootAsset": "dialogue.overheard.root",
-            "decisionAlias": "darkPassenger_missingTravelerOverheard",
-            "sequenceName": "missing_traveler_overheard",
-            "cluePort": "clue_spoken",
-            "clueLabel": "Missing traveler clue spoken",
-            "hearingDistance": 15,
-            "repeatAfterSeconds": 20,
-            "availableTag": 71,
-            "context": "dp_overheard_clue_spoken_trosecko",
-            "speakerRoles": {"speakerA": "speakerA", "speakerB": "speakerB"}
-          }
-        ],
         "dialogues": [
           {
             "kind": "rumor",
@@ -254,7 +228,7 @@
         {"qualifiedId": "paper-trail/ask-innkeeper", "kind": "dialogue", "role": "innkeeper", "purpose": "missing_person_rumor", "sourceStance": "guarded", "placement": "on_event", "discoverableWithoutHint": true, "hintsUnlockedBy": [], "promptAsset": "dialogue.rumor.prompt"},
         {"qualifiedId": "paper-trail/read-ledger", "kind": "document", "role": "document", "placement": "case_start", "discoverableWithoutHint": true, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "reaction": "vanilla_neutral", "directionAsset": "direction.ledger", "item": {"guid": "d5833fd4-f7bf-4957-86f5-d661db38bcf3", "name": "dp_matej_guest_ledger", "nameAsset": "document.ledger.name", "infoAsset": "document.ledger.info", "contentAsset": "document.ledger.body"}},
         {"qualifiedId": "horse-witness/question-witness", "kind": "dialogue", "role": "witness", "purpose": "target_identification", "sourceStance": "afraid", "placement": "on_event", "discoverableWithoutHint": false, "hintsUnlockedBy": ["paper-trail/ask-innkeeper"], "promptAsset": "dialogue.witness.prompt", "directionAsset": "objective.witness.active"},
-        {"qualifiedId": "courtyard-gossip/overhear-argument", "kind": "dialogue", "role": "overheard", "purpose": "motive_corroboration", "sourceStance": "guarded", "placement": "ambient", "discoverableWithoutHint": true, "hintsUnlockedBy": []}
+        {"qualifiedId": "courtyard-gossip/listen-for-rumors", "kind": "area_action", "role": "area_action", "purpose": "motive_corroboration", "sourceStance": "ambient", "placement": "ambient", "discoverableWithoutHint": true, "hintsUnlockedBy": []}
       ]
     }
   ]

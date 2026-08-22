@@ -254,67 +254,6 @@ else {
             $null -eq $nullObjectiveCase.native.journal.objectives.
                 PSObject.Properties['investigation']
         ) 'backend treats a null lifecycle objective as an omitted override'
-        $configuredSceneProperty =
-            $missingAdapter.native.PSObject.Properties['overheardScenes']
-        $configuredScene = if ($null -ne $configuredSceneProperty) {
-            @($configuredSceneProperty.Value)[0]
-        }
-        else {
-            $missingAdapter.native.overheard
-        }
-        $sceneAdapterA = $configuredScene |
-            ConvertTo-Json -Depth 100 | ConvertFrom-Json -Depth 100
-        $sceneAdapterA | Add-Member -NotePropertyName evidenceQualifiedId `
-            -NotePropertyValue 'courtyard-gossip/overhear-argument' -Force
-        $sceneAdapterA | Add-Member -NotePropertyName qualifiedId `
-            -NotePropertyValue 'courtyard-gossip/proximity-probe' -Force
-        $sceneAdapterB = $configuredScene |
-            ConvertTo-Json -Depth 100 | ConvertFrom-Json -Depth 100
-        $sceneAdapterB | Add-Member -NotePropertyName evidenceQualifiedId `
-            -NotePropertyValue 'courtyard-gossip/overhear-argument' -Force
-        $sceneAdapterB | Add-Member -NotePropertyName qualifiedId `
-            -NotePropertyValue 'courtyard-gossip/interaction-probe' -Force
-        $sceneAdapterB.graphName = 'overheard_interaction_probe_dialog_t'
-        $sceneAdapterB.fileName = 'overheard_interaction_probe_dialog_t.xml'
-        $sceneAdapterB.decisionAlias = 'darkPassenger_interactionProbe'
-        $sceneAdapterB.sequenceName = 'interaction_probe'
-        $sceneAdapterB.context = 'dp_overheard_interaction_probe'
-        $compiledSceneA = [pscustomobject]@{
-            qualifiedId = 'courtyard-gossip/proximity-probe'
-            evidenceId = 'zelejov_inn_yard_whisper'
-            activation = [pscustomobject]@{ mode = 'proximity' }
-        }
-        $compiledSceneB = [pscustomobject]@{
-            qualifiedId = 'courtyard-gossip/interaction-probe'
-            evidenceId = 'zelejov_inn_yard_whisper'
-            activation = [pscustomobject]@{ mode = 'interaction' }
-        }
-        $variantSceneA = [pscustomobject]@{
-            qualifiedId = $compiledSceneA.qualifiedId
-            activation = $compiledSceneA.activation
-            speakers = $missingVariant.overheardScenes[0].speakers
-        }
-        $variantSceneB = [pscustomobject]@{
-            qualifiedId = $compiledSceneB.qualifiedId
-            activation = $compiledSceneB.activation
-            speakers = $missingVariant.overheardScenes[0].speakers
-        }
-        $nativeScenes = @(ConvertTo-CaseKitKcd2OverheardScenes `
-            -SceneAdapters @($sceneAdapterA, $sceneAdapterB) `
-            -CompiledScenes @($compiledSceneA, $compiledSceneB) `
-            -VariantScenes @($variantSceneA, $variantSceneB) `
-            -CompiledStory $missingStory `
-            -StoryAdapter $missingAdapter)
-        Add-Result (
-            $nativeScenes.Count -eq 2 -and
-            $nativeScenes[0].activation.mode -eq 'proximity' -and
-            $nativeScenes[1].activation.mode -eq 'interaction' -and
-            $nativeScenes[0].speakers.speakerA.entityName -eq
-                $missingVariant.bindings.gossipSourceA.entityName -and
-            $nativeScenes[1].graphName -eq
-                'overheard_interaction_probe_dialog_t'
-        ) 'KCD2 adapter emits finite native overheard scenes with concrete speakers'
-
         Add-Result $true 'KCD2 backend adapter module exists'
         Add-Result (
             (@($backend.caseSpecs.id) -join ',') -eq
@@ -332,26 +271,34 @@ else {
         $productionCase = @($backend.caseSpecs | Where-Object {
             $_.id -eq 'missing_traveler'
         })[0]
-        $productionScenesProperty =
-            $productionCase.native.PSObject.Properties['overheardScenes']
-        $productionScenes = if ($null -ne $productionScenesProperty) {
-            @($productionScenesProperty.Value)
-        }
-        else {
-            @()
-        }
-        $legacySceneProperty =
-            $productionCase.native.PSObject.Properties['overheard']
+        $productionRumorDialogue = @(
+            $productionCase.native.dialogues |
+                Where-Object { [string]$_.kind -eq 'rumor' }
+        )[0]
+        Add-Result (
+            [string]$productionRumorDialogue.media.voice -eq 'native' -and
+            [bool]$productionRumorDialogue.media.lipSync
+        ) 'authored native dialogue media survives the KCD2 backend boundary'
+        $convenientCase = @($backend.caseSpecs | Where-Object {
+            $_.id -eq 'convenient_accident'
+        })[0]
+        Add-Result (
+            [string]$convenientCase.localization.en.
+                'dp_rumor_henry_unease' -eq
+                'People here seem afraid of something. Has something happened?' -and
+            [string]$convenientCase.localization.en.
+                'dp_witness_maid_location' -eq
+                'I will tell you what he looks like and where to find him. ' +
+                'But if he asks, we never spoke.'
+        ) 'backend emits every referenced dialogue localization automatically'
         $productionGuidance = @($productionCase.native.guidance)
         Add-Result (
-            $productionScenes.Count -eq 1 -and
-            $null -eq $legacySceneProperty -and
-            $productionScenes[0].qualifiedId -eq
-                'courtyard-gossip/overhear-argument' -and
-            $productionScenes[0].activation.mode -eq 'interaction' -and
+            @($productionCase.native.timedAreaActions).Count -eq 1 -and
+            $productionCase.native.timedAreaActions[0].qualifiedId -eq
+                'courtyard-gossip/listen-for-rumors' -and
             @($productionGuidance | Where-Object {
                 $_.qualifiedId -eq
-                    'courtyard-gossip/overhear-argument/listen-area' -and
+                    'courtyard-gossip/listen-for-rumors/listen-area' -and
                 $_.assetKind -eq 'TriggerAreaAsset' -and
                 $_.catalogKey -eq 'trosecko/zelejov' -and
                 $_.lifetime -eq 'step' -and
@@ -360,7 +307,7 @@ else {
                 $_.objective.states.active.key -eq
                     'dp_case_2001_objective_guidance_listen_active'
             }).Count -eq 1
-        ) 'production Missing Traveler emits an interactive scene with area guidance'
+        ) 'production Missing Traveler emits a timed action with area guidance'
         Add-Result (
             $productionCase.native.journal.objectives.investigation.nameKey -eq
                 'dp_case_2001_objective_investigation_name' -and
@@ -370,6 +317,30 @@ else {
                 'dp_case_2001_objective_investigation_name' -eq
                 'Раскрыть судьбу Матея'
         ) 'backend materializes StoryPack lifecycle objectives and localization'
+        $ledgerEvidence = @($productionCase.evidence | Where-Object {
+            $_.id -eq 'zelejov_innkeeper_missing_traveler'
+        })[0]
+        $ledgerDocumentEvidence = @($productionCase.evidence | Where-Object {
+            $_.id -eq 'matej_guest_ledger'
+        })[0]
+        Add-Result (
+            @($ledgerEvidence.journalEntries).Count -eq 2 -and
+            @($ledgerEvidence.journalEntries | Where-Object {
+                $_.key -eq 'dp_case_2001_journal_rumor'
+            }).Count -eq 1 -and
+            @($ledgerEvidence.journalEntries | Where-Object {
+                $_.key -eq 'dp_case_2001_journal_rumorAfterLedger'
+            }).Count -eq 1 -and
+            @($ledgerDocumentEvidence.journalEntries).Count -eq 1 -and
+            $ledgerDocumentEvidence.journalEntries[0].key -eq
+                'dp_case_2001_journal_ledger' -and
+            $productionCase.localization.ru.'dp_case_2001_journal_ledger' -eq
+                'Запись об отъезде Матея сделана другой рукой. Между ' +
+                'страницами он спрятал записку: кто-то выведал о деньгах ' +
+                'для вдовы Маркеты и повёл его короткой дорогой мимо старой ' +
+                'ивы. Конь вернулся один. Стоит узнать в корчме, кто той ' +
+                'ночью был у лошадей.'
+        ) 'backend derives authored evidence journal entries and localization'
         Add-Result (
             @($backend.caseSpecs | Where-Object {
                 @($_.identityRequirement.allOf).Count -eq 1
@@ -407,9 +378,87 @@ else {
                 'ttkc_inkeeper' -and
             $troskoviceBinding.roles.witness.entityName -ne '' -and
             $troskoviceBinding.roles.document.containerGuid -ne '' -and
-            @($troskoviceBinding.roles.overheard.pairs).Count -gt 0 -and
             @($troskoviceBinding.nativeVariantIds).Count -gt 0
         ) 'backend emits a complete Troskovice binding without a profile'
+        $reviewedZhelejov = @($backend.bindings.settlements |
+            Where-Object {
+                [int]$_.caseCode -eq 2001 -and
+                $_.settlement -eq 'zelejov'
+            })[0]
+        Add-Result (
+            @($reviewedZhelejov.actorPools.innkeeper).Count -eq 2 -and
+            @($reviewedZhelejov.actorPools.witness).Count -eq 6 -and
+            @($reviewedZhelejov.actorPools.innkeeper | Where-Object {
+                [string]$_.entityName -eq 'tzel_vavrinec' -and
+                [string]$_.dialogueRole -match '^DP_SLOT_'
+            }).Count -eq 1 -and
+            @($reviewedZhelejov.actorPools.innkeeper |
+                Select-Object -ExpandProperty dialogueRole -Unique).Count -eq 1 -and
+            [string]$reviewedZhelejov.roles.innkeeper.dialogueRole -ceq
+                [string]$reviewedZhelejov.actorPools.innkeeper[0].dialogueRole -and
+            [string]$reviewedZhelejov.roles.witness.dialogueRole -ceq
+                [string]$reviewedZhelejov.actorPools.witness[0].dialogueRole
+        ) 'backend exposes complete pools under one shared role per runtime slot'
+
+        $mediaDemandCommand = Get-Command Get-DpDialogueMediaDemands `
+            -ErrorAction SilentlyContinue
+        Add-Result ($null -ne $mediaDemandCommand) `
+            'native compiler exposes generic dialogue media demand planning'
+        if ($null -ne $mediaDemandCommand) {
+            $rumorDialogue = @($productionCase.native.dialogues | Where-Object {
+                [string]$_.kind -eq 'rumor'
+            })[0]
+            $troskoviceDemands = @(Get-DpDialogueMediaDemands `
+                -CaseSpec $productionCase -Region 'trosecko' `
+                -Settlement 'troskovice' -Dialogue $rumorDialogue `
+                -Binding $troskoviceBinding)
+            Add-Result (
+                $troskoviceDemands.Count -eq 16 -and
+                @($troskoviceDemands | Where-Object {
+                    [string]$_.actor.role -eq 'HENRY'
+                }).Count -eq 8 -and
+                @($troskoviceDemands | Where-Object {
+                    [string]$_.actor.entityName -eq 'ttkc_inkeeper' -and
+                    [string]$_.speakerRole -eq 'innkeeper'
+                }).Count -eq 8
+            ) 'media demands expand every line over its eligible local speaker'
+
+            $allMissingTravelerBindings = @($backend.bindings.settlements |
+                Where-Object { [int]$_.caseCode -eq 2001 })
+            $allRumorDemands = @($allMissingTravelerBindings | ForEach-Object {
+                Get-DpDialogueMediaDemands -CaseSpec $productionCase `
+                    -Region ([string]$_.region) `
+                    -Settlement ([string]$_.settlement) `
+                    -Dialogue $rumorDialogue -Binding $_
+            })
+            $expectedLocalActors = @($allMissingTravelerBindings |
+                ForEach-Object { @($_.actorPools.innkeeper) } |
+                ForEach-Object { [string]$_.entityName } |
+                Sort-Object -Unique)
+            $actualLocalActors = @($allRumorDemands | Where-Object {
+                -not [string]::IsNullOrWhiteSpace(
+                    [string]$_.actor.entityName
+                )
+            } | ForEach-Object { [string]$_.actor.entityName } |
+                Sort-Object -Unique)
+            $expectedDemandCount = @($allMissingTravelerBindings |
+                ForEach-Object {
+                    8 + (8 * @($_.actorPools.innkeeper).Count)
+                } | Measure-Object -Sum).Sum
+            Add-Result (
+                $allMissingTravelerBindings.Count -eq 3 -and
+                $allRumorDemands.Count -eq $expectedDemandCount -and
+                ($actualLocalActors -join ',') -ceq
+                    ($expectedLocalActors -join ',') -and
+                $expectedLocalActors.Count -gt $allMissingTravelerBindings.Count
+            ) 'media demand planning covers every supported settlement actor'
+        }
+        else {
+            Add-Result $false `
+                'media demands expand every line over its eligible local speaker'
+            Add-Result $false `
+                'media demand planning covers every supported settlement actor'
+        }
 
         $candidateConfig = [System.IO.File]::ReadAllText((Join-Path $repoRoot `
             'config\victim-candidates.json')) | ConvertFrom-Json -Depth 100
@@ -432,9 +481,7 @@ else {
             -not [string]::IsNullOrWhiteSpace($variantBlock) -and
             $variantBlock.Contains('native_ready = true') -and
             $variantBlock.Contains('ttkc_inkeeper') -and
-            $variantBlock.Contains(
-                [string]$troskoviceBinding.roles.overheard.pairs[0].speakers[0].entityName
-            )
+            $variantBlock.Contains('timed_area_actions')
         ) 'native compiler accepts and scopes the generated Troskovice variant'
 
         $crossRegionControls = @(
@@ -495,22 +542,18 @@ else {
                 $_.settlement -eq 'zelejov'
             }).Count -eq 1
         ) 'reviewed settlements remain native bindings beside auto discovery'
-        $reviewedZhelejov = @($backend.bindings.settlements |
-            Where-Object {
-                [int]$_.caseCode -eq 2001 -and
-                $_.settlement -eq 'zelejov'
-            })[0]
         Add-Result (
             $reviewedZhelejov.roles.innkeeper.entityName -eq
                 'tzel_vavrinec' -and
             $reviewedZhelejov.roles.document.containerGuid -eq
-                'aaf89994-e94b-0309'
-        ) 'reviewed native profile overrides inferred binding values'
+                '02f9f209-a91a-0267' -and
+            $reviewedZhelejov.roles.witness.identity.ru.name -eq 'Богуслав'
+        ) 'materialized bindings win while profile metadata fills missing fields'
         Add-Result (
             [string]$troskoviceBinding.roles.innkeeper.dialogueRole -match
-                '^DP_ACTOR_[0-9A-F]{24}$' -and
+                '^DP_SLOT_[0-9A-F]{24}$' -and
             [string]$reviewedZhelejov.roles.innkeeper.dialogueRole -match
-                '^DP_ACTOR_[0-9A-F]{24}$' -and
+                '^DP_SLOT_[0-9A-F]{24}$' -and
             [string]$troskoviceBinding.roles.innkeeper.dialogueRole -ne
                 [string]$reviewedZhelejov.roles.innkeeper.dialogueRole -and
             @($backend.bindings.dialogueRoles | Where-Object {
@@ -521,7 +564,7 @@ else {
                 [string]$_.name -eq
                     [string]$reviewedZhelejov.roles.innkeeper.dialogueRole
             }).Count -eq 1
-        ) 'backend gives each concrete dialogue actor a stable isolated role'
+        ) 'backend gives each settlement dialogue slot one stable shared role'
 
         $divergentCompiled = $compiled | ConvertTo-Json -Depth 100 |
             ConvertFrom-Json -Depth 100

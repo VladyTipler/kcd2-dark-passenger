@@ -1149,7 +1149,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -2311,7 +2310,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -2359,7 +2357,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -5529,7 +5526,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -7719,7 +7715,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -7766,7 +7761,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -8120,7 +8114,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -8168,7 +8161,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -8560,7 +8552,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -30000,7 +29991,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -31623,7 +31613,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -34816,7 +34805,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -38510,7 +38498,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -41188,7 +41175,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -41824,7 +41810,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -41913,7 +41898,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -42045,7 +42029,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -42091,7 +42074,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -42539,7 +42521,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -42908,7 +42889,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -43592,7 +43572,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -43634,7 +43613,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -45678,7 +45656,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -45723,7 +45700,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -45769,7 +45745,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -46096,7 +46071,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -46171,7 +46145,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -46604,7 +46577,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "resident.settlement",
@@ -81876,7 +81848,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -82781,7 +82752,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -82821,7 +82791,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -82948,7 +82917,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -83365,7 +83333,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -83800,7 +83767,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -83890,7 +83856,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -88594,7 +88559,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -89322,7 +89286,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -89371,7 +89334,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -89420,7 +89382,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -89506,7 +89467,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -89555,7 +89515,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -89604,7 +89563,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -90367,7 +90325,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -90415,7 +90372,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -90463,7 +90419,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -90511,7 +90466,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -90559,7 +90513,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -90606,7 +90559,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -90652,7 +90604,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -99487,7 +99438,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99527,7 +99477,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99567,7 +99516,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99607,7 +99555,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99647,7 +99594,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99687,7 +99633,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99727,7 +99672,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99767,7 +99711,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99807,7 +99750,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99847,7 +99789,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99887,7 +99828,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99927,7 +99867,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -99967,7 +99906,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100007,7 +99945,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100047,7 +99984,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100087,7 +100023,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100127,7 +100062,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100166,7 +100100,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100205,7 +100138,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100244,7 +100176,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100283,7 +100214,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100322,7 +100252,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100361,7 +100290,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100400,7 +100328,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100439,7 +100366,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100478,7 +100404,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100517,7 +100442,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100556,7 +100480,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100595,7 +100518,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100634,7 +100556,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -100680,7 +100601,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -100772,7 +100692,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100820,7 +100739,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100906,7 +100824,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100946,7 +100863,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -100992,7 +100908,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -101079,7 +100994,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -101120,7 +101034,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -101160,7 +101073,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -101378,7 +101290,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -101425,7 +101336,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -101473,7 +101383,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -101520,7 +101429,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -101567,7 +101475,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -122199,7 +122106,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -122569,7 +122475,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -123051,7 +122956,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -124901,7 +124805,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -125020,7 +124923,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -126545,7 +126447,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -126894,7 +126795,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -140594,7 +140494,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -140642,7 +140541,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -140952,7 +140850,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -141248,7 +141145,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -141288,7 +141184,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -141753,7 +141648,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -141799,7 +141693,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "person.killable",
@@ -141892,7 +141785,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -141984,7 +141876,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -142032,7 +141923,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",
@@ -142341,7 +142231,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -142387,7 +142276,6 @@
       "identityMode": "anonymous",
       "capabilities": [
         "actor.npc",
-        "interaction.overheard",
         "person",
         "person.anonymous",
         "place.inn",
@@ -142434,7 +142322,6 @@
       "capabilities": [
         "actor.npc",
         "interaction.dialogue",
-        "interaction.overheard",
         "person",
         "person.identity_review_required",
         "place.inn",

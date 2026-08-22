@@ -157,60 +157,49 @@
         "requiresFacts": [],
         "directionAsset": "direction.overheard"
       },
-      "entryStepIds": ["overhear-proximity", "overhear-interaction"],
+      "entryStepIds": ["listen-for-rumors"],
       "steps": [
         {
-          "id": "overhear-proximity",
+          "id": "listen-for-rumors",
           "kind": "lead",
           "action": {
-            "evidenceModule": "overheard-dialogue",
-            "activation": {"mode": "proximity"},
-            "bindings": {
-              "speakerA": "gossipSourceA",
-              "speakerB": "gossipSourceB"
-            }
+            "evidenceModule": "timed-area-listening",
+            "activation": {
+              "mode": "timed-area-action",
+              "availableFromHour": 10,
+              "availableUntilHour": 22,
+              "durationHours": 2
+            },
+            "bindings": {}
           },
+          "guidance": [{
+            "id": "listen-area",
+            "target": {
+              "kind": "area",
+              "slot": "settlement",
+              "areaSelection": "smallest-common",
+              "anchorSlots": ["rumorSource", "witness"]
+            },
+            "precision": "area",
+            "visibility": {"mode": "step-active", "requiresFacts": []},
+            "lifetime": "step",
+            "fallback": "reject-variant"
+          }],
           "requiresFacts": [],
           "presentations": [
             {
               "id": "default",
               "when": {"allKnown": [], "allUnknown": []},
               "content": {
-                "responses": ["dialogue.overheard.proximity"],
-                "journal": "journal.overheard.proximity"
+                "prompt": "action.listen.prompt",
+                "progress": "action.listen.progress",
+                "unavailable": "action.listen.unavailable",
+                "journal": "journal.area-listening"
               }
             }
           ],
           "result": {
-            "revealsFacts": ["proximity_rumor_heard"],
-            "nextStepIds": [],
-            "unlockThreadIds": []
-          }
-        },
-        {
-          "id": "overhear-interaction",
-          "kind": "lead",
-          "action": {
-            "evidenceModule": "overheard-dialogue",
-            "activation": {"mode": "interaction"},
-            "bindings": {
-              "speakerA": "gossipSourceA",
-              "speakerB": "gossipSourceB"
-            }
-          },
-          "requiresFacts": [],
-          "presentations": [
-            {
-              "id": "default",
-              "when": {"allKnown": [], "allUnknown": []},
-              "content": {
-                "responses": ["dialogue.overheard.interaction"],
-                "journal": "journal.overheard.interaction"
-              }
-            }
-          ],
-          "result": {
-            "revealsFacts": ["interaction_rumor_heard"],
+            "revealsFacts": ["area_rumor_heard"],
             "nextStepIds": [],
             "unlockThreadIds": []
           }

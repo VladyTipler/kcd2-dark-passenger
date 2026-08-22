@@ -12,7 +12,6 @@
       <Nodes>
 {{DP_RUMOR_DIALOG_NODES}}
 {{DP_WITNESS_NODES}}
-{{DP_OVERHEARD_NODES}}
 {{DP_EVIDENCE_STATE_NODES}}
 {{DP_CONFESSION_PROBE_NODES}}
 {{DP_QUEST_ITEM_PLACEMENT_NODES}}
@@ -179,7 +178,8 @@
         </Function>
         <State Name="objectiveProgress" TypeT="{{DP_SEARCH_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
-          <Edge From="questProgress.OnActive" To="SetNone" />
+          <Edge From="{{DP_PRIMARY_CASE_ACTIVE_TRIGGER}}.OnRemoved" To="SetNone" />
+{{DP_SEARCH_CROSS_CASE_RESET_EDGES}}
 {{DP_SEARCH_STATE_EDGES}}
 {{DP_TARGET_SEARCH_REVEAL_EDGES}}
 {{DP_TARGET_SEARCH_RESET_EDGES}}
@@ -189,6 +189,7 @@
         </{{DP_SEARCH_OBJECTIVE_NAME}}>
         <State Name="evidenceProgress" TypeT="{{DP_EVIDENCE_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="{{DP_EVIDENCE_RESET_PORT}}" />
+          <Edge From="{{DP_PRIMARY_CASE_ACTIVE_TRIGGER}}.OnRemoved" To="{{DP_EVIDENCE_RESET_PORT}}" />
 {{DP_EVIDENCE_STATE_EDGES}}
 {{DP_EVIDENCE_WITNESS_EDGE}}
 {{DP_EVIDENCE_DONE_EDGE}}
@@ -205,6 +206,7 @@
         </State>
         <State Name="targetObjectiveProgress" TypeT="{{DP_TARGET_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="{{DP_PRIMARY_CASE_ACTIVE_TRIGGER}}.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_TARGET_STATE_EDGES}}
         </State>
@@ -213,6 +215,7 @@
         </{{DP_TARGET_OBJECTIVE_NAME}}>
         <State Name="cleanupProgress" TypeT="{{DP_CLEANUP_PROGRESS_TYPE}}">
           <Edge From="satisfactionTrigger.OnRemoved" To="SetNone" />
+          <Edge From="{{DP_PRIMARY_CASE_ACTIVE_TRIGGER}}.OnRemoved" To="SetNone" />
           <Edge From="questProgress.OnActive" To="SetNone" />
 {{DP_TARGET_CLEANUP_EDGES}}
 {{DP_CLEANUP_RESULT_EDGES}}
@@ -305,7 +308,6 @@
         <SoulAsset Name="PritokySoul40" SharedSoulGuids="1cb77ea3-4e6a-4048-a659-63046f927a8e" />
         <SoulAsset Name="PritokySoul42" SharedSoulGuids="c6243024-5a07-46b7-acef-e7e1f8d3c9c6" />
 {{DP_TARGET_ASSETS}}
-{{DP_OVERHEARD_ASSETS}}
 {{DP_CONFESSION_PROBE_ASSETS}}
       </Assets>
       <Text Text="Dark Within" />

@@ -133,17 +133,20 @@
         "requiresFacts": [],
         "directionAsset": "direction.overheard"
       },
-      "entryStepIds": ["overhear-argument"],
+      "entryStepIds": ["listen-for-rumors"],
       "steps": [
         {
-          "id": "overhear-argument",
+          "id": "listen-for-rumors",
           "kind": "lead",
           "action": {
-            "evidenceModule": "overheard-dialogue",
-            "bindings": {
-              "speakerA": "gossipSourceA",
-              "speakerB": "gossipSourceB"
-            }
+            "evidenceModule": "timed-area-listening",
+            "activation": {
+              "mode": "timed-area-action",
+              "availableFromHour": 10,
+              "availableUntilHour": 22,
+              "durationHours": 2
+            },
+            "bindings": {}
           },
           "requiresFacts": [],
           "presentations": [
@@ -151,7 +154,9 @@
               "id": "default",
               "when": {"allKnown": [], "allUnknown": []},
               "content": {
-                "responses": ["dialogue.overheard.response"],
+                "prompt": "action.listen.prompt",
+                "progress": "action.listen.progress",
+                "unavailable": "action.listen.unavailable",
                 "journal": "journal.overheard"
               }
             }
@@ -170,6 +175,9 @@
       "direction.paper": "Расспросить {{rumorSource.directionLabel}} в {{settlement.displayName}} или самостоятельно поискать записи.",
       "direction.witness": "Найти {{witness.directionLabel}} и спросить о коне Матея.",
       "direction.overheard": "Прислушаться к разговорам у корчмы.",
+      "action.listen.prompt": "[F] Прислушаться к разговорам",
+      "action.listen.progress": "Ты слушаешь, о чём говорят люди...",
+      "action.listen.unavailable": "Сейчас здесь слишком тихо.",
       "dialogue.rumor.prompt": "Спросить о пропавшем торговце",
       "dialogue.rumor.response": "Постоялец исчез, но его конь вернулся в стойло без всадника.",
       "dialogue.rumor.foundPrompt": "Спросить о поддельной записи",
@@ -179,7 +187,6 @@
       "document.ledger.body": "Матей подозревал человека, который расспрашивал о деньгах вдовы.",
       "dialogue.witness.prompt": "Расспросить {{witness.directionLabel}} о коне Матея",
       "dialogue.witness.response": "Местный житель вернул коня один и велел забыть его лицо.",
-      "dialogue.overheard.response": "Матей спорил с кем-то о деньгах, предназначенных вдове.",
       "journal.rumor": "Конь Матея вернулся без всадника, а запись о его отъезде вызывает сомнения.",
       "journal.ledger": "Запись об отъезде подделана. Кто-то знал о деньгах Матея.",
       "journal.witness": "{{witness.displayLabel}} видел человека, вернувшего коня Матея.",
@@ -189,6 +196,9 @@
       "direction.paper": "Question {{rumorSource.directionLabel}} in {{settlement.displayName}} or search for the records yourself.",
       "direction.witness": "Find {{witness.directionLabel}} and ask about Matej's horse.",
       "direction.overheard": "Listen to the conversations around the inn.",
+      "action.listen.prompt": "[F] Listen to conversations",
+      "action.listen.progress": "You listen to what people are saying...",
+      "action.listen.unavailable": "It is too quiet here now.",
       "dialogue.rumor.prompt": "Ask about the missing merchant",
       "dialogue.rumor.response": "The guest vanished, but his horse returned to the stable without its rider.",
       "dialogue.rumor.foundPrompt": "Ask about the forged entry",
@@ -198,7 +208,6 @@
       "document.ledger.body": "Matej suspected the man who kept asking about the widow's money.",
       "dialogue.witness.prompt": "Ask {{witness.directionLabel}} about Matej's horse",
       "dialogue.witness.response": "A local man returned the horse alone and told me to forget his face.",
-      "dialogue.overheard.response": "Matej argued with someone about money intended for a widow.",
       "journal.rumor": "Matej's horse returned without its rider, and the record of his departure is doubtful.",
       "journal.ledger": "The departure entry was forged. Someone knew about Matej's money.",
       "journal.witness": "{{witness.displayLabel}} saw the man who returned Matej's horse.",

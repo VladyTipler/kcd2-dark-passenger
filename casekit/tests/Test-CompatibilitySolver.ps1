@@ -63,6 +63,25 @@ else {
             -WorldIndex $world -MaxVariantsPerCombination 2
         Add-Result (@($report.accepted).Count -eq 2) `
             'solver applies the per-combination variant cap'
+        $testvillePools = @($report.eligibleActorPools | Where-Object {
+            [string]$_.storyId -eq 'composed-case-probe' -and
+            [string]$_.region -eq 'trosecko' -and
+            [string]$_.settlement -eq 'testville'
+        })
+        $rumorSourcePool = @($testvillePools | Where-Object {
+            [string]$_.slotName -eq 'rumorSource'
+        })[0]
+        $witnessPool = @($testvillePools | Where-Object {
+            [string]$_.slotName -eq 'witness'
+        })[0]
+        Add-Result (
+            @($rumorSourcePool.candidates).Count -eq 2 -and
+            @($witnessPool.candidates).Count -eq 4 -and
+            @($rumorSourcePool.candidates | ForEach-Object {
+                [string]$_.entityName
+            } | Sort-Object) -join ',' -eq
+                'conflicting_innkeeper_target,safe_innkeeper'
+        ) 'eligible actor pools survive a smaller concrete variant cap'
         Add-Result (
             @($report.rejected | Where-Object {
                 $_.settlement -eq 'bareford' -and
@@ -139,7 +158,15 @@ else {
         ) 'conflict prevention holds across the wider binding matrix'
 
         $optionalAnchorDeck = Copy-TestValue $deck
-        $optionalAnchorDeck.archetypes[0].slots.gossipSourceB.required = $false
+        $optionalAnchorDeck.archetypes[0].slots | Add-Member `
+            -NotePropertyName optionalAreaAnchor `
+            -NotePropertyValue ([pscustomobject]@{
+                entityType = 'actor'
+                required = $false
+                capabilities = @('role.optional_area_anchor')
+                identityModes = @('named', 'titled', 'anonymous')
+                templateFields = @('displayLabel', 'directionLabel', 'name')
+            }) -Force
         $localAreaGuidance = @(
             $optionalAnchorDeck.stories[0].threads.steps |
                 ForEach-Object { @($_) } |
@@ -151,13 +178,8 @@ else {
             -NotePropertyValue 'smallest-common' -Force
         $localAreaGuidance.target | Add-Member `
             -NotePropertyName anchorSlots `
-            -NotePropertyValue @('gossipSourceA', 'gossipSourceB') -Force
+            -NotePropertyValue @('rumorSource', 'optionalAreaAnchor') -Force
         $optionalAnchorWorld = Copy-TestValue $world
-        $optionalAnchorWorld.entities = @(
-            $optionalAnchorWorld.entities | Where-Object {
-                $_.entityName -ne 'gossip_source_b'
-            }
-        )
         $optionalAnchorReport = Resolve-CaseKitCompatibility `
             -Deck $optionalAnchorDeck -WorldIndex $optionalAnchorWorld `
             -MaxVariantsPerCombination 32
@@ -288,6 +310,7 @@ else {
     catch {
         foreach ($label in @(
             'solver applies the per-combination variant cap',
+            'eligible actor pools survive a smaller concrete variant cap',
             'incompatible settlement is reported without failing the build',
             'accepted variant preserves composed InvestigationArchetypes',
             'authored preference ranks before identity quality and GUID',

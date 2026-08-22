@@ -234,40 +234,6 @@
       },
       "capabilities": ["container", "container.evidence"],
       "policyFlags": []
-    },
-    {
-      "kind": "actor",
-      "entityName": "gossip_source_a",
-      "entityGuid": "10000000-0000-0000-0000-000000000011",
-      "soulGuid": "20000000-0000-0000-0000-000000000011",
-      "region": "trosecko",
-      "settlement": "testville",
-      "identityMode": "anonymous",
-      "identity": {
-        "localized": {
-          "ru": {"occupation": "местный житель", "direction": "местного жителя"},
-          "en": {"occupation": "local resident", "direction": "the local resident"}
-        }
-      },
-      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.overheard"],
-      "policyFlags": []
-    },
-    {
-      "kind": "actor",
-      "entityName": "gossip_source_b",
-      "entityGuid": "10000000-0000-0000-0000-000000000012",
-      "soulGuid": "20000000-0000-0000-0000-000000000012",
-      "region": "trosecko",
-      "settlement": "testville",
-      "identityMode": "anonymous",
-      "identity": {
-        "localized": {
-          "ru": {"occupation": "местная жительница", "direction": "местную жительницу"},
-          "en": {"occupation": "local resident", "direction": "the local resident"}
-        }
-      },
-      "capabilities": ["actor.npc", "person", "person.anonymous", "interaction.overheard"],
-      "policyFlags": []
     }
   ]
 }

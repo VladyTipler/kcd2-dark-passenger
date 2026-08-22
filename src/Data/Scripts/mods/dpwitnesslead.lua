@@ -331,10 +331,6 @@ function DarkPassengerWitnessLead.OnDialogueCompleted(gameRegion)
     end
 
     DarkPassengerWitnessLead.ApplyAvailability(generation, false)
-    if DarkPassengerLeadPlanner ~= nil and
-       DarkPassengerLeadPlanner.Apply ~= nil then
-        DarkPassengerLeadPlanner.Apply(generation)
-    end
     Log(
         "awarded generation=" .. tostring(generation) ..
         " confidence=" .. tostring(evidenceResult.current) ..

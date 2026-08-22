@@ -130,7 +130,6 @@ function Get-CaseKitActorSemantics {
     if ($isTavernWorker) {
         $capabilities.Add('role.tavern_worker')
         $capabilities.Add('interaction.dialogue')
-        $capabilities.Add('interaction.overheard')
     }
     if ($isInnkeeper) {
         $capabilities.Add('role.innkeeper')
@@ -139,11 +138,6 @@ function Get-CaseKitActorSemantics {
         $capabilities.Add('place.inn')
         $capabilities.Add('workplace.inn')
     }
-    if ($isTavern -and -not $isTavernWorker -and
-        (Test-CaseKitAnonymousCharacter -CharacterName $characterName)) {
-        $capabilities.Add('interaction.overheard')
-    }
-
     $hasHome = @(
         Get-CaseKitPropertyValue -InputObject $Actor -Name 'homeLinks' @()
     ).Count -gt 0 -or (

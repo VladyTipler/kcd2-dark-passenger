@@ -1,6 +1,6 @@
 DarkPassengerCaseContent = DarkPassengerCaseContent or {}
 
-DarkPassengerCaseContent.SCHEMA_VERSION = 3
+DarkPassengerCaseContent.SCHEMA_VERSION = 4
 DarkPassengerCaseContent.CASE_REPLAY_COOLDOWN_GENERATIONS = 4
 
 local KEYS = {
@@ -10,6 +10,8 @@ local KEYS = {
     openerCode = "dp_case_content_opener_code",
     variantCode = "dp_case_content_variant_code",
     previousVariantCode = "dp_case_content_previous_variant_code",
+    innkeeperActorCode = "dp_case_content_innkeeper_actor_code",
+    witnessActorCode = "dp_case_content_witness_actor_code",
     legacyTemplateSlot = "dp_case_content_template_slot",
     legacyRumorSlot = "dp_case_content_rumor_slot",
 }
@@ -61,6 +63,8 @@ local function DefaultState()
         openerCode = 0,
         variantCode = 0,
         previousVariantCode = 0,
+        innkeeperActorCode = 0,
+        witnessActorCode = 0,
     }
 end
 
@@ -72,6 +76,10 @@ local function CopyState(state)
         variantCode = tonumber(state ~= nil and state.variantCode) or 0,
         previousVariantCode =
             tonumber(state ~= nil and state.previousVariantCode) or 0,
+        innkeeperActorCode =
+            tonumber(state ~= nil and state.innkeeperActorCode) or 0,
+        witnessActorCode =
+            tonumber(state ~= nil and state.witnessActorCode) or 0,
     }
 end
 
@@ -83,6 +91,8 @@ local function PersistState(state)
         WriteScalar(KEYS.openerCode, state.openerCode),
         WriteScalar(KEYS.variantCode, state.variantCode),
         WriteScalar(KEYS.previousVariantCode, state.previousVariantCode),
+        WriteScalar(KEYS.innkeeperActorCode, state.innkeeperActorCode),
+        WriteScalar(KEYS.witnessActorCode, state.witnessActorCode),
     }
     for _, succeeded in ipairs(writes) do
         if not succeeded then return false end
@@ -102,6 +112,8 @@ function DarkPassengerCaseContent.MigrateLegacyState(legacy)
             openerCode = 0,
             variantCode = 0,
             previousVariantCode = 0,
+            innkeeperActorCode = 0,
+            witnessActorCode = 0,
         }, { accepted = false, reason = "legacy_unknown" }
     end
     return {
@@ -110,6 +122,8 @@ function DarkPassengerCaseContent.MigrateLegacyState(legacy)
         openerCode = mapping.openerCode,
         variantCode = 0,
         previousVariantCode = 0,
+        innkeeperActorCode = 0,
+        witnessActorCode = 0,
     }, { accepted = true, reason = "legacy_v1" }
 end
 
@@ -123,6 +137,23 @@ local function ReadState()
             variantCode = tonumber(ReadScalar(KEYS.variantCode)) or 0,
             previousVariantCode =
                 tonumber(ReadScalar(KEYS.previousVariantCode)) or 0,
+            innkeeperActorCode =
+                tonumber(ReadScalar(KEYS.innkeeperActorCode)) or 0,
+            witnessActorCode =
+                tonumber(ReadScalar(KEYS.witnessActorCode)) or 0,
+        }
+    end
+    if schema == 3 then
+        -- Case identity remains stable; actor bindings are resolved from the generated pool.
+        return {
+            generation = tonumber(ReadScalar(KEYS.generation)) or 0,
+            caseCode = tonumber(ReadScalar(KEYS.caseCode)) or 0,
+            openerCode = tonumber(ReadScalar(KEYS.openerCode)) or 0,
+            variantCode = tonumber(ReadScalar(KEYS.variantCode)) or 0,
+            previousVariantCode =
+                tonumber(ReadScalar(KEYS.previousVariantCode)) or 0,
+            innkeeperActorCode = 0,
+            witnessActorCode = 0,
         }
     end
     if schema == 2 then
@@ -134,6 +165,8 @@ local function ReadState()
             openerCode = tonumber(ReadScalar(KEYS.openerCode)) or 0,
             variantCode = 0,
             previousVariantCode = 0,
+            innkeeperActorCode = 0,
+            witnessActorCode = 0,
         }
     end
     if schema == 1 then
@@ -377,6 +410,66 @@ local function CopyTable(source)
     return result
 end
 
+local ACTOR_SELECTION_ROLES = { "innkeeper", "witness" }
+
+local function ActorStateKey(role)
+    if role == "innkeeper" then return "innkeeperActorCode" end
+    if role == "witness" then return "witnessActorCode" end
+    return nil
+end
+
+local function ShiftedActorRoll(roll, roleIndex)
+    local value = tonumber(roll)
+    if value == nil then value = random(1, 1000000) / 1000000 end
+    if value < 0 then value = 0 end
+    if value >= 1 then value = 0.999999 end
+    return (value + ((roleIndex - 1) * 0.61803398875)) % 1
+end
+
+function DarkPassengerCaseContent.SelectActors(variant, roll, actorCodes)
+    if variant == nil or variant.actor_pools == nil or
+       variant.actor_selection == nil then
+        return nil, "actor_pool_unavailable"
+    end
+    local selected = {}
+    for roleIndex, role in ipairs(ACTOR_SELECTION_ROLES) do
+        local pool = variant.actor_pools[role] or {}
+        local selection = variant.actor_selection[role]
+        if #pool == 0 or selection == nil or
+           selection.buff_guid == nil or selection.buff_guid == "" then
+            return nil, "actor_pool_incomplete_" .. role
+        end
+        local requestedCode = tonumber(
+            actorCodes ~= nil and actorCodes[ActorStateKey(role)]
+        ) or 0
+        local actor = nil
+        if requestedCode > 0 then
+            for _, candidate in ipairs(pool) do
+                if tonumber(candidate.actor_code) == requestedCode then
+                    actor = candidate
+                    break
+                end
+            end
+            if actor == nil then return nil, "actor_binding_invalid_" .. role end
+        else
+            local choices = {}
+            for _, candidate in ipairs(pool) do
+                table.insert(choices, { value = candidate, weight = 1 })
+            end
+            actor = WeightedChoice(
+                choices,
+                actorCodes ~= nil and 0 or
+                    ShiftedActorRoll(roll, roleIndex)
+            )
+        end
+        if actor == nil then return nil, "actor_selection_failed_" .. role end
+        selected[role] = CopyTable(actor)
+        selected[role].buff_guid = selection.buff_guid
+        selected[role].signal_tag = tonumber(selection.signal_tag) or 0
+    end
+    return selected, "selected"
+end
+
 local function MergeRoleBinding(base, semantic)
     local result = CopyTable(base)
     if semantic ~= nil then
@@ -394,7 +487,7 @@ local function MergeRoleBinding(base, semantic)
     return result
 end
 
-local function BuildVariantCaseTemplate(base, variant)
+local function BuildVariantCaseTemplate(base, variant, selectedActors)
     if base == nil or variant == nil then return base end
     local result = CopyTable(base)
     result.constraints = {
@@ -405,13 +498,17 @@ local function BuildVariantCaseTemplate(base, variant)
     local semantic = variant.bindings or {}
     local bindings = CopyTable(baseBindings)
     bindings.target = semantic.target
+    local selectedInnkeeper = selectedActors ~= nil and
+        selectedActors.innkeeper or nil
+    local selectedWitness = selectedActors ~= nil and
+        selectedActors.witness or nil
     bindings.innkeeper = MergeRoleBinding(
         baseBindings.innkeeper,
-        semantic.rumorSource
+        selectedInnkeeper or semantic.rumorSource
     )
     bindings.witness = MergeRoleBinding(
         baseBindings.witness,
-        semantic.witness
+        selectedWitness or semantic.witness
     )
     bindings.document = MergeRoleBinding(
         baseBindings.document,
@@ -420,16 +517,20 @@ local function BuildVariantCaseTemplate(base, variant)
     if semantic.evidenceContainer ~= nil then
         bindings.document.containerGuid = semantic.evidenceContainer.entity_guid
     end
-    bindings.semantic = semantic
+    local resolvedSemantic = CopyTable(semantic)
+    if selectedInnkeeper ~= nil then
+        resolvedSemantic.rumorSource = selectedInnkeeper
+    end
+    if selectedWitness ~= nil then
+        resolvedSemantic.witness = selectedWitness
+    end
+    bindings.semantic = resolvedSemantic
     result.bindings = bindings
     result.variant_id = variant.variant_id
     result.variant_code = variant.variant_code
     result.binding_code = variant.binding_code
     result.scene_definitions = variant.scenes or {}
-    if variant.overheard_scenes ~= nil then
-        result.overheard_scenes = variant.overheard_scenes
-        result.overheard = variant.overheard_scenes[1]
-    end
+    result.timed_area_actions = variant.timed_area_actions or {}
     result.guidance = variant.guidance or {}
     return result
 end
@@ -560,6 +661,9 @@ function DarkPassengerCaseContent.SelectVariant(
         return choices
     end)(), roll)
     if opener == nil then return nil, "no_opener" end
+    local selectedActors, actorReason =
+        DarkPassengerCaseContent.SelectActors(variant, roll, nil)
+    if selectedActors == nil then return nil, actorReason end
     return {
         variantId = variant.variant_id,
         variantCode = tonumber(variant.variant_code),
@@ -569,7 +673,12 @@ function DarkPassengerCaseContent.SelectVariant(
         targetSlot = tonumber(variant.target_slot),
         candidateEntry = candidateBySlot[tonumber(variant.target_slot)],
         variant = variant,
-        caseTemplate = BuildVariantCaseTemplate(caseTemplate, variant),
+        selectedActors = selectedActors,
+        caseTemplate = BuildVariantCaseTemplate(
+            caseTemplate,
+            variant,
+            selectedActors
+        ),
         rumor = opener,
         sceneDefinitions = variant.scenes or {},
         replayPolicy = replayPolicy,
@@ -609,6 +718,9 @@ function DarkPassengerCaseContent.FindCompatibleVariant(
     if caseTemplate == nil or opener == nil then
         return nil, "compatible_case_unavailable"
     end
+    local selectedActors, actorReason =
+        DarkPassengerCaseContent.SelectActors(variant, 0, nil)
+    if selectedActors == nil then return nil, actorReason end
     return {
         variantId = variant.variant_id,
         variantCode = tonumber(variant.variant_code),
@@ -618,7 +730,12 @@ function DarkPassengerCaseContent.FindCompatibleVariant(
         targetSlot = tonumber(variant.target_slot),
         candidateEntry = candidateBySlot[tonumber(variant.target_slot)],
         variant = variant,
-        caseTemplate = BuildVariantCaseTemplate(caseTemplate, variant),
+        selectedActors = selectedActors,
+        caseTemplate = BuildVariantCaseTemplate(
+            caseTemplate,
+            variant,
+            selectedActors
+        ),
         rumor = opener,
         sceneDefinitions = variant.scenes or {},
     }, "compatible_variant"
@@ -634,7 +751,20 @@ function DarkPassengerCaseContent.Resolve(state, catalog)
     if caseTemplate == nil or opener == nil then return nil end
     local variant = variantCode > 0 and VariantByCode(variantCode) or nil
     if variantCode > 0 and variant == nil then return nil end
-    local resolvedTemplate = BuildVariantCaseTemplate(caseTemplate, variant)
+    local selectedActors = nil
+    if variant ~= nil then
+        selectedActors = DarkPassengerCaseContent.SelectActors(
+            variant,
+            nil,
+            state
+        )
+        if selectedActors == nil then return nil end
+    end
+    local resolvedTemplate = BuildVariantCaseTemplate(
+        caseTemplate,
+        variant,
+        selectedActors
+    )
     return {
         generation = tonumber(state.generation) or 0,
         caseCode = caseCode,
@@ -646,6 +776,7 @@ function DarkPassengerCaseContent.Resolve(state, catalog)
         bindingCode = variant ~= nil and variant.binding_code or 0,
         targetSlot = variant ~= nil and variant.target_slot or 0,
         variant = variant,
+        selectedActors = selectedActors,
         caseTemplate = resolvedTemplate,
         rumor = opener,
         sceneDefinitions = variant ~= nil and variant.scenes or {},
@@ -680,6 +811,8 @@ function DarkPassengerCaseContent.Transition(state, event, catalog)
     nextState.caseCode = selection.caseCode
     nextState.openerCode = selection.openerCode
     nextState.variantCode = 0
+    nextState.innkeeperActorCode = 0
+    nextState.witnessActorCode = 0
     return nextState, { accepted = true, reason = "selected" }
 end
 
@@ -707,6 +840,10 @@ function DarkPassengerCaseContent.PrepareVariant(
         if migrated ~= nil then
             local migratedState = CopyState(current)
             migratedState.variantCode = migrated.variantCode
+            migratedState.innkeeperActorCode =
+                tonumber(migrated.selectedActors.innkeeper.actor_code) or 0
+            migratedState.witnessActorCode =
+                tonumber(migrated.selectedActors.witness.actor_code) or 0
             if not PersistState(migratedState) then
                 return nil, "migration_persistence_failed"
             end
@@ -747,6 +884,10 @@ function DarkPassengerCaseContent.PrepareVariant(
         openerCode = selection.openerCode,
         variantCode = selection.variantCode,
         previousVariantCode = current.variantCode,
+        innkeeperActorCode =
+            tonumber(selection.selectedActors.innkeeper.actor_code) or 0,
+        witnessActorCode =
+            tonumber(selection.selectedActors.witness.actor_code) or 0,
     }
     if not PersistState(nextState) then return nil, "persistence_failed" end
     if not PersistStoryPlayed(
@@ -781,6 +922,23 @@ local function CandidateContext(candidate)
     }
 end
 
+local function PersistResolvedActorSelection(state, selected)
+    if selected == nil or selected.selectedActors == nil then return true end
+    local innkeeperCode =
+        tonumber(selected.selectedActors.innkeeper.actor_code) or 0
+    local witnessCode =
+        tonumber(selected.selectedActors.witness.actor_code) or 0
+    if innkeeperCode <= 0 or witnessCode <= 0 then return false end
+    if tonumber(state.innkeeperActorCode) == innkeeperCode and
+       tonumber(state.witnessActorCode) == witnessCode then
+        return true
+    end
+    local migrated = CopyState(state)
+    migrated.innkeeperActorCode = innkeeperCode
+    migrated.witnessActorCode = witnessCode
+    return PersistState(migrated)
+end
+
 local function ApplyCaseActivation(selected)
     local buffGuid = selected ~= nil and selected.variant ~= nil and
         selected.variant.case_activation_buff_guid or nil
@@ -801,8 +959,83 @@ local function ApplyCaseActivation(selected)
     return ok and buffHandleOrError ~= nil
 end
 
+DarkPassengerCaseContent.ApplyCaseActivation = ApplyCaseActivation
+
+local function ClearActorSelectionForCase(selected)
+    if selected == nil or selected.variant == nil or
+       selected.selectedActors == nil or System == nil or
+       System.GetEntityByName == nil then
+        return false
+    end
+    local removed = {}
+    for _, role in ipairs(ACTOR_SELECTION_ROLES) do
+        local selectedActor = selected.selectedActors[role]
+        local buffGuid = selectedActor ~= nil and
+            selectedActor.buff_guid or nil
+        if buffGuid ~= nil and buffGuid ~= "" then
+            for _, variant in ipairs(VariantCatalog()) do
+                if tonumber(variant.case_code) == tonumber(selected.caseCode) then
+                    local pool = variant.actor_pools ~= nil and
+                        variant.actor_pools[role] or nil
+                    for _, actorBinding in ipairs(pool or {}) do
+                        local removalKey = tostring(actorBinding.entity_name) ..
+                            "|" .. tostring(buffGuid)
+                        if removed[removalKey] ~= true then
+                            removed[removalKey] = true
+                            local entity =
+                                System.GetEntityByName(actorBinding.entity_name)
+                            if entity ~= nil and entity.soul ~= nil and
+                               entity.soul.RemoveAllBuffsByGuid ~= nil then
+                                pcall(function()
+                                    entity.soul:RemoveAllBuffsByGuid(buffGuid)
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return true
+end
+
+local function ApplyActorSelection(selected)
+    if selected == nil or selected.selectedActors == nil or
+       System == nil or System.GetEntityByName == nil then
+        return false
+    end
+    ClearActorSelectionForCase(selected)
+    for _, role in ipairs(ACTOR_SELECTION_ROLES) do
+        local actorBinding = selected.selectedActors[role]
+        local buffGuid = actorBinding ~= nil and actorBinding.buff_guid or nil
+        local entity = actorBinding ~= nil and
+            System.GetEntityByName(actorBinding.entity_name) or nil
+        if buffGuid == nil or buffGuid == "" or entity == nil or
+           entity.soul == nil or entity.soul.AddBuff == nil then
+            ClearActorSelectionForCase(selected)
+            return false
+        end
+        local ok, buffHandleOrError = pcall(function()
+            return entity.soul:AddBuff(buffGuid)
+        end)
+        if not ok or buffHandleOrError == nil then
+            ClearActorSelectionForCase(selected)
+            return false
+        end
+    end
+    return true
+end
+
+function DarkPassengerCaseContent.ClearActorSelection(generation)
+    local selected = DarkPassengerCaseContent.GetSelected(generation)
+    if selected == nil then return false end
+    if selected.selectedActors == nil then return true end
+    return ClearActorSelectionForCase(selected)
+end
+
 function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
-    local selected = DarkPassengerCaseContent.Resolve(ReadState(), nil)
+    local state = ReadState()
+    local selected = DarkPassengerCaseContent.Resolve(state, nil)
     local reason = "restored"
     if selected == nil or tonumber(selected.generation) ~= tonumber(generation) then
         selected, reason = DarkPassengerCaseContent.PrepareVariant(
@@ -818,7 +1051,23 @@ function DarkPassengerCaseContent.OnInvestigationOpened(generation, candidate)
         )
         return nil
     end
+    state = ReadState()
+    if not PersistResolvedActorSelection(state, selected) then
+        Log(
+            "actor selection persistence failed generation=" ..
+            tostring(generation)
+        )
+        return nil, "actor_selection_persistence_failed"
+    end
+    if not ApplyActorSelection(selected) then
+        Log(
+            "actor selection unavailable generation=" .. tostring(generation) ..
+            " case=" .. tostring(selected.caseCode)
+        )
+        return nil, "actor_selection_failed"
+    end
     if not ApplyCaseActivation(selected) then
+        ClearActorSelectionForCase(selected)
         Log(
             "case activation unavailable generation=" .. tostring(generation) ..
             " case=" .. tostring(selected.caseCode)
@@ -871,6 +1120,28 @@ function DarkPassengerCaseContent.RunSelfTest()
     local function Expect(condition, label)
         if not condition then table.insert(failures, label) end
     end
+    local selectedActors = DarkPassengerCaseContent.SelectActors({
+        actor_pools = {
+            innkeeper = {
+                { actor_code = 11, entity_name = "innkeeper_a" },
+                { actor_code = 12, entity_name = "innkeeper_b" },
+            },
+            witness = {
+                { actor_code = 21, entity_name = "witness_a" },
+                { actor_code = 22, entity_name = "witness_b" },
+            },
+        },
+        actor_selection = {
+            innkeeper = { signal_tag = 151, buff_guid = "buff-innkeeper" },
+            witness = { signal_tag = 152, buff_guid = "buff-witness" },
+        },
+    }, 0.75, nil)
+    Expect(
+        selectedActors ~= nil and
+        selectedActors.innkeeper.actor_code == 12 and
+        selectedActors.witness.actor_code == 21,
+        "actor selection"
+    )
     local catalog = Catalog()
     local roleProbe = MergeRoleBinding(
         { entityName = "kpri_innkeeper", dialogueRole = "DP_OLD_ROLE" },

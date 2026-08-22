@@ -97,13 +97,6 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
         @($steps[1].reveals) -contains 'forged_departure' -and
         @($steps[2].reveals) -contains 'suspect_identified'
     ) 'evidence sources reveal authored case facts'
-    Add-Result (
-        $steps[3].placement -eq 'ambient' -and
-        $steps[3].role -eq 'overheard' -and
-        [int]$steps[3].confidence -eq 15 -and
-        $steps[3].discoverableWithoutHint -eq $true
-    ) 'ambient conversation is an independent optional clue'
-
     $document = $steps[1]
     Add-Result (
         $document.kind -eq 'document' -and
@@ -173,10 +166,6 @@ if (Test-Path -LiteralPath $casePath -PathType Leaf) {
                 $referencedKeys.Add([string]$response.key)
             }
         }
-    }
-    $referencedKeys.Add([string]$case.native.overheard.rootKey)
-    foreach ($response in @($case.native.overheard.responses)) {
-        $referencedKeys.Add([string]$response.key)
     }
     foreach ($key in @(
         $case.native.witnessObjective.nameKey,

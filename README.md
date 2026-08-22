@@ -92,6 +92,9 @@ native quest graph is active.
 
 ### Engineering cleanup before public release
 
+- [ ] Replace the timed Case presentation barrier with a generation-scoped
+      Lua→Skald reset request / Skald→Lua acknowledgement handshake before
+      activating the next settlement presentation
 - [ ] Inventory `H:\KCD2Mod`, the source repository, deployed mods, generated output, backups and extracted references
 - [ ] Classify every non-source artifact as keep, archive, reproducible-generated or remove
 - [ ] Separate opt-in debug tooling from production assets and remove automatic test/probe triggers

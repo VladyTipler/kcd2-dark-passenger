@@ -53,13 +53,15 @@ $catalog = if (Test-Path -LiteralPath $generatedCatalogPath) {
 }
 else { '' }
 
-Add-Result ($caseRuntime.Contains('SCHEMA_VERSION = 3')) `
-    'case-content state uses schema v3'
+Add-Result ($caseRuntime.Contains('SCHEMA_VERSION = 4')) `
+    'case-content state uses schema v4'
 foreach ($token in @(
     'dp_case_content_case_code',
     'dp_case_content_opener_code',
     'dp_case_content_variant_code',
     'dp_case_content_previous_variant_code',
+    'dp_case_content_innkeeper_actor_code',
+    'dp_case_content_witness_actor_code',
     'caseCode',
     'openerCode',
     'function DarkPassengerCaseContent.MigrateLegacyState',
@@ -68,7 +70,7 @@ foreach ($token in @(
     'DarkPassengerCaseCatalogByCode'
 )) {
     Add-Result ($caseRuntime.Contains($token)) `
-        "schema v3 runtime contains $token"
+        "schema v4 runtime contains $token"
 }
 
 Add-Result (
@@ -76,6 +78,14 @@ Add-Result (
     $caseRuntime.Contains('legacy.rumorSlot') -and
     $caseRuntime.Contains('generation = tonumber(legacy.generation)')
 ) 'legacy migration preserves investigation generation'
+Add-Result (
+    $caseRuntime.Contains('if schema == 3 then') -and
+    $caseRuntime.Contains('innkeeperActorCode = 0') -and
+    $caseRuntime.Contains('witnessActorCode = 0') -and
+    $caseRuntime.Contains(
+        'actor bindings are resolved from the generated pool'
+    )
+) 'schema-v3 migration keeps case identity and resolves generated actor bindings'
 Add-Result (
     $caseRuntime.Contains('if schema == 2 then') -and
     $caseRuntime.Contains('variantCode = 0') -and

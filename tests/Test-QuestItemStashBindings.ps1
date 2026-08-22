@@ -28,6 +28,18 @@ if (Test-Path -LiteralPath $fixtureRoot) {
                     documentGuid = 'd5833fd4-f7bf-4957-86f5-d661db38bcf3'
                 }
             }
+        }, @{
+            caseCode = 2001
+            storyId = 'missing-traveler'
+            region = 'trosecko'
+            settlement = 'zelejov'
+            nativeVariantIds = @('missing-traveler-zelejov-1')
+            roles = @{
+                document = @{
+                    containerGuid = '02f9f209-a91a-0267'
+                    documentGuid = 'd5833fd4-f7bf-4957-86f5-d661db38bcf3'
+                }
+            }
         })
     } | ConvertTo-Json -Depth 20) + "`n",
     [System.Text.UTF8Encoding]::new($false)
@@ -47,7 +59,7 @@ $expectations = @(
     }
     [pscustomobject]@{
         region = 'trosecko'
-        target = 'aaf89994-e94b-0309'
+        target = '02f9f209-a91a-0267'
         alias = 'DP_EvidenceStash_trosecko_zelejov'
     }
     [pscustomobject]@{

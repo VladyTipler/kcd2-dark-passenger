@@ -745,6 +745,7 @@ function Resolve-CaseKitCompatibility {
 
     $accepted = [System.Collections.Generic.List[object]]::new()
     $rejected = [System.Collections.Generic.List[object]]::new()
+    $eligibleActorPools = [System.Collections.Generic.List[object]]::new()
     foreach ($story in @($Deck.stories | Sort-Object id)) {
         if ([int]$story.sourceSchemaVersion -ne 2) {
             continue
@@ -818,6 +819,41 @@ function Resolve-CaseKitCompatibility {
                     })
                     continue
                 }
+                foreach ($slotName in $slots.Keys) {
+                    $slot = $slots[$slotName]
+                    if ([string]$slot.entityType -cne 'actor') { continue }
+                    $actorCandidates = @($candidateMap[[string]$slotName] |
+                        Where-Object { $null -ne $_ })
+                    if ($actorCandidates.Count -eq 0) { continue }
+                    $candidateRows = [System.Collections.Generic.List[object]]::new()
+                    for ($candidateIndex = 0;
+                        $candidateIndex -lt $actorCandidates.Count;
+                        $candidateIndex++) {
+                        $candidate = $actorCandidates[$candidateIndex]
+                        $candidateRows.Add([pscustomobject][ordered]@{
+                            candidateOrder = $candidateIndex
+                            entityName = [string]$candidate.entityName
+                            entityGuid = [string]$candidate.entityGuid
+                            soulGuid = [string](Get-CaseKitCompatibilityProperty `
+                                -Value $candidate -Name 'soulGuid' `
+                                -DefaultValue '')
+                            identityMode = [string](
+                                Get-CaseKitCompatibilityProperty `
+                                    -Value $candidate -Name 'identityMode' `
+                                    -DefaultValue '')
+                            capabilities = @($candidate.capabilities |
+                                ForEach-Object { [string]$_ })
+                        })
+                    }
+                    $eligibleActorPools.Add([pscustomobject][ordered]@{
+                        storyId = [string]$story.id
+                        compositionId = [string]$composition.id
+                        region = [string]$settlement.region
+                        settlement = [string]$settlement.settlement
+                        slotName = [string]$slotName
+                        candidates = $candidateRows.ToArray()
+                    })
+                }
                 foreach ($variant in $variants) {
                     $accepted.Add($variant)
                 }
@@ -869,6 +905,8 @@ function Resolve-CaseKitCompatibility {
         schemaVersion = 1
         sourceFormat = 'casekit-compatibility-v1'
         maxVariantsPerCombination = $MaxVariantsPerCombination
+        eligibleActorPools = @($eligibleActorPools.ToArray() | Sort-Object `
+            storyId, compositionId, region, settlement, slotName)
         accepted = @($accepted.ToArray() | Sort-Object `
             storyId, compositionId, region, settlement, rank, variantId)
         rejected = @($rejected.ToArray() | Sort-Object `

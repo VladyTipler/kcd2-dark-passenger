@@ -1,14 +1,26 @@
 param(
     [switch]$SkipPackaging,
+    [switch]$SkipDialogueMedia,
+    [switch]$ForceDialogueMedia,
     [string]$DevGameRoot = $env:KCD2_DEV_ROOT,
     [string]$ReferenceDataRoot = $env:KCD2_REFERENCE_DATA_ROOT,
     [string]$WorldSoulTablePath = $env:KCD2_WORLD_SOUL_TABLE,
-    [string]$DialogueMediaResultsPath = $env:DP_DIALOGUE_MEDIA_RESULTS
+    [string]$DialogueMediaResultsPath = $env:DP_DIALOGUE_MEDIA_RESULTS,
+    [string]$DialogueMediaPython = $env:DP_DIALOGUE_MEDIA_PYTHON,
+    [string]$DialogueMediaModdingRoot = $env:DP_DIALOGUE_MEDIA_MODDING_ROOT,
+    [string]$DialogueMediaBaselineRoot = $env:DP_DIALOGUE_MEDIA_BASELINE_ROOT,
+    [string]$DialogueMediaBaseFacialImage = $env:DP_DIALOGUE_MEDIA_BASE_IMAGE,
+    [string]$DialogueMediaPhonemeExecutable = $env:DP_DIALOGUE_MEDIA_PHONEMES,
+    [string]$DialogueMediaCacheRoot = $env:DP_DIALOGUE_MEDIA_CACHE,
+    [string]$DialogueMediaVoiceProfileRoot = $env:DP_DIALOGUE_MEDIA_PROFILES,
+    [string]$DialogueMediaOutputRoot = $env:DP_DIALOGUE_MEDIA_OUTPUT,
+    [string]$DialogueMediaServerUrl = 'http://127.0.0.1:7860'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$workspaceRoot = Split-Path -Parent $repoRoot
 $sourceRoot = Join-Path $repoRoot 'src'
 $buildRoot = Join-Path $repoRoot 'build\mod'
 $buildParent = Join-Path $repoRoot 'build'
@@ -20,6 +32,9 @@ $dialogueFacialAssetBuilderPath = Join-Path $PSScriptRoot `
     'Build-DialogueFacialAssets.ps1'
 $dialogueMediaResultsConsumerPath = Join-Path $PSScriptRoot `
     'Import-DialogueMediaResults.ps1'
+$dialogueMediaKitRoot = Join-Path $workspaceRoot 'DialogueMediaKit'
+$dialogueMediaBuilderPath = Join-Path $dialogueMediaKitRoot `
+    'tools\Build-Kcd2Media.ps1'
 $caseKitCompilerPath = Join-Path $repoRoot `
     'casekit\cli\Compile-CaseKit.ps1'
 $worldIndexBuilderPath = Join-Path $repoRoot `
@@ -45,9 +60,35 @@ $dialogueVoiceManifestPath = Join-Path $buildParent `
     'generated\voice\dialogue-voice-manifest.json'
 $dialogueMediaJobsPath = Join-Path $buildParent `
     'generated\voice\dialogue-media-jobs.json'
+$dialogueMediaResolvedJobsPath = Join-Path $buildParent `
+    'generated\voice\dialogue-media-jobs-resolved.json'
 if ([string]::IsNullOrWhiteSpace($DialogueMediaResultsPath)) {
     $DialogueMediaResultsPath = Join-Path $buildParent `
         'generated\voice\dialogue-media-results.json'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaOutputRoot)) {
+    $DialogueMediaOutputRoot = Join-Path $buildParent `
+        'generated\voice\media-output'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaCacheRoot)) {
+    $DialogueMediaCacheRoot = Join-Path $dialogueMediaKitRoot `
+        '.cache\dark-passenger-media'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaVoiceProfileRoot)) {
+    $DialogueMediaVoiceProfileRoot = Join-Path $dialogueMediaKitRoot `
+        '.cache\dark-passenger-voice-profiles'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaBaselineRoot)) {
+    $DialogueMediaBaselineRoot = Join-Path $workspaceRoot `
+        '_work\native-lipsync-pilot'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaBaseFacialImage)) {
+    $DialogueMediaBaseFacialImage = Join-Path $workspaceRoot `
+        '_work\retail-facials-2026-08-16\part0\Animations\FacialAnimations.img'
+}
+if ([string]::IsNullOrWhiteSpace($DialogueMediaPhonemeExecutable)) {
+    $DialogueMediaPhonemeExecutable = Join-Path $workspaceRoot `
+        '_work\facial-pipeline-2026-08-16\bin\dp-phonemes.exe'
 }
 $rawEvidencePath = Join-Path $repoRoot 'evidence\world-candidates.raw.json'
 $victimCatalogPath = Join-Path $repoRoot 'config\victim-candidates.json'
@@ -151,9 +192,81 @@ foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force) {
     Copy-Item -LiteralPath $item.FullName -Destination $resolvedBuildRoot -Recurse
 }
 
-& $caseCompilerPath `
-    -CaseVariantRoot $caseVariantRoot `
-    -BuildRoot $buildParent
+$caseCompilerParameters = @{
+    CaseVariantRoot = $caseVariantRoot
+    BuildRoot = $buildParent
+}
+if (
+    $SkipDialogueMedia -and
+    (Test-Path -LiteralPath $DialogueMediaResultsPath -PathType Leaf)
+) {
+    if (-not (Test-Path -LiteralPath $dialogueMediaResolvedJobsPath `
+        -PathType Leaf)) {
+        throw 'DIALOGUE_MEDIA_JOBS_MISSING: Resolved jobs are required for ' +
+            "dialogue media results: $dialogueMediaResolvedJobsPath"
+    }
+    $caseCompilerParameters.DialogueMediaResolvedJobsPath =
+        $dialogueMediaResolvedJobsPath
+    $caseCompilerParameters.DialogueMediaResultsPath =
+        $DialogueMediaResultsPath
+}
+& $caseCompilerPath @caseCompilerParameters
+
+if (-not $SkipDialogueMedia) {
+    if ([string]::IsNullOrWhiteSpace($DevGameRoot)) {
+        throw 'KCD2_DEV_ROOT or -DevGameRoot must point to the retail game ' +
+            'root for automatic dialogue media preparation.'
+    }
+    if (-not (Test-Path -LiteralPath $dialogueMediaBuilderPath -PathType Leaf)) {
+        throw "DialogueMediaKit builder is missing: $dialogueMediaBuilderPath"
+    }
+    if ([string]::IsNullOrWhiteSpace($DialogueMediaModdingRoot)) {
+        $DialogueMediaModdingRoot = Join-Path (Split-Path -Parent $DevGameRoot) `
+            'KCD2Mod'
+    }
+    if ([string]::IsNullOrWhiteSpace($DialogueMediaPython)) {
+        $knownOmniPython = 'E:\AI\OmniVoice\.venv\Scripts\python.exe'
+        if (Test-Path -LiteralPath $knownOmniPython -PathType Leaf) {
+            $DialogueMediaPython = $knownOmniPython
+        }
+        else {
+            $DialogueMediaPython = (Get-Command python.exe `
+                -ErrorAction Stop).Source
+        }
+    }
+
+    $mediaParameters = @{
+        DemandsPath = Join-Path $buildParent `
+            'generated\voice\dialogue-media-demands.json'
+        GeneratedRoot = Join-Path $buildParent 'generated\voice'
+        OutputRoot = $DialogueMediaOutputRoot
+        ResultsPath = $DialogueMediaResultsPath
+        TablesPak = Join-Path $DevGameRoot 'Data\Tables.pak'
+        LocalizationRoot = Join-Path $DevGameRoot 'Localization'
+        ModdingRoot = $DialogueMediaModdingRoot
+        BaselineRoot = $DialogueMediaBaselineRoot
+        BaseFacialImage = $DialogueMediaBaseFacialImage
+        PhonemeExecutable = $DialogueMediaPhonemeExecutable
+        PhonemePluginRoot = Join-Path $DialogueMediaModdingRoot `
+            'Editor\Plugins\LipSync\Annosoft'
+        SettingsPath = Join-Path $dialogueMediaKitRoot `
+            'config\omnivoice-kcd2-english.json'
+        CacheRoot = $DialogueMediaCacheRoot
+        VoiceProfileRoot = $DialogueMediaVoiceProfileRoot
+        PythonExecutable = $DialogueMediaPython
+        ServerUrl = $DialogueMediaServerUrl
+    }
+    if ($ForceDialogueMedia) {
+        $mediaParameters.Force = $true
+    }
+    & $dialogueMediaBuilderPath @mediaParameters
+
+    $caseCompilerParameters.DialogueMediaResolvedJobsPath =
+        $dialogueMediaResolvedJobsPath
+    $caseCompilerParameters.DialogueMediaResultsPath =
+        $DialogueMediaResultsPath
+    & $caseCompilerPath @caseCompilerParameters
+}
 
 & $generatorPath
 
@@ -704,13 +817,13 @@ foreach ($language in @('English', 'Russian')) {
 
 if (Test-Path -LiteralPath $DialogueMediaResultsPath -PathType Leaf) {
     & $dialogueMediaResultsConsumerPath `
-        -JobsManifestPath $dialogueMediaJobsPath `
+        -JobsManifestPath $dialogueMediaResolvedJobsPath `
         -ResultsManifestPath $DialogueMediaResultsPath `
         -OutputModRoot $resolvedBuildRoot
 }
-elseif (Test-Path -LiteralPath $dialogueMediaJobsPath -PathType Leaf) {
+elseif (Test-Path -LiteralPath $dialogueMediaResolvedJobsPath -PathType Leaf) {
     $dialogueMediaJobs = [System.IO.File]::ReadAllText(
-        $dialogueMediaJobsPath
+        $dialogueMediaResolvedJobsPath
     ) | ConvertFrom-Json -Depth 100
     if (@($dialogueMediaJobs.jobs).Count -gt 0) {
         throw 'DIALOGUE_MEDIA_RESULTS_MISSING: DialogueMediaKit results are ' +

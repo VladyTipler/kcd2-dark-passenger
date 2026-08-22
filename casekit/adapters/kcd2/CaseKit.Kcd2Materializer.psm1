@@ -249,7 +249,7 @@ function ConvertTo-CaseKitCompiledEvidence {
     return $compiled.ToArray()
 }
 
-function ConvertTo-CaseKitCompiledOverheardScenes {
+function ConvertTo-CaseKitCompiledTimedAreaActions {
     param(
         [Parameter(Mandatory)]$Story,
         [Parameter(Mandatory)]$StableEvidenceMap
@@ -259,7 +259,7 @@ function ConvertTo-CaseKitCompiledOverheardScenes {
     foreach ($thread in @($Story.threads)) {
         foreach ($step in @($thread.steps)) {
             if ([string]$step.action.evidenceModule -ne
-                'overheard-dialogue') {
+                'timed-area-listening') {
                 continue
             }
             $qualifiedId = "$([string]$thread.id)/$([string]$step.id)"
@@ -267,58 +267,32 @@ function ConvertTo-CaseKitCompiledOverheardScenes {
                 throw "Missing stable evidence code for '$($Story.id)/" +
                     "$qualifiedId'."
             }
+            $areaGuidance = @($step.guidance | Where-Object {
+                [string]$_.target.kind -eq 'area' -and
+                [string]$_.precision -eq 'area'
+            })
+            if ($areaGuidance.Count -ne 1) {
+                throw "Timed area action '$($Story.id)/$qualifiedId' " +
+                    'requires one area GuidanceTarget.'
+            }
+            $presentations = @(Copy-CaseKitMaterializerValue `
+                -Value @($step.presentations))
             $scenes.Add([pscustomobject][ordered]@{
                 qualifiedId = $qualifiedId
                 evidenceId = [string]$StableEvidenceMap[$qualifiedId].legacyId
                 threadId = [string]$thread.id
                 stepId = [string]$step.id
+                guidanceQualifiedId = "$([string]$thread.id)/" +
+                    "$([string]$step.id)/$([string]$areaGuidance[0].id)"
                 activation = Copy-CaseKitMaterializerValue `
                     -Value $step.action.activation
-                bindingSlots = [pscustomobject][ordered]@{
-                    speakerA = [string]$step.action.bindings.speakerA
-                    speakerB = [string]$step.action.bindings.speakerB
-                }
+                content = Copy-CaseKitMaterializerValue `
+                    -Value $presentations[0].content
+                presentations = $presentations
             })
         }
     }
     return $scenes.ToArray()
-}
-
-function Resolve-CaseKitCompiledOverheardScenes {
-    param(
-        [Parameter(Mandatory)]
-        [AllowEmptyCollection()]
-        [object[]]$Scenes,
-        [Parameter(Mandatory)]$Variant
-    )
-
-    return @($Scenes | ForEach-Object {
-        $scene = $_
-        $speakerAProperty = $Variant.bindings.PSObject.Properties[
-            [string]$scene.bindingSlots.speakerA
-        ]
-        $speakerBProperty = $Variant.bindings.PSObject.Properties[
-            [string]$scene.bindingSlots.speakerB
-        ]
-        if ($null -eq $speakerAProperty -or
-            $null -eq $speakerBProperty -or
-            $null -eq $speakerAProperty.Value -or
-            $null -eq $speakerBProperty.Value) {
-            return
-        }
-        [pscustomobject][ordered]@{
-            qualifiedId = [string]$scene.qualifiedId
-            evidenceId = [string]$scene.evidenceId
-            activation = Copy-CaseKitMaterializerValue `
-                -Value $scene.activation
-            speakers = [pscustomobject][ordered]@{
-                speakerA = Copy-CaseKitMaterializerValue `
-                    -Value $speakerAProperty.Value
-                speakerB = Copy-CaseKitMaterializerValue `
-                    -Value $speakerBProperty.Value
-            }
-        }
-    })
 }
 
 function ConvertTo-CaseKitCompiledDefinitions {
@@ -361,7 +335,7 @@ function ConvertTo-CaseKitCompiledDefinitions {
         $stableStory = $identities.stories[$storyId]
         $storyJournal = Get-CaseKitMaterializerProperty `
             -Value $story -Name 'journal'
-        $overheardScenes = @(ConvertTo-CaseKitCompiledOverheardScenes `
+        $timedAreaActions = @(ConvertTo-CaseKitCompiledTimedAreaActions `
             -Story $story `
             -StableEvidenceMap $identities.evidence[$storyId])
         $compiledStories.Add([pscustomobject][ordered]@{
@@ -384,7 +358,7 @@ function ConvertTo-CaseKitCompiledDefinitions {
             evidence = @(ConvertTo-CaseKitCompiledEvidence -Story $story `
                 -Deck $Deck `
                 -StableEvidenceMap $identities.evidence[$storyId])
-            overheardScenes = $overheardScenes
+            timedAreaActions = $timedAreaActions
             dialogues = @(Copy-CaseKitMaterializerValue `
                 -Value @($story.dialogues))
             documents = @(Copy-CaseKitMaterializerValue `
@@ -426,13 +400,11 @@ function ConvertTo-CaseKitCompiledDefinitions {
                 -Value @($variant.evidencePlacements))
             guidanceBindings = @(Copy-CaseKitMaterializerValue `
                 -Value @($variant.guidanceBindings))
-            overheardScenes = @(Resolve-CaseKitCompiledOverheardScenes `
-                -Scenes @(ConvertTo-CaseKitCompiledOverheardScenes `
-                    -Story $story `
-                    -StableEvidenceMap $identities.evidence[
-                        [string]$variant.storyId
-                    ]) `
-                -Variant $variant)
+            timedAreaActions = @(ConvertTo-CaseKitCompiledTimedAreaActions `
+                -Story $story `
+                -StableEvidenceMap $identities.evidence[
+                    [string]$variant.storyId
+                ])
             renderedAssets = Copy-CaseKitMaterializerValue `
                 -Value $variant.renderedAssets
             trophyDefinition =
@@ -441,10 +413,14 @@ function ConvertTo-CaseKitCompiledDefinitions {
         }
     })
 
+    $eligibleActorPools = Get-CaseKitMaterializerProperty `
+        -Value $CompatibilityReport -Name 'eligibleActorPools'
     return [pscustomobject][ordered]@{
         schemaVersion = 1
         sourceFormat = 'casekit-compiled-definitions-v1'
         stories = $compiledStories.ToArray()
+        eligibleActorPools = if ($null -eq $eligibleActorPools) { @() }
+            else { @(Copy-CaseKitMaterializerValue -Value @($eligibleActorPools)) }
         variants = $compiledVariants
     }
 }

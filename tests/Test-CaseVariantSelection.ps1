@@ -103,16 +103,21 @@ Add-Result (
 ) 'runtime overlays the selected settlement dialogue role'
 
 foreach ($token in @(
-    'SCHEMA_VERSION = 3',
+    'SCHEMA_VERSION = 4',
     'dp_case_content_variant_code',
     'dp_case_content_previous_variant_code',
+    'dp_case_content_innkeeper_actor_code',
+    'dp_case_content_witness_actor_code',
     'function DarkPassengerCaseContent.IsSettlementSupported',
     'function DarkPassengerCaseContent.SelectVariant',
+    'function DarkPassengerCaseContent.SelectActors',
     'function DarkPassengerCaseContent.FindCompatibleVariant',
     'function DarkPassengerCaseContent.PrepareVariant',
     'native_ready',
     'anti_repeat_key',
     'candidateBySlot',
+    'actor_pools',
+    'actor_selection',
     'reason = "restored"'
 )) {
     Add-Result ($caseRuntime.Contains($token)) `
@@ -128,6 +133,11 @@ Add-Result (
     $caseRuntime.Contains('"variant selection"') -and
     $caseRuntime.Contains('"variant anti-repeat"')
 ) 'runtime self-test exercises finite selection and target anti-repeat'
+Add-Result (
+    $caseRuntime.Contains('"actor selection"') -and
+    $caseRuntime.Contains('selectedActors.innkeeper.actor_code') -and
+    $caseRuntime.Contains('selectedActors.witness.actor_code')
+) 'runtime self-test exercises exact actor selection for every dialogue slot'
 Add-Result (
     $caseRuntime.Contains(
         'DarkPassengerCaseContent.FindCompatibleVariant(current, context, nil)'

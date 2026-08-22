@@ -1,6 +1,7 @@
 DarkPassengerLeadPlanner = DarkPassengerLeadPlanner or {}
 
 DarkPassengerLeadPlanner.SCHEMA_VERSION = 1
+DarkPassengerLeadPlanner.EVIDENCE_TRANSITION_DELAY_MS = 250
 
 local KEYS = {
     schema = "dp_lead_presentation_schema_version",
@@ -139,6 +140,37 @@ local function FactsSatisfied(requiredFacts, knownFacts)
         if knownFacts[tostring(factId)] ~= true then return false end
     end
     return true
+end
+
+local function FactsUnknown(requiredFacts, knownFacts)
+    for _, factId in ipairs(requiredFacts or {}) do
+        if knownFacts[tostring(factId)] == true then return false end
+    end
+    return true
+end
+
+function DarkPassengerLeadPlanner.SelectJournalEntry(
+    caseTemplate,
+    evidenceState,
+    evidenceCode
+)
+    evidenceCode = tonumber(evidenceCode)
+    if evidenceCode == nil then return nil end
+    local knownFacts = KnownFacts(caseTemplate, evidenceState)
+    for _, evidence in ipairs(
+        caseTemplate ~= nil and caseTemplate.evidence or {}
+    ) do
+        if tonumber(evidence.code) == evidenceCode then
+            for _, entry in ipairs(evidence.journal_entries or {}) do
+                if FactsSatisfied(entry.all_known_facts, knownFacts) and
+                   FactsUnknown(entry.all_unknown_facts, knownFacts) then
+                    return entry
+                end
+            end
+            return nil
+        end
+    end
+    return nil
 end
 
 -- Pure projection: discovered facts are authoritative, while the returned
@@ -387,7 +419,7 @@ function DarkPassengerLeadPlanner.HasDirection(plan, directionId)
     return false
 end
 
-function DarkPassengerLeadPlanner.Apply(generation)
+function DarkPassengerLeadPlanner.Apply(generation, evidenceCode)
     generation = tonumber(generation)
     if generation == nil or generation <= 0 or
        DarkPassengerCaseContent == nil or
@@ -406,6 +438,21 @@ function DarkPassengerLeadPlanner.Apply(generation)
         selected.caseTemplate,
         evidenceState
     )
+    local currentPresentation = ReadPresentationState()
+    local journalEntry = DarkPassengerLeadPlanner.SelectJournalEntry(
+        selected.caseTemplate,
+        evidenceState,
+        evidenceCode
+    )
+    if journalEntry ~= nil then
+        plan.stateCode = tonumber(journalEntry.state_code) or 0
+        plan.journalEntry = journalEntry
+    elseif currentPresentation.generation == generation and
+           currentPresentation.stateCode >= 0 then
+        plan.stateCode = currentPresentation.stateCode
+    else
+        plan.stateCode = 0
+    end
     plan.dialogueVariants =
         DarkPassengerLeadPlanner.SelectDialogueVariants(
             selected.caseTemplate,
@@ -459,19 +506,63 @@ function DarkPassengerLeadPlanner.Apply(generation)
             plan.by_role.witness == true
         )
     end
-    if DarkPassengerOverheardEvidence ~= nil and
-       DarkPassengerOverheardEvidence.ApplyAvailability ~= nil then
-        DarkPassengerOverheardEvidence.ApplyAvailability(
-            generation,
-            plan.by_role.overheard == true
-        )
-    end
     Log(
         "applied generation=" .. tostring(generation) ..
         " directions=" .. table.concat(plan.directions, ",") ..
         " confidence=" .. tostring(plan.confidence)
     )
     return plan, "applied"
+end
+
+function DarkPassengerLeadPlanner.OnEvidenceTransition(payload, timerId)
+    local generation = payload ~= nil and tonumber(payload.generation) or nil
+    local evidenceCode = payload ~= nil and tonumber(payload.evidenceCode) or nil
+    if generation == nil or evidenceCode == nil or
+       DarkPassengerCaseContent == nil or
+       DarkPassengerCaseContent.GetSelected == nil or
+       DarkPassengerCaseContent.GetSelected(generation) == nil then
+        Log("evidence transition discarded reason=stale_generation")
+        return false
+    end
+    local plan, reason = DarkPassengerLeadPlanner.Apply(
+        generation,
+        evidenceCode
+    )
+    if plan == nil then
+        Log("evidence transition deferred reason=" .. tostring(reason))
+        return false
+    end
+    return true
+end
+
+function DarkPassengerLeadPlanner.ScheduleEvidenceTransition(
+    generation,
+    evidenceCode
+)
+    generation = tonumber(generation)
+    evidenceCode = tonumber(evidenceCode)
+    if generation == nil or generation <= 0 or evidenceCode == nil then
+        return false, "invalid_transition"
+    end
+    if Script == nil or Script.SetTimerForFunction == nil then
+        return DarkPassengerLeadPlanner.OnEvidenceTransition({
+            generation = generation,
+            evidenceCode = evidenceCode,
+        })
+    end
+    local ok, timerOrError = pcall(function()
+        return Script.SetTimerForFunction(
+            DarkPassengerLeadPlanner.EVIDENCE_TRANSITION_DELAY_MS,
+            "DarkPassengerLeadPlanner.OnEvidenceTransition",
+            { generation = generation, evidenceCode = evidenceCode }
+        )
+    end)
+    if not ok then
+        Log("evidence transition scheduling failed error=" ..
+            tostring(timerOrError))
+        return false, "timer_failed"
+    end
+    return true, "scheduled"
 end
 
 function DarkPassengerLeadPlanner.RunSelfTest()

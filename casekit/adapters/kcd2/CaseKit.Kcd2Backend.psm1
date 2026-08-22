@@ -374,6 +374,10 @@ function ConvertTo-CaseKitKcd2Dialogue {
     $native = [ordered]@{
         kind = [string]$DialogueAdapter.kind
     }
+    $media = Get-CaseKitKcd2Property -Value $definition -Name 'media'
+    if ($null -ne $media) {
+        $native.media = Copy-CaseKitKcd2Value -Value $media
+    }
     $evidenceQualifiedId = [string](Get-CaseKitKcd2Property `
         -Value $DialogueAdapter -Name 'evidenceQualifiedId' -DefaultValue '')
     if (-not [string]::IsNullOrWhiteSpace($evidenceQualifiedId)) {
@@ -428,147 +432,15 @@ function ConvertTo-CaseKitKcd2Dialogue {
     return [pscustomobject]$native
 }
 
-function ConvertTo-CaseKitKcd2Overheard {
-    param(
-        [Parameter(Mandatory)]$OverheardAdapter,
-        [Parameter(Mandatory)]$StoryAdapter,
-        [Parameter(Mandatory)]$EvidenceMap,
-        [Parameter(Mandatory)]$DialogueMap
-    )
-
-    $qualifiedId = [string](Get-CaseKitKcd2Property `
-        -Value $OverheardAdapter -Name 'qualifiedId' -DefaultValue '')
-    $evidenceQualifiedId = [string](Get-CaseKitKcd2Property `
-        -Value $OverheardAdapter -Name 'evidenceQualifiedId' `
-        -DefaultValue $qualifiedId)
-    $dialogue = $DialogueMap[[string]$OverheardAdapter.dialogueId]
-    if ($null -eq $dialogue) {
-        throw "Overheard dialogue '$($OverheardAdapter.dialogueId)' not found."
-    }
-    return [pscustomobject][ordered]@{
-        evidenceId = [string](@(ConvertTo-CaseKitKcd2EvidenceIds `
-            -QualifiedIds @($evidenceQualifiedId) `
-            -EvidenceMap $EvidenceMap)[0])
-        graphName = [string]$OverheardAdapter.graphName
-        fileName = [string]$OverheardAdapter.fileName
-        rootKey = Get-CaseKitKcd2NativeKey -StoryAdapter $StoryAdapter `
-            -Asset ([string]$OverheardAdapter.rootAsset)
-        decisionAlias = [string]$OverheardAdapter.decisionAlias
-        sequenceName = [string]$OverheardAdapter.sequenceName
-        cluePort = [string]$OverheardAdapter.cluePort
-        clueLabel = [string]$OverheardAdapter.clueLabel
-        hearingDistance = [int]$OverheardAdapter.hearingDistance
-        repeatAfterSeconds = [int]$OverheardAdapter.repeatAfterSeconds
-        availableTag = [int]$OverheardAdapter.availableTag
-        context = [string]$OverheardAdapter.context
-        responses = @(ConvertTo-CaseKitKcd2Responses `
-            -Variant @($dialogue.variants)[0] `
-            -DialogueAdapter $OverheardAdapter `
-            -StoryAdapter $StoryAdapter)
-    }
-}
-
-function ConvertTo-CaseKitKcd2OverheardScenes {
-    param(
-        [Parameter(Mandatory)][object[]]$SceneAdapters,
-        [Parameter(Mandatory)][object[]]$CompiledScenes,
-        [Parameter(Mandatory)][object[]]$VariantScenes,
-        [Parameter(Mandatory)]$CompiledStory,
-        [Parameter(Mandatory)]$StoryAdapter
-    )
-
-    $compiledSceneMap = New-CaseKitKcd2Map -Values $CompiledScenes `
-        -KeySelector { param($entry) [string]$entry.qualifiedId } `
-        -Kind 'Compiled overheard scene'
-    $variantSceneMap = New-CaseKitKcd2Map -Values $VariantScenes `
-        -KeySelector { param($entry) [string]$entry.qualifiedId } `
-        -Kind 'Bound overheard scene'
-    $evidenceMap = New-CaseKitKcd2Map -Values @($CompiledStory.evidence) `
-        -KeySelector { param($entry) [string]$entry.qualifiedId } `
-        -Kind 'Compiled evidence'
-    $dialogueMap = New-CaseKitKcd2Map -Values @($CompiledStory.dialogues) `
-        -KeySelector { param($entry) [string]$entry.id } `
-        -Kind 'Compiled dialogue'
-
-    return @($SceneAdapters | ForEach-Object {
-        $adapter = $_
-        $legacyQualifiedId = [string](Get-CaseKitKcd2Property `
-            -Value $adapter -Name 'evidenceQualifiedId' -DefaultValue '')
-        $qualifiedId = [string](Get-CaseKitKcd2Property `
-            -Value $adapter -Name 'qualifiedId' `
-            -DefaultValue $legacyQualifiedId)
-        if (-not $compiledSceneMap.Contains($qualifiedId)) {
-            throw "Native overheard scene '$qualifiedId' has no authored step."
-        }
-        if (-not $variantSceneMap.Contains($qualifiedId)) {
-            throw "Native overheard scene '$qualifiedId' has no concrete " +
-                'speaker binding.'
-        }
-        $compiledScene = $compiledSceneMap[$qualifiedId]
-        $variantScene = $variantSceneMap[$qualifiedId]
-        $activationMode = [string]$compiledScene.activation.mode
-        if ([string]$variantScene.activation.mode -ne $activationMode) {
-            throw "Native overheard scene '$qualifiedId' activation differs " +
-                'between story and variant.'
-        }
-        $legacy = ConvertTo-CaseKitKcd2Overheard `
-            -OverheardAdapter $adapter -StoryAdapter $StoryAdapter `
-            -EvidenceMap $evidenceMap -DialogueMap $dialogueMap
-        $aliasStem = $qualifiedId -replace '[^A-Za-z0-9_]', '_'
-        $dialogueRoles = Get-CaseKitKcd2Property `
-            -Value $adapter -Name 'dialogueRoles' `
-            -DefaultValue ([pscustomobject]@{})
-        [pscustomobject][ordered]@{
-            id = $aliasStem
-            qualifiedId = $qualifiedId
-            activation = [pscustomobject][ordered]@{
-                mode = $activationMode
-            }
-            speakers = [pscustomobject][ordered]@{
-                speakerA = [pscustomobject][ordered]@{
-                    role = [string]$adapter.speakerRoles.speakerA
-                    entityName = [string]$variantScene.speakers.speakerA.entityName
-                    entityGuid = [string]$variantScene.speakers.speakerA.entityGuid
-                    soulGuid = [string]$variantScene.speakers.speakerA.soulGuid
-                    questAlias = "DpOverheard_${aliasStem}_A"
-                    dialogueRole = [string](Get-CaseKitKcd2Property `
-                        -Value $dialogueRoles -Name 'speakerA' `
-                        -DefaultValue 'DP_OVERHEARD_SPEAKER_A')
-                }
-                speakerB = [pscustomobject][ordered]@{
-                    role = [string]$adapter.speakerRoles.speakerB
-                    entityName = [string]$variantScene.speakers.speakerB.entityName
-                    entityGuid = [string]$variantScene.speakers.speakerB.entityGuid
-                    soulGuid = [string]$variantScene.speakers.speakerB.soulGuid
-                    questAlias = "DpOverheard_${aliasStem}_B"
-                    dialogueRole = [string](Get-CaseKitKcd2Property `
-                        -Value $dialogueRoles -Name 'speakerB' `
-                        -DefaultValue 'DP_OVERHEARD_SPEAKER_B')
-                }
-            }
-            evidenceId = [string]$legacy.evidenceId
-            graphName = [string]$legacy.graphName
-            fileName = [string]$legacy.fileName
-            rootKey = [string]$legacy.rootKey
-            decisionAlias = [string]$legacy.decisionAlias
-            sequenceName = [string]$legacy.sequenceName
-            cluePort = [string]$legacy.cluePort
-            clueLabel = [string]$legacy.clueLabel
-            hearingDistance = [int]$legacy.hearingDistance
-            repeatAfterSeconds = [int]$legacy.repeatAfterSeconds
-            availableTag = [int]$legacy.availableTag
-            context = [string]$legacy.context
-            responses = @($legacy.responses)
-        }
-    })
-}
-
 function ConvertTo-CaseKitKcd2Evidence {
     param(
         [Parameter(Mandatory)]$CompiledEvidence,
+        [Parameter(Mandatory)]$CompiledStory,
         [Parameter(Mandatory)]$EvidenceAdapter,
         [Parameter(Mandatory)]$StoryAdapter,
         [Parameter(Mandatory)]$EvidenceMap,
+        [Parameter(Mandatory)]$Localization,
+        [Parameter(Mandatory)]$GeneratedKeyOrigins,
         $ResolvedPlacement
     )
 
@@ -596,6 +468,37 @@ function ConvertTo-CaseKitKcd2Evidence {
         -QualifiedIds @($EvidenceAdapter.hintsUnlockedBy) `
         -EvidenceMap $EvidenceMap)
     $native.reveals = @($CompiledEvidence.result.revealsFacts)
+    $native.journalEntries = @($CompiledEvidence.presentations | ForEach-Object {
+        $presentation = $_
+        $content = Get-CaseKitKcd2Property `
+            -Value $presentation -Name 'content'
+        $journalAsset = [string](Get-CaseKitKcd2Property `
+            -Value $content -Name 'journal' -DefaultValue '')
+        if ([string]::IsNullOrWhiteSpace($journalAsset)) {
+            throw "Evidence '$($CompiledEvidence.qualifiedId)' presentation " +
+                "'$($presentation.id)' requires content.journal."
+        }
+        $journalKey = Get-CaseKitKcd2GeneratedNativeKey `
+            -CompiledStory $CompiledStory -Asset $journalAsset
+        foreach ($language in @('ru', 'en')) {
+            Add-CaseKitKcd2LocalizationValue `
+                -Localization $Localization `
+                -KeyOrigins $GeneratedKeyOrigins `
+                -Language $language -Key $journalKey -Source $journalAsset `
+                -Value (Get-CaseKitKcd2AssetValue `
+                    -CompiledStory $CompiledStory -Language $language `
+                    -Asset $journalAsset)
+        }
+        [pscustomobject][ordered]@{
+            id = [string]$presentation.id
+            allKnownFacts = @($presentation.when.allKnown)
+            allUnknownFacts = @($presentation.when.allUnknown)
+            key = $journalKey
+            fallback = Get-CaseKitKcd2AssetValue `
+                -CompiledStory $CompiledStory -Language en `
+                -Asset $journalAsset
+        }
+    })
 
     $promptAsset = [string](Get-CaseKitKcd2Property `
         -Value $EvidenceAdapter -Name 'promptAsset' -DefaultValue '')
@@ -703,22 +606,11 @@ function ConvertTo-CaseKitKcd2CaseSpec {
                 -GeneratedKeyOrigins $localizationKeyOrigins
         })
     }
-    $overheardScenes = @(Get-CaseKitKcd2Property `
-        -Value $StoryAdapter.native -Name 'overheardScenes' `
-        -DefaultValue @())
-    if ($overheardScenes.Count -gt 0) {
-        $native.overheardScenes = @(ConvertTo-CaseKitKcd2OverheardScenes `
-            -SceneAdapters $overheardScenes `
-            -CompiledScenes @($CompiledStory.overheardScenes) `
-            -VariantScenes @($Variant.overheardScenes) `
-            -CompiledStory $CompiledStory -StoryAdapter $StoryAdapter)
-    }
-    $overheard = Get-CaseKitKcd2Property `
-        -Value $StoryAdapter.native -Name 'overheard'
-    if ($null -ne $overheard -and $overheardScenes.Count -eq 0) {
-        $native.overheard = ConvertTo-CaseKitKcd2Overheard `
-            -OverheardAdapter $overheard -StoryAdapter $StoryAdapter `
-            -EvidenceMap $evidenceMap -DialogueMap $dialogueMap
+    $timedAreaActions = @(Get-CaseKitKcd2Property `
+        -Value $CompiledStory -Name 'timedAreaActions' -DefaultValue @())
+    if ($timedAreaActions.Count -gt 0) {
+        $native.timedAreaActions = Copy-CaseKitKcd2Value `
+            -Value $timedAreaActions
     }
     $native.dialogues = @($StoryAdapter.native.dialogues | ForEach-Object {
         ConvertTo-CaseKitKcd2Dialogue -DialogueAdapter $_ `
@@ -754,13 +646,35 @@ function ConvertTo-CaseKitKcd2CaseSpec {
                 "evidence '$($_.qualifiedId)'."
         }
         ConvertTo-CaseKitKcd2Evidence -CompiledEvidence $_ `
+            -CompiledStory $CompiledStory `
             -EvidenceAdapter $evidenceAdapterMap[[string]$_.qualifiedId] `
             -StoryAdapter $StoryAdapter -EvidenceMap $evidenceMap `
+            -Localization $localization `
+            -GeneratedKeyOrigins $localizationKeyOrigins `
             -ResolvedPlacement $(if (
                 $placementMap.Contains([string]$_.qualifiedId)
             ) { $placementMap[[string]$_.qualifiedId] } else { $null })
     })
+    $localizationAssets = [System.Collections.Generic.List[string]]::new()
+    $seenLocalizationAssets =
+        [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::Ordinal
+        )
     foreach ($asset in @($StoryAdapter.emitLocalizationAssets)) {
+        if ($seenLocalizationAssets.Add([string]$asset)) {
+            $localizationAssets.Add([string]$asset)
+        }
+    }
+    foreach ($dialogueAdapter in @($StoryAdapter.native.dialogues)) {
+        $dialogueId = [string]$dialogueAdapter.dialogueId
+        if (-not $dialogueMap.Contains($dialogueId)) { continue }
+        foreach ($asset in @($dialogueMap[$dialogueId].localizationKeys)) {
+            if ($seenLocalizationAssets.Add([string]$asset)) {
+                $localizationAssets.Add([string]$asset)
+            }
+        }
+    }
+    foreach ($asset in $localizationAssets) {
         $nativeKey = Get-CaseKitKcd2NativeKey -StoryAdapter $StoryAdapter `
             -Asset ([string]$asset)
         foreach ($language in @('ru', 'en')) {
@@ -838,8 +752,6 @@ function Get-CaseKitKcd2SemanticDialogueRole {
     $fallback = [ordered]@{
         innkeeper = 'DP_INNKEEPER_RUMOR'
         witness = 'DP_TAVERN_WITNESS'
-        speakerA = 'DP_OVERHEARD_SPEAKER_A'
-        speakerB = 'DP_OVERHEARD_SPEAKER_B'
     }
     if (-not $fallback.Contains($SemanticRole)) {
         throw "Unknown semantic dialogue role '$SemanticRole'."
@@ -876,6 +788,45 @@ function Get-CaseKitKcd2ActorDialogueRoleId {
         $hex.Substring(20, 12)
 }
 
+function Get-CaseKitKcd2SlotDialogueRoleName {
+    param(
+        [Parameter(Mandatory)][int]$CaseCode,
+        [Parameter(Mandatory)][string]$Region,
+        [Parameter(Mandatory)][string]$Settlement,
+        [Parameter(Mandatory)][string]$SemanticRole
+    )
+
+    $seed = @(
+        $CaseCode,
+        $Region.Trim().ToLowerInvariant(),
+        $Settlement.Trim().ToLowerInvariant(),
+        $SemanticRole.Trim().ToLowerInvariant()
+    ) -join '|'
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes(
+        "darkpassenger-dialogue-slot|$seed"
+    )
+    $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    return 'DP_SLOT_' +
+        [System.Convert]::ToHexString($hash).Substring(0, 24)
+}
+
+function Get-CaseKitKcd2SlotDialogueRoleId {
+    param([Parameter(Mandatory)][string]$RoleName)
+
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes(
+        'darkpassenger-dialogue-slot-role-id|' +
+        $RoleName.Trim().ToLowerInvariant()
+    )
+    $hash = [System.Security.Cryptography.SHA256]::HashData($bytes)
+    $hex = [System.Convert]::ToHexString($hash).ToLowerInvariant().Substring(0, 32)
+    return '{0}-{1}-{2}-{3}-{4}' -f `
+        $hex.Substring(0, 8),
+        $hex.Substring(8, 4),
+        $hex.Substring(12, 4),
+        $hex.Substring(16, 4),
+        $hex.Substring(20, 12)
+}
+
 function Get-CaseKitKcd2EvidenceItemGuid {
     param(
         [Parameter(Mandatory)]$StoryAdapter,
@@ -895,22 +846,11 @@ function Get-CaseKitKcd2EvidenceItemGuid {
 function Get-CaseKitKcd2NativeBindingSignature {
     param([Parameter(Mandatory)]$Variant)
 
-    $overheard = @($Variant.overheardScenes | Sort-Object qualifiedId |
-        ForEach-Object {
-            [ordered]@{
-                id = [string]$_.qualifiedId
-                speakerA = [string]$_.speakers.speakerA.entityName
-                speakerASoul = [string]$_.speakers.speakerA.soulGuid
-                speakerB = [string]$_.speakers.speakerB.entityName
-                speakerBSoul = [string]$_.speakers.speakerB.soulGuid
-            }
-        })
     return ([ordered]@{
         rumorSource = [string]$Variant.bindings.rumorSource.entityName
         witness = [string]$Variant.bindings.witness.entityName
         evidenceContainer =
             [string]$Variant.bindings.evidenceContainer.entityGuid
-        overheard = $overheard
     } | ConvertTo-Json -Depth 20 -Compress)
 }
 
@@ -920,6 +860,7 @@ function ConvertTo-CaseKitKcd2SettlementBinding {
         [Parameter(Mandatory)]$StoryAdapter,
         [Parameter(Mandatory)]$Adapter,
         [Parameter(Mandatory)][object[]]$Variants,
+        [object[]]$EligibleActorPools = @(),
         $SettlementProfile
     )
 
@@ -965,64 +906,73 @@ function ConvertTo-CaseKitKcd2SettlementBinding {
         }
     }
 
-    $pairs = [System.Collections.Generic.List[object]]::new()
-    foreach ($scene in @($variant.overheardScenes)) {
-        $sceneToken = ([string]$scene.qualifiedId `
-            -replace '[^A-Za-z0-9_]', '_')
-        $settlementToken = ([string]$variant.settlement `
-            -replace '[^A-Za-z0-9_]', '_')
-        $speakers = [System.Collections.Generic.List[object]]::new()
-        foreach ($semanticRole in 'speakerA', 'speakerB') {
-            $speaker = $scene.speakers.PSObject.Properties[$semanticRole].Value
-            $suffix = if ($semanticRole -eq 'speakerA') { 'A' } else { 'B' }
-            $speakers.Add([pscustomobject][ordered]@{
-                role = $semanticRole
-                entityName = [string]$speaker.entityName
-                soulGuid = [string]$speaker.soulGuid
-                questAlias = "DpOverheard_$([int]$Story.caseCode)_" +
-                    "${settlementToken}_${sceneToken}_$suffix"
-                dialogueRole = Get-CaseKitKcd2SemanticDialogueRole `
-                    -Adapter $Adapter -SemanticRole $semanticRole
-            })
-        }
-        $pairs.Add([pscustomobject][ordered]@{
-            id = "$settlementToken-$sceneToken"
-            speakers = $speakers.ToArray()
-        })
-    }
-    if ($pairs.Count -gt 0) {
-        $roles.overheard = [pscustomobject][ordered]@{
-            pairs = $pairs.ToArray()
-        }
-    }
-
     if ($null -ne $SettlementProfile -and
         $null -ne $SettlementProfile.PSObject.Properties['native'] -and
         $null -ne $SettlementProfile.native.PSObject.Properties['roles']) {
         foreach ($property in $SettlementProfile.native.roles.PSObject.Properties) {
-            $roles[$property.Name] = $property.Value
-        }
-    }
-
-    foreach ($semanticRole in 'innkeeper', 'witness') {
-        if (-not $roles.Contains($semanticRole)) { continue }
-        $roleBinding = $roles[$semanticRole]
-        $entityName = [string]$roleBinding.entityName
-        if ([string]::IsNullOrWhiteSpace($entityName)) { continue }
-        $roleBinding.dialogueRole =
-            Get-CaseKitKcd2ActorDialogueRoleName -EntityName $entityName
-    }
-    if ($roles.Contains('overheard')) {
-        foreach ($pair in @($roles.overheard.pairs)) {
-            foreach ($speaker in @($pair.speakers)) {
-                $entityName = [string]$speaker.entityName
-                if ([string]::IsNullOrWhiteSpace($entityName)) { continue }
-                $speaker.dialogueRole =
-                    Get-CaseKitKcd2ActorDialogueRoleName -EntityName $entityName
+            if (-not $roles.Contains($property.Name)) {
+                $roles[$property.Name] = $property.Value
+                continue
+            }
+            $resolvedRole = $roles[$property.Name]
+            foreach ($metadata in $property.Value.PSObject.Properties) {
+                if ($null -ne $resolvedRole.PSObject.Properties[$metadata.Name]) {
+                    continue
+                }
+                $resolvedRole | Add-Member `
+                    -NotePropertyName $metadata.Name `
+                    -NotePropertyValue $metadata.Value
             }
         }
     }
 
+    $slotDialogueRoles = [ordered]@{}
+    foreach ($semanticRole in 'innkeeper', 'witness') {
+        $slotDialogueRoles[$semanticRole] =
+            Get-CaseKitKcd2SlotDialogueRoleName `
+                -CaseCode ([int]$Story.caseCode) `
+                -Region ([string]$variant.region) `
+                -Settlement ([string]$variant.settlement) `
+                -SemanticRole $semanticRole
+        if (-not $roles.Contains($semanticRole)) { continue }
+        $roleBinding = $roles[$semanticRole]
+        $entityName = [string]$roleBinding.entityName
+        if ([string]::IsNullOrWhiteSpace($entityName)) { continue }
+        $roleBinding.dialogueRole = $slotDialogueRoles[$semanticRole]
+    }
+    $actorPools = [ordered]@{}
+    $slotRoleMap = [ordered]@{
+        rumorSource = 'innkeeper'
+        witness = 'witness'
+        target = 'target'
+    }
+    foreach ($slotName in $slotRoleMap.Keys) {
+        $semanticRole = [string]$slotRoleMap[$slotName]
+        $candidates = [System.Collections.Generic.List[object]]::new()
+        $knownEntities = [System.Collections.Generic.HashSet[string]]::new(
+            [System.StringComparer]::Ordinal
+        )
+        foreach ($pool in @($EligibleActorPools | Where-Object {
+            [string]$_.slotName -ceq [string]$slotName
+        })) {
+            foreach ($candidate in @($pool.candidates | Sort-Object `
+                candidateOrder, entityName)) {
+                $entityName = [string]$candidate.entityName
+                if ([string]::IsNullOrWhiteSpace($entityName) -or
+                    -not $knownEntities.Add($entityName)) { continue }
+                $candidates.Add([pscustomobject][ordered]@{
+                    candidateOrder = [int]$candidate.candidateOrder
+                    entityName = $entityName
+                    entityGuid = [string]$candidate.entityGuid
+                    soulGuid = [string]$candidate.soulGuid
+                    dialogueRole = $slotDialogueRoles[$semanticRole]
+                })
+            }
+        }
+        if ($candidates.Count -gt 0) {
+            $actorPools[$semanticRole] = $candidates.ToArray()
+        }
+    }
     return [pscustomobject][ordered]@{
         caseCode = [int]$Story.caseCode
         storyId = [string]$Story.storyId
@@ -1031,6 +981,7 @@ function ConvertTo-CaseKitKcd2SettlementBinding {
         nativeVariantIds = @($coveredVariants |
             ForEach-Object { [string]$_.variantId })
         roles = [pscustomobject]$roles
+        actorPools = [pscustomobject]$actorPools
     }
 }
 
@@ -1116,6 +1067,12 @@ function ConvertTo-CaseKitKcd2BackendInput {
             $settlementBindings.Add((ConvertTo-CaseKitKcd2SettlementBinding `
                 -Story $story -StoryAdapter $storyAdapter `
                 -Adapter $Adapter -Variants $groupVariants `
+                -EligibleActorPools @($CompiledDefinitions.eligibleActorPools |
+                    Where-Object {
+                        [string]$_.storyId -ceq $storyId -and
+                        [string]$_.region -ceq $region -and
+                        [string]$_.settlement -ceq $settlement
+                    }) `
                 -SettlementProfile $profile))
         }
     }
@@ -1136,12 +1093,9 @@ function ConvertTo-CaseKitKcd2BackendInput {
             $property = $binding.roles.PSObject.Properties[$semanticRole]
             if ($null -ne $property) { $actorBindings.Add($property.Value) }
         }
-        $overheard = $binding.roles.PSObject.Properties['overheard']
-        if ($null -ne $overheard) {
-            foreach ($pair in @($overheard.Value.pairs)) {
-                foreach ($speaker in @($pair.speakers)) {
-                    $actorBindings.Add($speaker)
-                }
+        foreach ($pool in @($binding.actorPools.PSObject.Properties)) {
+            foreach ($candidate in @($pool.Value)) {
+                $actorBindings.Add($candidate)
             }
         }
         foreach ($actorBinding in $actorBindings) {
@@ -1154,8 +1108,7 @@ function ConvertTo-CaseKitKcd2BackendInput {
             }
             $dialogueRoleDefinitions.Add([pscustomobject][ordered]@{
                 name = $roleName
-                roleId = Get-CaseKitKcd2ActorDialogueRoleId `
-                    -EntityName $entityName
+                roleId = Get-CaseKitKcd2SlotDialogueRoleId -RoleName $roleName
                 metaRole = 'NPC'
             })
         }
@@ -1175,6 +1128,5 @@ function ConvertTo-CaseKitKcd2BackendInput {
 Export-ModuleMember -Function @(
     'ConvertTo-CaseKitKcd2BackendInput',
     'ConvertTo-CaseKitKcd2GuidancePresentation',
-    'ConvertTo-CaseKitKcd2OverheardScenes',
     'Read-CaseKitKcd2Adapter'
 )

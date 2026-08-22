@@ -73,16 +73,37 @@
 - Create: `H:\KCD2Mod\DialogueMediaKit\tests\test_omnivoice.py`
 - Create: `H:\KCD2Mod\DialogueMediaKit\tests\integration\test_omnivoice_api.py`
 
-1. Write RED tests for cache invalidation by text, reference hash/transcript,
-   provider settings and tool version; cached output must skip the provider.
+1. Write RED tests for stage-separated cache invalidation by text, reference
+   hash/transcript, provider settings and tool version; an audio cache hit must
+   skip OmniVoice even when later-stage versions change.
 2. Port the proven Gradio `/_clone_fn` contract behind a provider interface and
    emit stable `OMNIVOICE_FAILED` diagnostics.
-3. Run unit tests with a fake provider; expect PASS.
-4. When OmniVoice is running, execute the opt-in real API test and save only
+3. Add atomic sidecars with output hashes plus explicit `--force`; mere file
+   existence must not count as a hit.
+4. Run unit tests with a fake provider; expect PASS.
+5. When OmniVoice is running, execute the opt-in real API test and save only
    generated fixtures/results, never vanilla references.
-5. Commit Task 4.
+6. Commit Task 4.
 
-### Task 5: Native phoneme-to-facial proof
+### Task 5: KCD2 NPC voice discovery
+
+**Files:**
+- Create: `H:\KCD2Mod\DialogueMediaKit\src\dialogue_media_kit\adapters\kcd2\voice_discovery.py`
+- Create: `H:\KCD2Mod\DialogueMediaKit\src\dialogue_media_kit\adapters\kcd2\subtitle_index.py`
+- Create: `H:\KCD2Mod\DialogueMediaKit\tests\integration\test_kcd2_voice_discovery.py`
+
+1. Write RED fixtures joining actor entity/soul metadata to native voice prefix,
+   vanilla dialogue asset paths and exact English subtitles.
+2. Implement read-only PAK/index discovery and deterministic clean-source
+   ranking; extracted originals remain untouched.
+3. Build 20-30-second catalog references for Henry, Beta and one additional
+   eligible NPC without manually supplying their audio filenames.
+4. Prove roles with several reachable candidates emit only their distinct voice
+   profiles; unresolved/insufficient voices produce exclusion diagnostics and
+   never use a generic fallback.
+5. Run real retail archive/index integration tests and commit Task 5.
+
+### Task 6: Native phoneme-to-facial proof
 
 **Files:**
 - Create: `H:\KCD2Mod\DialogueMediaKit\src\dialogue_media_kit\providers\annosoft.py`
@@ -105,7 +126,7 @@
 5. Do not advance if Henry or Beta output has no mouth/jaw controller motion.
 6. Commit the proven male/female facial adapter.
 
-### Task 6: Official RC, DBA, IMG and PAK adapters
+### Task 7: Official RC, DBA, IMG and PAK adapters
 
 **Files:**
 - Create: `H:\KCD2Mod\DialogueMediaKit\src\dialogue_media_kit\adapters\kcd2\resource_compiler.py`
@@ -122,7 +143,7 @@
 4. Run the real boundary suite; expect zero missing or duplicate assets.
 5. Commit Task 6.
 
-### Task 7: Sixteen-line acceptance build
+### Task 8: Sixteen-line acceptance build
 
 **Files:**
 - Create: `H:\KCD2Mod\DialogueMediaKit\tests\fixtures\missing-traveler\dialogue-media-jobs.json`
@@ -140,7 +161,7 @@
 5. Run the full acceptance test and relevant Dark Passenger build tests.
 6. Commit Task 7.
 
-### Task 8: Cold retail proof and documentation
+### Task 9: Cold retail proof and documentation
 
 **Files:**
 - Create: `H:\KCD2Mod\DialogueMediaKit\README.md`
@@ -160,4 +181,4 @@
 ## Unresolved questions
 
 - Exact production phoneme-to-controller mapping must be derived and proven in
-  Task 5; the current one-line Beta canary proves lookup/packaging only.
+  Task 6; the current one-line Beta canary proves lookup/packaging only.

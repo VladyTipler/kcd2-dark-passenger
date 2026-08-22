@@ -53,14 +53,10 @@ $rumorPath = Join-Path $dialogRoot `
     'dpcase2001_trosecko_zelejov_innkeeper_missing_traveler_dialog_t.xml'
 $witnessPath = Join-Path $dialogRoot `
     'dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t.xml'
-$overheardPath = Join-Path $dialogRoot `
-    'dpcase2001_trosecko_zelejov_inn_yard_primary_overheard_missing_traveler_dialog_t.xml'
 $rumorPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
     -Filter 'dpcase2001_trosecko_*_innkeeper_missing_traveler_dialog_t.xml')
 $witnessPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
     -Filter 'dpcase2001_trosecko_*_stablehand_missing_traveler_dialog_t.xml')
-$overheardPaths = @(Get-ChildItem -LiteralPath $dialogRoot `
-    -Filter 'dpcase2001_trosecko_*_overheard_missing_traveler_dialog_t.xml')
 $stormPath = Join-Path $stageRoot `
     'Data\Libs\Storm\roles\quests\darkpassengertest.xml'
 $contextPath = Join-Path $stageRoot `
@@ -84,7 +80,6 @@ foreach ($path in @(
     $questPath,
     $rumorPath,
     $witnessPath,
-    $overheardPath,
     $stormPath,
     $contextPath,
     $itemPath,
@@ -100,14 +95,12 @@ foreach ($path in @(
 }
 Add-Result (
     $rumorPaths.Count -eq 2 -and
-    $witnessPaths.Count -eq 2 -and
-    $overheardPaths.Count -eq 3
-) 'regional bundle emits isolated Missing Traveler dialogues per settlement and speaker pair'
+    $witnessPaths.Count -eq 2
+) 'regional bundle emits isolated Missing Traveler actor dialogues per settlement'
 
 $quest = Read-OptionalText $questPath
 $rumor = Read-OptionalText $rumorPath
 $witness = Read-OptionalText $witnessPath
-$overheard = Read-OptionalText $overheardPath
 $storm = Read-OptionalText $stormPath
 $contexts = Read-OptionalText $contextPath
 $items = Read-OptionalText $itemPath
@@ -125,38 +118,35 @@ Add-Result (
     $quest.Contains(
         '<Definition File="dark_within_t/dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t.xml" />'
     ) -and
-    $quest.Contains(
-        '<Definition File="dark_within_t/dpcase2001_trosecko_zelejov_inn_yard_primary_overheard_missing_traveler_dialog_t.xml" />'
-    ) -and
     $quest.Contains('<dpcase2001_trosecko_troskovice_innkeeper_missing_traveler_dialog_t Name="case2001_troskoviceInnkeeperRumorDialog">') -and
     $quest.Contains('<dpcase2001_trosecko_zelejov_stablehand_missing_traveler_dialog_t Name="case2001_zelejovTavernWitnessDialog">')
 ) 'universal Trosky quest consumes every settlement-scoped dialogue'
 Add-Result (
     $quest.Contains('dp_rumor_heard_trosecko') -and
     $quest.Contains('dp_witness_heard_trosecko') -and
-    $quest.Contains('Name="Directions2102_2103"') -and
-    $quest.Contains('Name="Directions2102"') -and
-    $quest.Contains('Name="Directions2103"') -and
+    $quest.Contains('Name="Evidence2101LedgerUnknown"') -and
+    $quest.Contains('Name="Evidence2101LedgerKnown"') -and
+    $quest.Contains('Name="Evidence2102Default"') -and
     -not $quest.Contains('Name="witnessVisual"') -and
     -not $quest.Contains('TypeT="DP_WitnessProgress"')
 ) 'universal Trosky graph carries one finite umbrella evidence objective'
 Add-Result (
     $quest.Contains('Value="37"') -and
-    $quest.Contains('Value="40"') -and
-    $quest.Contains('dp_case_2001_directions_2102_2103')
+    $quest.Contains('Value="42"') -and
+    $quest.Contains('dp_case_2001_journal_ledger')
 ) 'quest graph consumes deterministic Lua presentation signals'
 
 Add-Result (
-    $rumor -match 'Role="DP_ACTOR_[0-9A-F]{24}"' -and
+    $rumor -match 'Role="DP_SLOT_[0-9A-F]{24}"' -and
     $rumor.Contains('StringName="dp_mt_rumor_prompt"') -and
     $rumor.Contains('StringName="dp_mt_rumor_innkeeper_matej"') -and
     $rumor.Contains('<Port Name="variant_unread_ledger" Direction="In" Type="bool">') -and
     $rumor.Contains('<Port Name="variant_ledger_discovered" Direction="In" Type="bool">') -and
     $rumor.Contains(
-        'EntryCondition="Port(''available'') AND Port(''variant_unread_ledger'')"'
+        'EntryCondition="Port(''available'') AND Port(''actor_selected'') AND Port(''variant_unread_ledger'')"'
     ) -and
     $rumor.Contains(
-        'EntryCondition="Port(''available'') AND Port(''variant_ledger_discovered'')"'
+        'EntryCondition="Port(''available'') AND Port(''actor_selected'') AND Port(''variant_ledger_discovered'')"'
     ) -and
     $rumor.Contains('StringName="dp_mt_rumor_found_henry_hand"') -and
     ([regex]::Matches($rumor, '<Port Name="heard" />')).Count -eq 2
@@ -170,20 +160,17 @@ Add-Result (
     $quest.Contains('To="variant_ledger_discovered"')
 ) 'universal quest projects compiled variant signals into FaderDialog ports'
 Add-Result (
-    $witness -match 'Role="DP_ACTOR_[0-9A-F]{24}"' -and
+    $witness -match 'Role="DP_SLOT_[0-9A-F]{24}"' -and
+    $witness.Contains(
+        'EntryCondition="Port(''available'') AND Port(''actor_selected'')"'
+    ) -and
     $witness.Contains('StringName="dp_mt_witness_prompt"') -and
     $witness.Contains('StringName="dp_mt_witness_bretislav_point"')
 ) 'generated witness dialogue uses settlement actor role and authored keys'
 Add-Result (
-    $overheard.Contains('<Dialogue Type="ingame"') -and
-    $overheard.Contains('Initiator="NonPlayer"') -and
-    $overheard.Contains('<Port Name="clue_spoken" />')
-) 'generated overheard evidence uses the native ingame dialogue boundary'
-
-Add-Result (
     $storm.Contains('<hasName name="tzel_vavrinec" />') -and
     $storm.Contains('<hasName name="tzel_bretislav" />') -and
-    ([regex]::Matches($storm, '<addRole name="DP_ACTOR_[0-9A-F]{24}" />')).Count -ge 4
+    ([regex]::Matches($storm, '<addRole name="DP_SLOT_[0-9A-F]{24}" />')).Count -ge 4
 ) 'Storm binds settlement actors to isolated dialogue roles'
 Add-Result (
     $contexts.Contains(
@@ -191,9 +178,6 @@ Add-Result (
     ) -and
     $contexts.Contains(
         '<ScriptContextDatabaseNode Name="dp_witness_heard_trosecko" Class="Entity" />'
-    ) -and
-    $contexts.Contains(
-        '<ScriptContextDatabaseNode Name="dp_overheard_clue_spoken_trosecko" Class="Entity" />'
     )
 ) 'generated ScriptContext table exposes all Trosky evidence bridges'
 Add-Result (
@@ -219,9 +203,7 @@ foreach ($localization in @(
         $localization.Text.Contains('<Cell>dp_mt_witness_prompt</Cell>') -and
         $localization.Text.Contains('<Cell>dp_mt_ledger_content</Cell>') -and
         $localization.Text.Contains('&lt;p&gt;') -and
-        $localization.Text.Contains(
-            '<Cell>dp_case_2001_directions_2102_2103</Cell>'
-        )
+        $localization.Text.Contains('<Cell>dp_case_2001_journal_ledger</Cell>')
     ) "$($localization.Language) generated localization contains all content families"
 }
 Add-Result (
@@ -248,12 +230,12 @@ Add-Result (
     $catalog.Contains('occupation = "farmhand"')
 ) 'runtime catalog carries localized witness identity metadata'
 Add-Result (
-    $catalog.Contains('direction_code = 1') -and
-    $catalog.Contains('direction_code = 2') -and
+    $catalog.Contains('journal_entries') -and
+    $catalog.Contains('key = "dp_case_2001_journal_ledger"') -and
     $catalog.Contains('journal_states') -and
-    $catalog.Contains('state_name = "Directions2102_2103"') -and
+    $catalog.Contains('state_name = "Evidence2102Default"') -and
     $catalog.Contains('signal_tag = 40')
-) 'runtime catalog and quest share finite journal-state identity'
+) 'runtime catalog and quest share authored evidence-journal identity'
 Add-Result (
     $catalog.Contains('dialogue_variants') -and
     $catalog.Contains('evidence_id = "zelejov_innkeeper_missing_traveler"') -and
@@ -264,11 +246,11 @@ Add-Result (
     $catalog.Contains('signal_tag = 70')
 ) 'runtime catalog carries finite dialogue-variant selectors'
 Add-Result (
-    $buffTags.Contains('buff_ai_tag_id="37" buff_ai_tag_name="dp_lead_state_0"') -and
-    $buffTags.Contains('buff_ai_tag_id="40" buff_ai_tag_name="dp_lead_state_3"') -and
-    $buffs.Contains('buff_name="dp_lead_state_0"') -and
-    $buffs.Contains('buff_name="dp_lead_state_3"')
-) 'build generates hidden persistent lead-state signal buffs'
+    $buffTags.Contains('buff_ai_tag_id="37" buff_ai_tag_name="dp_journal_state_0"') -and
+    $buffTags.Contains('buff_ai_tag_id="40" buff_ai_tag_name="dp_journal_state_3"') -and
+    $buffs.Contains('buff_name="dp_journal_state_0"') -and
+    $buffs.Contains('buff_name="dp_journal_state_3"')
+) 'build generates hidden persistent authored journal-state signal buffs'
 Add-Result (
     $buffTags.Contains(
         'buff_ai_tag_id="69" buff_ai_tag_name="dp_dialogue_variant_0"'

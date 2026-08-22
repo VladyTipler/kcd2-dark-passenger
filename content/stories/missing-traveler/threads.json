@@ -36,7 +36,7 @@
               "content": {
                 "prompt": "dialogue.rumor.foundPrompt",
                 "responses": ["dialogue.rumor.foundInnkeeperBoguslav"],
-                "journal": "journal.rumor"
+                "journal": "journal.rumorAfterLedger"
               }
             }
           ],
@@ -121,15 +121,20 @@
         "requiresFacts": [],
         "directionAsset": "direction.overheard"
       },
-      "entryStepIds": ["overhear-argument"],
+      "entryStepIds": ["listen-for-rumors"],
       "steps": [
         {
-          "id": "overhear-argument",
+          "id": "listen-for-rumors",
           "kind": "lead",
           "action": {
-            "evidenceModule": "overheard-dialogue",
-            "activation": {"mode": "interaction"},
-            "bindings": {"speakerA": "gossipSourceA", "speakerB": "gossipSourceB"}
+            "evidenceModule": "timed-area-listening",
+            "activation": {
+              "mode": "timed-area-action",
+              "availableFromHour": 10,
+              "availableUntilHour": 22,
+              "durationHours": 2
+            },
+            "bindings": {}
           },
           "guidance": [
             {
@@ -138,7 +143,7 @@
                 "kind": "area",
                 "slot": "settlement",
                 "areaSelection": "smallest-common",
-                "anchorSlots": ["gossipSourceA", "gossipSourceB"]
+                "anchorSlots": ["rumorSource", "witness"]
               },
               "precision": "area",
               "objective": {
@@ -156,7 +161,9 @@
               "id": "default",
               "when": {"allKnown": [], "allUnknown": []},
               "content": {
-                "responses": ["dialogue.overheard.goneByDawn"],
+                "prompt": "action.listen.prompt",
+                "progress": "action.listen.progress",
+                "unavailable": "action.listen.unavailable",
                 "journal": "journal.overheard"
               }
             }
